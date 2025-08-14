@@ -29,7 +29,7 @@ path_filter = "../data/support_data/filters/sdss_r_005_syn.fits"
 pixel_size = 3.76 # micron / pix
 #read_noise = 1.5 # CHECK
 #dark_current = 0.01 # CHECK
-#gain_setting = 100 # 0.1 db
+gain_setting = 100 # 0.1 db
 sensor_temp = 0.0 # C
 sensor_area = 864 # mm2: (36 mm * 24mm = 864 mm2)
 path_dark_current = "../data/support_data/sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Dark_Current_vs_Sensor_Temperature.csv"
