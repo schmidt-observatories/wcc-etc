@@ -47,8 +47,8 @@ class WCCETC(object):
         self.surf_area = np.pi * (0.5 * self.diameter_primary) ** 2
         self.focal_len = self.diameter_primary * self.f_num
         self.gain_setting = self.config['detector']['gain_setting']
-        self.read_noise = self.config['detector']['read_noise']
-        self.dark_current = self.config['detector']['dark_current']
+        self.read_noise = None #self.config['detector']['read_noise']
+        self.dark_current = None # self.config['detector']['dark_current']
         self.pixel_size = self.config['detector']['pixel_size'] * u.um/u.pix
         self.plate_scale = (self.pixel_size.value * 1e-6 /self.diameter_primary.value / self.f_num * 206265) # arcsec/pix
         self.path_qe = self.config['detector']['path_qe']
@@ -391,9 +391,12 @@ class WCCETC(object):
 
     def set_background(self, background_file, support_data_path=None,  plot=False):
         """
-        Set background
+        Set background spectrum from a file
 
         INPUT:
+            background_file - filename of .fits file
+            support_data_path - path to support data files
+            plot - True/False
 
         """
 
@@ -419,7 +422,7 @@ class WCCETC(object):
             plot - True/False
 
         OUTPUT:
-            source_counts
+            count_rate_e_per_s
             background_counts
 
         NOTES:
@@ -432,6 +435,7 @@ class WCCETC(object):
                 except:
                     print("Error: Could not calculate Background magnitude.")
                     exit()
+            print('No background Mag provided, using Zodi background ({} mag)'.format(self.bg_magnitude))
             bg_flux = self.bg_magnitude
 
         # Add Source
@@ -464,8 +468,8 @@ class WCCETC(object):
             self.sp_obs.plot(title='Source')
 
         # Get countrate for observation
-        source_counts = self.sp_obs.countrate(area=self.surf_area) * u.electron/u.ct
-        self.source_counts = source_counts    #    Makes the counts in units of e/s
+        self.count_rate_e_per_s = self.sp_obs.countrate(area=self.surf_area) * u.electron/u.ct #   e/s
+        self.count_rate_ADU_per_s = self.count_rate_e_per_s / self.gain  #   ADU/s
 
         # Add Background
         # Background needs to be normalized in the Johnson V band
@@ -483,40 +487,85 @@ class WCCETC(object):
             bg_obs.plot(title='Background')
 
         # Get countrate for observation
-        background_counts = bg_obs.countrate(area=self.surf_area)* u.electron/u.ct
-        self.sky_counts = background_counts
+        self.sky_counts_e_per_s = bg_obs.countrate(area=self.surf_area)* u.electron/u.ct # e/s
+        self.sky_counts_ADU_per_s = self.sky_counts_e_per_s / self.gain  # ADU/s   
 
         if verbose:
-            print('Source Counts: {}'.format(self.source_counts))
-            print('Background Counts: {}'.format(self.sky_counts))
+            print('Source Counts: {}e/s'.format(self.count_rate_e_per_s))
+            print('Source Counts: {}ADU/s'.format(self.count_rate_ADU_per_s))
+            print('Background Counts: {}e/s'.format(self.sky_counts_e_per_s))
+            print('Background Counts: {}ADU/s'.format(self.sky_counts_ADU_per_s))
 
-        return source_counts, background_counts
+        return self.count_rate_e_per_s, self.sky_counts_e_per_s
 
     def calc_saturation_time(self):
         """
-        # Calculates the time for any one pixel on a sensor to completely fill it's well-depth.
+        Calculates the time for any one pixel on a sensor to completely fill it's well-depth.
 
         NOTES:
-        # NOTE: Requires setting of source and/or background and performing 'make_observation'
+            Requires setting of source and/or background and performing 'make_observation'
         """
-        return self.well_depth / ( (self.source_counts / self.num_psf_pixels) + (self.sky_counts / self.num_psf_pixels) )
+        return self.well_depth / ( (self.count_rate_e_per_s / self.num_psf_pixels) + (self.sky_counts_e_per_s / self.num_psf_pixels) )
 
     def calc_SNR(self, int_time, exp_time):
         """
+        *** NOTE- Does not correctly account for gain ***
+
         Calculate SNR for a given total integration time with set frame exposure times
 
         INPUT:
-            int_time - 
-            exp_time - ??
+            int_time - total integration time in seconds NOTE
+            exp_time - frame time
 
         NOTES:
-            # NOTE: Requires setting of source and/or background and performing 'make_observation'
+            Requires setting of source and/or background and performing 'make_observation'
+            *** NOTE- Does not correctly account for gain ***
+            see calc_SNR_one_frame_with_gain 
         """
-
-        total_noise = sqrt(self.source_counts*int_time + self.sky_counts*int_time + (self.dark_current + self.read_noise*self.read_noise/exp_time)*int_time*self.num_psf_pixels)
-        snr = self.source_counts*int_time / total_noise
-
+        total_noise = np.sqrt(self.count_rate_e_per_s*int_time + self.sky_counts_e_per_s*int_time + (self.dark_current + self.read_noise*self.read_noise/exp_time)*int_time*self.num_psf_pixels)
+        print(total_noise)
+        snr = self.count_rate_e_per_s*int_time / total_noise
         return snr.value
+
+    def calc_SNR_one_frame_with_gain(self, exp_time):
+        """
+        Calculate SNR for a given frame exposure time with gain applied
+
+        INPUT:
+            exp_time - exposure time in seconds
+
+        NOTES:
+            NOTE: Requires setting of source and/or background and performing 'make_observation'
+        """
+        print('Calculating SNR for one frame with gain applied')
+        gain = self.gain.value
+        # noise
+        n_pix = self.num_psf_pixels.value
+        n_b = n_pix * 100000  # assuming background is well known
+        signal = self.count_rate_e_per_s.value*exp_time
+        noise = np.sqrt( signal + n_pix *((1. + n_pix/n_b) * (self.sky_counts_e_per_s.value*exp_time + self.dark_current.value*exp_time + self.read_noise.value**2.  )) )
+        print(noise)
+        snr = signal / noise
+        ## ADU
+        #noise_ADU = phot_error(star_ADU = self.count_rate_ADU_per_s.value*exp_time,
+        #                       n_pix = self.num_psf_pixels.value,
+        #                       n_b = self.num_psf_pixels.value*100000, # assuming background is well known
+        #                       sky_ADU = self.sky_counts_ADU_per_s.value*exp_time,
+        #                       dark = self.dark_current.value*exp_time,
+        #                       read = self.read_noise.value,
+        #                       gain = self.gain.value)
+        #signal_ADU = self.count_rate_ADU_per_s.value*exp_time
+        # e
+        #noise_ADU = phot_error(star_ADU = self.count_rate_e_per_s.value*exp_time,
+        #                       n_pix = self.num_psf_pixels.value,
+        #                       n_b = self.num_psf_pixels.value*100000, # assuming background is well known
+        #                       sky_ADU = self.sky_counts_e_per_s.value*exp_time,
+        #                       dark_ADU = self.dark_current.value*exp_time/gain,
+        #                       read_ADU = self.read_noise.value/np.sqrt(gain),
+        #                       gain = self.gain.value)
+        #signal_ADU = self.count_rate_e_per_s.value*exp_time/gain
+        #snr = signal_ADU / noise_ADU
+        return snr
     
     def calc_int_time(self, snr, exp_time):
         """
@@ -526,12 +575,31 @@ class WCCETC(object):
             # NOTE: Requires setting of source and/or background and performing 'make_observation'
         """
         
-        snr = snr * sqrt(1.0 * u.ct)  # to ensure units match
-        A = ((self.source_counts/snr)**2) * exp_time
-        B = self.source_counts*exp_time + self.sky_counts*exp_time + ( self.dark_current*exp_time + self.read_noise*self.read_noise)*self.num_psf_pixels
+        snr = snr * np.sqrt(1.0 * u.ct)  # to ensure units match
+        A = ((self.count_rate_e_per_s/snr)**2) * exp_time
+        B = self.count_rate_e_per_s*exp_time + self.sky_counts_e_per_s*exp_time + ( self.dark_current*exp_time + self.read_noise*self.read_noise)*self.num_psf_pixels
         int_time = B/A
 
         return int_time * u.electron / u.ct
+
+def phot_error(star_ADU,n_pix,n_b,sky_ADU,dark,read,gain=1.0):
+    """
+    Photometric error
+
+    INPUT:
+        star_ADU - ADU counts from the star
+        n_pix - number of pixels in the aperture
+        n_b - number of background pixels
+        sky_ADU - ADU counts from the sky
+        dark_ADU - ADU counts from the dark current
+        read_ADU - ADU counts from the read noise
+        gain - gain of the detector (default is 1.0) in e/ADU
+
+    OUTPUT:
+        noise - calculated noise in ADU counts
+    """
+    noise = np.sqrt( gain*star_ADU + n_pix *((1. + n_pix/n_b) * (gain*sky_ADU + dark + read**2. + (gain*0.289)**2. )) )/gain
+    return noise
 
 def calculate_bg_normalization_magnitude(bg_surface_brightness, psf_area):
     """
