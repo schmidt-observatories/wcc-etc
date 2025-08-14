@@ -1,0 +1,7 @@
+These are the SDSS filters as downloaded using Synphot. 
+
+The start and end wavelengths can be compared against the SDSS throughput at https://classic.sdss.org/dr3/instruments/imager/filters/z.dat
+
+The 'z.dat' file can be replaced for 'g.dat', 'r.dat' and 'i.dat' for the corresponding filters. Since synphot resamples the spectral throughput, the end points of the filters can be compared directly. 
+
+The files can be individually downloaded from https://ssb.stsci.edu/trds/comp/nonhst/

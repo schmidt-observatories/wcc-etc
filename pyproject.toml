@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm", "wheel"]
+build-backend = "setuptools.build_meta" 
+
+[project]
+name = "wcc_etc"
+version = "0.0.1"
+authors = [
+  {name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org"}
+]
+maintainers = [
+  {name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org"}
+]
+description = "Exposure Time Calculator for the WCC."
+readme = "README.md"
+license = { text = "GNU GENERAL PUBLIC LICENSE - Version 3" }
+requires-python = ">=3.12"
+dependencies = [
+    "synphot",
+    "numpy",
+    "astropy",
+    "matplotlib",
+    "pandas",
+]
+
+
+[project.urls]
+Homepage = "https://github.com/schmidt-observatories/wcc-etc"
+Repository = "https://github.com/schmidt-observatories/wcc-etc"
+
+[tool.setuptools]
+packages = ["wcc_etc"]
+package-dir = { "" = "src" }
+include-package-data = true
+
+
+
+[tool.pytest.ini_options]
+testpaths = [
+	"tests",
+]
+
+
