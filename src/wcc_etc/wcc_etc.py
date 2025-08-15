@@ -435,7 +435,7 @@ class WCCETC(object):
                 except:
                     print("Error: Could not calculate Background magnitude.")
                     exit()
-            print('No background Mag provided, using Zodi background ({} mag)'.format(self.bg_magnitude))
+            print('No background Mag provided, using Zodi background ({:0.3f} mag, {:.1f}mag/arc2)'.format(self.bg_magnitude,self.bg_surface_brightness))
             bg_flux = self.bg_magnitude
 
         # Add Source
