@@ -38,7 +38,7 @@ class WCCETC(object):
         """
         # Load telescope configuration
         self.tel_config = self.config['telescope']
-        self.bandpass = SpectralElement(Box1D, amplitude=1, x_0=6000, width=7000)
+        self.bandpass = SpectralElement(Box1D, amplitude=1, x_0=10000, width=16000)
         self.qe_curves = []
         self.filters = []
         self.num_mirrors = 0
@@ -46,9 +46,16 @@ class WCCETC(object):
         self.diameter_primary = self.config['telescope']['diameter_primary'] * u.m
         self.surf_area = np.pi * (0.5 * self.diameter_primary) ** 2
         self.focal_len = self.diameter_primary * self.f_num
-        self.gain_setting = self.config['detector']['gain_setting']
-        self.read_noise = None #self.config['detector']['read_noise']
-        self.dark_current = None # self.config['detector']['dark_current']
+        try:
+            self.gain_setting = self.config['detector']['gain_setting']
+            self.read_noise = None 
+            self.dark_current = None 
+        except KeyError:
+            print("Warning: 'gain_setting', 'read_noise', or 'dark_current' not found in config. Using gain, dark-current from TOML file directly")
+            self.gain_setting = None
+            self.gain = self.config['detector']['gain'] * (u.electron / u.ct)  # Gain in e-/ct
+            self.read_noise = self.config['detector']['read_noise']
+            self.dark_current = self.config['detector']['dark_current']
         self.pixel_size = self.config['detector']['pixel_size'] * u.um/u.pix
         self.plate_scale = (self.pixel_size.value * 1e-6 /self.diameter_primary.value / self.f_num * 206265) # arcsec/pix
         self.path_qe = self.config['detector']['path_qe']
@@ -146,28 +153,22 @@ class WCCETC(object):
         self.bandpass *= bp
 
         if plot==True:
-            if ax is None:
-                fig, ax = plt.subplots()
-            w, y = bp._get_arrays(None)
-            ax.plot(w,y,label='QE')
-            ax.set_xlabel('Wavelength ({})'.format(wave_unit))
-            ax.set_ylabel('Quantum Efficiency')
-            ax.set_title('Quantum Efficiency')
+            bp.plot()
+            #if ax is None:
+            #    fig, ax = plt.subplots()
+            #w, y = bp._get_arrays(None)
+            #ax.plot(w,y,label='QE')
+            #ax.set_xlabel('Wavelength ({})'.format(wave_unit))
+            #ax.set_ylabel('Quantum Efficiency')
+            #ax.set_title('Quantum Efficiency')
 
-    def add_sensor(self, num_curves=1
-                    , gain_setting= None #100  # (0.1 dB)
-                    , sensor_temp = None #0 * u.Celsius
-                    , sensor_area = None
-                    , sensor_pixel_size = None
-                    , gain = None
-                    , dark_current = None
-                    , read_noise = None
-                    , well_depth = None
-                    , sensor_toml = None
-                    , support_data_path=None
-                    , plot=False
-                    , plot_title="Sensor"
-                    ):
+    def add_sensor(self, num_curves=1 , gain_setting= None #100  # (0.1 dB)
+                   , sensor_temp = None #0 * u.Celsius , sensor_area = None
+                   , sensor_pixel_size = None , gain = None
+                   , dark_current = None , read_noise = None
+                   , well_depth = None , sensor_toml = None
+                   , support_data_path=None , plot=False
+                   , plot_title="Sensor"):
             """
             Adding sensor
 
@@ -183,16 +184,32 @@ class WCCETC(object):
 
             # Adding gain
             gain_cols = ['gain_setting', 'gain']
-            self.gain = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_gain_curve']), gain_setting, gain_cols) * (u.electron / u.ct)
+            try:
+                self.gain = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_gain_curve']), gain_setting, gain_cols) * (u.electron / u.ct)
+            except Exception as e:
+                print(e)
+                self.gain = self.config['detector']['gain'] * (u.electron / u.ct)
 
             dark_current_cols = ['sensor_temperature', 'dark_current']
-            self.dark_current = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_dark_current']), sensor_temp, dark_current_cols) * (u.electron / (u.s * u.pix))
+            try:
+                self.dark_current = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_dark_current']), sensor_temp, dark_current_cols) * (u.electron / (u.s * u.pix))
+            except Exception as e:
+                print(e)
+                self.dark_current = self.config['detector']['dark_current'] * (u.electron / (u.s * u.pix))
 
             read_noise_cols = ['gain_setting', 'read_noise']
-            self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_read_noise']), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix)
+            try:
+                self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_read_noise']), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix)
+            except Exception as e:
+                print(e)
+                self.read_noise = self.config['detector']['read_noise'] * sqrt(1.0 * u.electron / u.pix)
 
             well_depth_cols = ['gain_setting', 'well_depth']
-            self.well_depth = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_well_depth']), gain_setting, well_depth_cols) * (u.electron / u.pix)
+            try:
+                self.well_depth = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_well_depth']), gain_setting, well_depth_cols) * (u.electron / u.pix)
+            except Exception as e:
+                print(e)
+                self.well_depth = self.config['detector']['well_depth'] * (u.electron / u.pix)
 
             self.add_qe_curve(self.path_qe, wave_unit='nm', num_curves=1, plot=plot)
 
@@ -263,7 +280,10 @@ class WCCETC(object):
         print('Surf Area:        {:20.2f}m2'.format(self.surf_area))
         print('')
         print('# Detector')
-        print('Gain Setting:     {:20.1f}'.format(self.gain_setting))
+        try:
+            print('Gain Setting:     {:20.1f}'.format(self.gain_setting))
+        except Exception as e:
+            print('Gain Setting:     {}'.format(''))
         print('Gain:             {:20.4f}'.format(self.gain))
         print('Sensor Area:      {:20.1f}mm2'.format(self.sensor_area))
         print('Pixel Size:       {:20.3f}'.format(self.pixel_size))

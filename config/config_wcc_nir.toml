@@ -1,0 +1,69 @@
+# config.toml
+# Configuration file for the WCC ETC
+
+#########################################################
+#########################################################
+# Telescope Parameters
+#########################################################
+[telescope]
+diameter_primary = 3.065 # m
+f_num = 15.0 # unitless
+# Mirror coatings
+path_m1_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
+path_m2_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
+path_m3_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
+path_m4_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
+# Filter choice
+#path_filter = "../data/support_data/filters/sdss_r_005_syn.fits"
+#path_filter = "../data/support_data/filters/SLOAN_SDSS.rprime_filter.txt"
+path_filter = "../data/support_data/filters/IRTF_NSFCam.J.txt"
+#path_filter = "../data/support_data/filters/sdss_i_005_syn.fits"
+#########################################################
+
+#########################################################
+#########################################################
+# Detector parameters
+# Notes: 
+# - Gain, dark, read and well-depth are all estimated 
+#   from interpolating the .csv tables using the 'gain_setting' parameter
+#########################################################
+[detector]
+pixel_size = 3.45 # micron / pix
+read_noise = 90.0 # sqrt(e/pix) CHECK, confirm units
+dark_current = 100.0 # e/s/pix CHECK, confirm units
+gain = 10.0 # e-/ADU
+well_depth = 30000.0 # e-/pix
+#gain_setting = 100 # 0.1 db
+sensor_temp = 0.0 # C
+sensor_area = 864 # mm2: (36 mm * 24mm = 864 mm2)
+#path_dark_current = "../data/support_data/sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Dark_Current_vs_Sensor_Temperature.csv"
+#path_gain_curve =   "../data/support_data/sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Gain_vs_Gain_Setting.csv"
+#path_read_noise =   "../data/support_data/sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Read_Noise_vs_Gain_Setting.csv"
+#path_well_depth =   "../data/support_data/sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Well_Depth_vs_Gain_Setting.csv"
+path_qe = "../data/support_data/sensors/sony_imx992/sony_qe_digitized.csv"
+#########################################################
+
+#########################################################
+#########################################################
+# Astrophysical Parameters
+#########################################################
+[zodi]
+zodi_mag_r=22.5 #  L3-0016 has v-band mag of 22.1. Need trace of where 22.5 originates from.
+#########################################################
+
+# Systematic error sources
+
+# 
+# Those two sources are not fully consistent, but I’d use the following:
+# HCG (high gain mode): 
+# -- gain: 10 e-/ADU;
+# -- full well capacity: 30k e-;
+# -- GS (single sampling read) noise: 90 e-;
+# -- DRRS (similar to correlated double sampling read mode, but it’s multi sampling yet not a non-distructive sample-up-the-ramp): 30 e-
+# LCG (low gain mode):
+# -- gain: 17e-/ADU
+# -- FWC: 50k e-;
+# -- GS noise: 180 e-; 
+# -- DRRS noise: 60e-
+#
+# Dark current: 100e-/pix/sec
