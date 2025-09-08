@@ -1,0 +1,1 @@
+The Pickles models have been taken from the STScI Pickles Atlas, described [here](https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/pickles-atlas).

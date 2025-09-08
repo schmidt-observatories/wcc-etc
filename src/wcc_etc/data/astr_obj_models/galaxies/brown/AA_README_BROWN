@@ -1,0 +1,153 @@
+The Brown Atlas contains 129 spectral energy distributions for nearby galaxies, with wavelength coverage spanning
+from the ultraviolet to the mid-infrared. The model spectra consists of a broad range of galaxy types, including
+ellipticals, spirals, merging galaxies, blue compact dwarfs, and luminous infrared galaxies. The models contain
+combined ground-based optical drift-scan spectrophotometry with infrared spectroscopy from Spitzer and Akari,
+with gaps in spectral coverage being filled using Multi-wavelength Analysis of Galaxy Physical Properties spectral
+energy distribution models. The spectroscopy and models were normalized, constrained, and verified by the authors
+with matched-aperture photometry measured from Swift, Galaxy Evolution Explorer, Sloan Digital Sky Survey,
+Two Micron All Sky Survey, Spitzer, and Wide-field Infrared Space Explorer images. The availability of 26
+photometric bands allowed the identification and mitigation systematic errors present in the data. Comparison of
+these spectral energy distributions with other template libraries and the observed colors of galaxies, indicates
+that the models have smaller systematic errors than existing atlases, while spanning a broader range of galaxy
+types.
+
+The FITS files contain the spectra in the form of restframe wavelength (Angstroms) and flux per unit
+wavelength (ergs/s/cm^2/Angstrom).
+
+Basic Properties of the Atlas
+
+Name               Morphology
+Arp 256 N            SB(s)c
+Arp 256 S            SB(s)b
+NGC 0337             SBd
+CGCG 436-030         Pec
+NGC 0474             (R)SA(s)0
+NGC 0520             Pec
+NGC 0584             E4
+NGC 0628             SAc
+NGC 0660             SB(s)a
+Zw III 035           Pec
+NGC 0695             S0
+NGC 0750             Pec
+NGC 0855             E
+NGC 1068             (R)SA(rs)b
+Arp 118              Pec
+NGC 1144             Pec
+NGC 1275             Pec
+NGC 1614             SB(s)c
+NGC 2388             Irr
+NGC 2403             SABcd
+NGC 2537             SB(s)m
+NGC 2623             Pec
+IRAS 08572+3915      Pec
+UGC 04881            Pec
+NGC 2798             SBa pec
+UGCA 166             Irr
+UGC 05101            Pec
+NGC 3049             SBab
+NGC 3079             SB(s)c
+UGCA 208             Pec
+NGC 3190             SAa pec
+NGC 3198             SBc
+NGC 3265             E
+Mrk 33               Im pec
+NGC 3310             SAB(r)bc
+NGC 3351             SBb
+NGC 3379             E0
+UGCA 219             Sc
+NGC 3521             SABbc
+NGC 3627             SABb
+IC 0691              Irr
+NGC 3690             Pec
+NGC 3773             SA0
+Mrk 1450             Irr
+UGC 06665            Sb
+NGC 3870             S0
+UM 461               Irr
+UGC 06850            Irr
+NGC 3938             SAc
+NGC 4088             SAB(rs)bc
+NGC 4125             E6 pec
+NGC 4138             SA(r)0
+NGC 4168             E
+NGC 4194             Pec
+Haro 06              Irr
+NGC 4254             SAc
+NGC 4321             SABbc
+NGC 4365             E
+NGC 4387             E
+NGC 4385             SB(rs)0
+NGC 4450             SAab
+NGC 4458             E
+NGC 4473             E
+NGC 4486             E
+NGC 4536             SABbc
+NGC 4550             E
+NGC 4551             E
+NGC 4552             E
+NGC 4559             SABcd
+NGC 4569             SABab
+NGC 4579             SABb
+NGC 4594             SAa
+NGC 4625             SABm pec
+NGC 4621             E
+NGC 4631             SBd
+NGC 4660             E
+NGC 4670             SB(s)0/a
+NGC 4676 A           Pec
+NGC 4725             SABab pec
+NGC 4826             SAab
+NGC 4860             E
+NGC 4889             E4
+IC 4051              E
+NGC 4926             E
+NGC 5033             SAc
+IC 0860              Sa
+UGC 08335 NW         Pec
+UGC 08335 SE         Pec
+NGC 5055             SAbc
+IC 0883              Pec
+NGC 5104             Sa
+NGC 5194             SABbc pec
+NGC 5195             SB0 pec
+NGC 5256             Pec
+NGC 5257             SAB(s)b
+NGC 5258             SA(s)b
+UGC 08696            Pec
+Mrk 1490             Sa
+NGC 5653             (R')SA(rs)b
+Mrk 0475             Irr
+NGC 5713             SABbc pec
+UGC 09618 S          Sc
+UGC 09618            Pec
+UGC 09618 N          Sb
+NGC 5866             S0
+CGCG 049-057         Irr
+NGC 5953             Sa
+IC 4553              Pec
+UGCA 410             Irr
+NGC 5992             SBb
+NGC 6052             Pec
+NGC 6090             Pec
+NGC 6240             Pec
+IRAS 17208-0014      Pec
+II Zw 096            Pec
+NGC 7331             SAb
+UGC 12150            SB0/a
+CGCG 453-062         Sab
+IC 5298              Pec
+NGC 7585             (R)SA(s)0
+NGC 7591             SBbc
+NGC 7592             Pec
+NGC 7673             (R')SAc
+NGC 7674             SA(r)bc
+NGC 7679             SB0
+Mrk 0930             Pec
+NGC 7714             SB(s)b
+NGC 7771             SB(s)a
+Mrk 0331             Sa
+
+
+
+References:
+Brown, M. J. I. et al. 2014, ApJS, 212, 18
