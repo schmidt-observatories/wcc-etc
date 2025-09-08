@@ -10,6 +10,7 @@ import pandas as pd
 from math import ceil, floor, log10
 import os
 import matplotlib.pyplot as plt
+from . import airy
 
 #   One line function prepends the support path to variable s2 if s1 is provided, else returns s2 as is.
 prepend_if_not_none = lambda s1, s2: f"{s1}{s2}" if s1 is not None else s2
@@ -38,7 +39,9 @@ class WCCETC(object):
         """
         # Load telescope configuration
         self.tel_config = self.config['telescope']
-        self.bandpass = SpectralElement(Box1D, amplitude=1, x_0=10000, width=16000)
+        #self.bandpass = SpectralElement(Box1D, amplitude=1, x_0=10000, width=16000)
+        # this is faster
+        self.bandpass = SpectralElement(Box1D, amplitude=1, x_0=6000, width=5000)
         self.qe_curves = []
         self.filters = []
         self.num_mirrors = 0
@@ -75,15 +78,34 @@ class WCCETC(object):
         print('Setting up WCC ETC with current configuration')
         # Here you can add any setup code that needs to be run
         # For example, you might want to initialize some variables or load some data
-        self.add_mirror(self.path_m1_coating, num_curves=1, wave_unit='nm', plot=plot, plot_title="AL")
-        self.add_mirror(self.path_m1_coating, num_curves=1, wave_unit='nm', plot=plot, plot_title="AL")
-        self.add_mirror(self.path_m1_coating, num_curves=1, wave_unit='nm', plot=plot, plot_title="AL")
-        self.add_mirror(self.path_m1_coating, num_curves=1, wave_unit='nm', plot=plot, plot_title="AL")
-        self.add_filter(self.path_filter,plot=plot)
+        #self.add_mirror(self.path_m1_coating, num_curves=1, wave_unit='nm', plot=plot, plot_title="AL")
+        #self.add_mirror(self.path_m2_coating, num_curves=1, wave_unit='nm', plot=plot, plot_title="AL")
+        #self.add_mirror(self.path_m3_coating, num_curves=1, wave_unit='nm', plot=plot, plot_title="AL")
+        #self.add_mirror(self.path_m4_coating, num_curves=1, wave_unit='nm', plot=plot, plot_title="AL")
+        #self.add_filter(self.path_filter,plot=plot)
+        #self.add_sensor(num_curves=1, plot=plot)
+        #self.add_qe_curve(self.path_qe, wave_unit='nm', num_curves=1, plot=plot)
+        #self.calc_PSF(wavelength=None, approx_type='sq', verbose=verbose)
+        #self.calc_PSF(wavelength=None, approx_type='c', verbose=verbose)
+        self.add_total_throughput(plot=plot, verbose=verbose)
         self.add_sensor(num_curves=1, plot=plot)
-        self.calc_PSF(wavelength=None, approx_type='sq', verbose=verbose)
         if verbose:
             self.describe()
+
+    def add_total_throughput(self,plot=True,verbose=True, plot_title="Final Throughput", wave_unit='nm'):
+        """
+        Read final throughput from a file
+        """
+        print('Reading total throughput from file')
+        self.path_total_throughput = self.config['telescope']['path_total_throughput']
+
+        bp = SpectralElement.from_file(self.path_total_throughput, wave_unit=wave_unit)
+
+        self.bandpass *= bp
+        
+        if plot==True:
+            self.bandpass.plot(title=plot_title)
+
 
     def calc_PSF(self, wavelength=None, approx_type='sq', verbose=True):
             """
@@ -117,7 +139,8 @@ class WCCETC(object):
                 elif n%2 == 1:  # n odd
                     L = int((n-1)/2)
                     sequence = [floor(1 + 0.5*sqrt(n**2 - 4*(y**2))) for y in list(range(1,L+1))]
-                    self.num_psf_pixels = 1 + 4 * sum(sequence) * (u.pix)
+                    #self.num_psf_pixels = 1 + 4 * sum(sequence) * (u.pix)
+                    self.num_psf_pixels = 1*u.pix + 4 * sum(sequence) * (u.pix)
     
             #   Total PSF Area = Area of 1 pixel (arcsecond * arcsecond)/pixel * num of pixels (pixels)
             #   Gives area in square arcseconds IF self.plate_scale is in arcseconds/pixel
@@ -199,7 +222,8 @@ class WCCETC(object):
 
             read_noise_cols = ['gain_setting', 'read_noise']
             try:
-                self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_read_noise']), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix)
+                self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_read_noise']), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix) * 2
+                print(f"Read noise: {self.read_noise}")
             except Exception as e:
                 print(e)
                 self.read_noise = self.config['detector']['read_noise'] * sqrt(1.0 * u.electron / u.pix)
@@ -211,7 +235,7 @@ class WCCETC(object):
                 print(e)
                 self.well_depth = self.config['detector']['well_depth'] * (u.electron / u.pix)
 
-            self.add_qe_curve(self.path_qe, wave_unit='nm', num_curves=1, plot=plot)
+            #self.add_qe_curve(self.path_qe, wave_unit='nm', num_curves=1, plot=plot)
 
 
     def add_mirror(self, mirror_qe_fits_file, num_curves=1 ,wave_unit='nm', support_data_path=None, plot=False,plot_title="Mirror"):
@@ -293,7 +317,7 @@ class WCCETC(object):
         print('Well depth:       {:20.1f}'.format(self.well_depth))
         print('# Other')
         print('Plate Scale:      {:20.3f}'.format(self.plate_scale))
-        print('Num PSF Pixels:   {:20.1f}'.format(self.num_psf_pixels))
+        #print('Num PSF Pixels:   {:20.1f}'.format(self.num_psf_pixels))
         #print('Jitter RMS:       {}'.format(self.jitter_rms))
         print('###################################################')
 
@@ -419,7 +443,6 @@ class WCCETC(object):
             plot - True/False
 
         """
-
         # Create background for observation
         # info from: https://etc.stsci.edu/etcstatic/users_guide/1_ref_9_background.html
         if support_data_path is not None:
@@ -429,14 +452,81 @@ class WCCETC(object):
 
         if plot==True:
             self.background_spectrum.plot()
-    
-    def make_observation(self, flux=0, flux_units=u.ABmag, bg_flux=None, bg_flux_units=u.ABmag, plot=False, verbose=False):
+
+    # make a function that makes an observation and calculates the SNR it should call the calc_SNR() and make_observation() function
+    def make_observation_and_calc_SNR(self, flux, r_aper_mas, texp, 
+                                      jitter_sigma_mas=0,flux_units=u.ABmag, bg_flux=None, 
+                                    bg_flux_units=u.ABmag, plot=True, verbose=False,ax1=None,ax2=None):
+        """
+        Make an observation and calculate the SNR
+
+        INPUT:
+            flux - magnitude
+            r_aper_mas - mas
+            texp - exposure time in seconds
+            jitter_sigma_mas - jitter in mas
+            flux_units - AB Magnitude or VEGA magnitude
+            bg_flux - background magnitude
+            bg_flux_units - background flux units
+            plot - True/False
+            verbose - True/False
+            ax1 - axis for PSF plot
+            ax2 - axis for EE plot
+
+        OUTPUT:
+            snr - signal to noise ratio
+        """
+        if np.size(flux) == 1 and np.size(r_aper_mas) == 1 and np.size(jitter_sigma_mas) == 1 and np.size(texp) == 1:
+            self.make_observation(flux, r_aper_mas, jitter_sigma_mas=jitter_sigma_mas, flux_units=flux_units, bg_flux=bg_flux,
+                              bg_flux_units=bg_flux_units, plot=plot, verbose=verbose, ax1=ax1, ax2=ax2)
+            snr = self.calc_SNR(int_time=texp*u.s)#,exp_time=texp*u.s)
+            return snr
+        elif np.size(flux) > 1 and np.size(r_aper_mas) == 1 and np.size(jitter_sigma_mas) == 1 and np.size(texp) == 1:
+            snrs = np.zeros(np.size(flux))
+            for i in range(np.size(flux)):
+                print('Calculating SNR for mag={} {} of {}'.format(flux[i], i+1, np.size(flux)))
+                self.make_observation(flux[i], r_aper_mas, jitter_sigma_mas=jitter_sigma_mas, flux_units=flux_units, bg_flux=bg_flux,
+                                  bg_flux_units=bg_flux_units, plot=plot, verbose=verbose, ax1=ax1, ax2=ax2)
+                snrs[i] = self.calc_SNR(int_time=texp*u.s)#,exp_time=texp*u.s)
+            return snrs
+        elif np.size(flux) == 1 and np.size(r_aper_mas) > 1 and np.size(jitter_sigma_mas) == 1 and np.size(texp) == 1:
+            snrs = np.zeros(np.size(r_aper_mas))
+            for i in range(np.size(r_aper_mas)):
+                print('Calculating SNR for aperture={}mas {} of {}'.format(r_aper_mas[i], i+1, np.size(r_aper_mas)))
+                self.make_observation(flux, r_aper_mas[i], jitter_sigma_mas=jitter_sigma_mas, flux_units=flux_units, bg_flux=bg_flux,
+                                  bg_flux_units=bg_flux_units, plot=plot, verbose=verbose, ax1=ax1, ax2=ax2)
+                snrs[i] = self.calc_SNR(int_time=texp*u.s)#,exp_time=texp*u.s)
+            return snrs
+        elif np.size(flux) == 1 and np.size(r_aper_mas) == 1 and np.size(jitter_sigma_mas) > 1 and np.size(texp) == 1:
+            snrs = np.zeros(np.size(jitter_sigma_mas))
+            for i in range(np.size(jitter_sigma_mas)):
+                print('Calculating SNR for jitter={}mas {} of {}'.format(jitter_sigma_mas[i], i+1, np.size(jitter_sigma_mas)))
+                self.make_observation(flux, r_aper_mas, jitter_sigma_mas=jitter_sigma_mas[i], flux_units=flux_units, bg_flux=bg_flux,
+                                  bg_flux_units=bg_flux_units, plot=plot, verbose=verbose, ax1=ax1, ax2=ax2)
+                snrs[i] = self.calc_SNR(int_time=texp*u.s)#,exp_time=texp*u.s)
+            return snrs
+        elif np.size(flux) == 1 and np.size(r_aper_mas) == 1 and np.size(jitter_sigma_mas) == 1 and np.size(texp) > 1:
+            snrs = np.zeros(np.size(texp))
+            for i in range(np.size(texp)):
+                print('Calculating SNR for exposure time={}s {} of {}'.format(texp[i], i+1, np.size(texp)))
+                self.make_observation(flux, r_aper_mas, jitter_sigma_mas=jitter_sigma_mas, flux_units=flux_units, bg_flux=bg_flux,
+                                  bg_flux_units=bg_flux_units, plot=plot, verbose=verbose, ax1=ax1, ax2=ax2)
+                snrs[i] = self.calc_SNR(int_time=texp[i]*u.s)#,exp_time=texp[i]*u.s)
+            return snrs
+        else:
+            raise ValueError("Only one of flux, r_aper_mas, jitter_sigma_mas, or texp can be an array at a time.")
+
+        
+
+    def make_observation(self, flux, r_aper_mas, jitter_sigma_mas=0,flux_units=u.ABmag, bg_flux=None, 
+                         bg_flux_units=u.ABmag, plot=True, verbose=False,ax1=None,ax2=None):
         """
         Create observation using source and return countrate.
         This will scale the source and the background by the magnitudes so the fluxes are correct
 
         INPUT:
             flux - magnitude
+            r_aper_mas - mas
             flux_unit - AB Magnitude or VEGA magnitude
             bg_flux - background 
             plot - True/False
@@ -447,15 +537,27 @@ class WCCETC(object):
 
         NOTES:
         """
+
+        #def calc_PSF_new(self, r_aper_mas=70,jitter_sigma_mas=0,wavelength=None,verbose=True,ax1=None,ax2=None):
+        wavelength = self.bandpass.wpeak().value / 1e10 #A to nm
+        self.r_psf_mas, self.psf1d, self.ee, self.ee_at_aper = airy.get_airy_and_ee_curve(wavelength,r_aper_mas,plot=plot,
+                                                                  jitter_sigma_mas=jitter_sigma_mas,ax1=ax1,ax2=ax2,
+                                                                  fnum=self.f_num,D=self.diameter_primary.value,
+                                                                  pixel_size=self.pixel_size.value,verbose=verbose)
+        self.num_pixels_at_r =r_aper_mas/(self.plate_scale*1000) # pix
+        self.num_psf_pixels = (self.num_pixels_at_r**2)*np.pi * u.pix
+
+        #   Total PSF Area = Area of 1 pixel (arcsecond * arcsecond)/pixel * num of pixels (pixels)
+        #   Gives area in square arcseconds IF self.plate_scale is in arcseconds/pixel
+        self.psf_area = (self.plate_scale*self.plate_scale) * self.num_psf_pixels
+
+        #   Calculate the total magnitude of the background spectrum given the PSF area (in square arcseconds)
+        self.bg_magnitude = calculate_bg_normalization_magnitude(self.bg_surface_brightness,self.psf_area.value)
+
         #   Calculate Background Normalization magnitude
         if bg_flux is None:
-            if self.bg_magnitude is None:
-                try:
-                    self.calculate_bg_normalization_magnitude()
-                except:
-                    print("Error: Could not calculate Background magnitude.")
-                    exit()
-            print('No background Mag provided, using Zodi background ({:0.3f} mag, {:.1f}mag/arc2)'.format(self.bg_magnitude,self.bg_surface_brightness))
+            if verbose:
+                print('No background Mag provided, using Zodi background ({:0.3f} mag, {:.1f}mag/arc2)'.format(self.bg_magnitude,self.bg_surface_brightness))
             bg_flux = self.bg_magnitude
 
         # Add Source
@@ -488,8 +590,10 @@ class WCCETC(object):
             self.sp_obs.plot(title='Source')
 
         # Get countrate for observation
-        self.count_rate_e_per_s = self.sp_obs.countrate(area=self.surf_area) * u.electron/u.ct #   e/s
-        self.count_rate_ADU_per_s = self.count_rate_e_per_s / self.gain  #   ADU/s
+        self.count_rate_e_per_s_total = self.sp_obs.countrate(area=self.surf_area) * u.electron/u.ct #   e/s
+        self.count_rate_ADU_per_s_total = self.count_rate_e_per_s_total / self.gain  #   ADU/s
+        self.count_rate_e_per_s = self.count_rate_e_per_s_total * self.ee_at_aper
+        self.count_rate_ADU_per_s = self.count_rate_ADU_per_s_total * self.ee_at_aper
 
         # Add Background
         # Background needs to be normalized in the Johnson V band
@@ -511,10 +615,13 @@ class WCCETC(object):
         self.sky_counts_ADU_per_s = self.sky_counts_e_per_s / self.gain  # ADU/s   
 
         if verbose:
-            print('Source Counts: {}e/s'.format(self.count_rate_e_per_s))
-            print('Source Counts: {}ADU/s'.format(self.count_rate_ADU_per_s))
-            print('Background Counts: {}e/s'.format(self.sky_counts_e_per_s))
-            print('Background Counts: {}ADU/s'.format(self.sky_counts_ADU_per_s))
+            print('Source Count rate total: {}e/s'.format(self.count_rate_e_per_s_total))
+            print('Source Count rate total: {}ADU/s'.format(self.count_rate_ADU_per_s_total))
+            print('EE = {:0.3f} at r={:0.1f}mas'.format(self.ee_at_aper,r_aper_mas))
+            print('Source Count rate at EE: {}e/s'.format(self.count_rate_e_per_s))
+            print('Source Count rate at EE: {}ADU/s'.format(self.count_rate_ADU_per_s))
+            print('Background Count rate: {}e/s'.format(self.sky_counts_e_per_s))
+            print('Background Count rate: {}ADU/s'.format(self.sky_counts_ADU_per_s))
 
         return self.count_rate_e_per_s, self.sky_counts_e_per_s
 
@@ -527,7 +634,8 @@ class WCCETC(object):
         """
         return self.well_depth / ( (self.count_rate_e_per_s / self.num_psf_pixels) + (self.sky_counts_e_per_s / self.num_psf_pixels) )
 
-    def calc_SNR(self, int_time, exp_time):
+    #def calc_SNR(self, int_time, exp_time):
+    def calc_SNR(self, int_time):
         """
         *** NOTE- Does not correctly account for gain ***
 
@@ -542,9 +650,14 @@ class WCCETC(object):
             *** NOTE- Does not correctly account for gain ***
             see calc_SNR_one_frame_with_gain 
         """
-        total_noise = np.sqrt(self.count_rate_e_per_s*int_time + self.sky_counts_e_per_s*int_time + (self.dark_current + self.read_noise*self.read_noise/exp_time)*int_time*self.num_psf_pixels)
-        print(total_noise)
-        snr = self.count_rate_e_per_s*int_time / total_noise
+        #total_noise = np.sqrt(self.count_rate_e_per_s*int_time + self.sky_counts_e_per_s*int_time + (self.dark_current + self.read_noise*self.read_noise/exp_time)*int_time*self.num_psf_pixels)
+        signal = self.count_rate_e_per_s*int_time
+        total_noise = np.sqrt(self.count_rate_e_per_s*int_time + self.sky_counts_e_per_s*int_time + (self.dark_current*int_time + self.read_noise**2)*self.num_psf_pixels)
+        #print('sky',self.sky_counts_e_per_s*int_time)
+        #print(self.dark_current*int_time)
+        #print((self.read_noise**2)*self.num_psf_pixels)
+        #total_noise = np.sqrt(self.count_rate_e_per_s*int_time)# + self.sky_counts_e_per_s*int_time + (self.dark_current*int_time + self.read_noise**2)*self.num_psf_pixels)
+        snr = signal / total_noise
         return snr.value
 
     def calc_SNR_one_frame_with_gain(self, exp_time):
@@ -563,7 +676,8 @@ class WCCETC(object):
         n_pix = self.num_psf_pixels.value
         n_b = n_pix * 100000  # assuming background is well known
         signal = self.count_rate_e_per_s.value*exp_time
-        noise = np.sqrt( signal + n_pix *((1. + n_pix/n_b) * (self.sky_counts_e_per_s.value*exp_time + self.dark_current.value*exp_time + self.read_noise.value**2.  )) )
+        #noise = np.sqrt( signal + n_pix *((1. + n_pix/n_b) * (self.sky_counts_e_per_s.value*exp_time + self.dark_current.value*exp_time + self.read_noise.value**2.  )) )
+        noise = np.sqrt( signal + self.sky_counts_e_per_s.value*exp_time + n_pix *((1. + n_pix/n_b) * (self.dark_current.value*exp_time + self.read_noise.value**2.  )) )
         print(noise)
         snr = signal / noise
         ## ADU

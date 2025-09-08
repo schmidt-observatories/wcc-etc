@@ -1,0 +1,266 @@
+import numpy as np
+from scipy.special import j1
+from scipy.signal import fftconvolve
+from PIL import Image
+from astropy.io import fits
+import matplotlib.pyplot as plt
+import scipy.interpolate
+
+
+def get_airy_psf(D, rr, wavelength, normalize=True):
+    """
+    Unobscured circular-aperture Airy PSF on grid of radial coords rr [rad].
+
+    INPUT:
+        D - diameter in m 
+        rr - rad?
+        wavelength - in m
+    
+    OUTPUT:
+
+    EXAMPLE:
+        psf2d = wcc_etc.airy.airy_psf(D, rr, k)
+        psf2d /= psf2d.sum()
+    """
+    k = 2.0 * np.pi / wavelength
+    x = (k * D * rr) / 2.0
+    psf = np.ones_like(x)
+    nz = x != 0
+    psf[nz] = (2.0 * j1(x[nz]) / x[nz])**2
+    if normalize:
+        psf = psf/psf.sum()
+    return psf
+
+def get_ee_value_at_radius(r_mas,ee,r_value):
+    """
+    Interpolate EE curve to get EE value at a given radius
+    """
+    return scipy.interpolate.interp1d(r_mas,ee)([r_value])[0]
+
+def gaussian_kernel_2d(sigma_pix, size=None):
+    """
+    Return normalized 2D Gaussian kernel with given sigma in pixels.
+
+    INPUT:
+        sigma_pix - 
+        size - 
+
+    OUTPUT:
+        kernel - 
+    
+    EXAMPLE:
+        sigma_pix = sig / px_scale_mean
+        ker = gaussian_kernel_2d(sigma_pix)
+        psf_blur = fftconvolve(psf2d, ker, mode='same')
+    """
+    if sigma_pix <= 0:
+        return np.array([[1.0]])
+    if size is None:
+        size = int(np.ceil(8.0 * sigma_pix))
+        size = max(size, 3)
+        if size % 2 == 0:
+            size += 1
+    ax = np.arange(-(size//2), size//2 + 1)
+    xx, yy = np.meshgrid(ax, ax, indexing='xy')
+    ker = np.exp(-(xx**2 + yy**2) / (2.0 * sigma_pix**2))
+    ker /= ker.sum()
+    return ker
+
+def psf_to_encircled_energy(psf, pixel_scale_x_mas, pixel_scale_y_mas):
+    """
+    Convert a 2D PSF to encircled energy vs radius using annular sums.
+    Allows for possibly non-square images by using separate pixel scales in x and y.
+
+    INPUT:
+        psf - input PSF
+        pixel_scale_x_mas
+        pixel_scale_y_mas
+    
+    OUTPUT:
+        r_mas - radii in mas
+        ee - encircled energy
+
+    EXAMPLE:
+
+    """
+    ny, nx = psf.shape
+    cy, cx = ny//2, nx//2
+    y, x = np.indices(psf.shape)
+    # Anisotropic pixel scale handled here:
+    r_mas = np.sqrt(((x - cx) * pixel_scale_x_mas)**2 + ((y - cy) * pixel_scale_y_mas)**2)
+    # Bin edges at 1 mas resolution based on min pixel scale to get smooth curves
+    dr = min(pixel_scale_x_mas, pixel_scale_y_mas)
+    r_max = r_mas.max()
+    edges = np.arange(0, r_max + dr, dr)
+
+    # --- KEY CHANGES START HERE ---
+
+    # 1. Sum of the pixel values (power) in each annular bin
+    hist_power, _ = np.histogram(r_mas.ravel(), bins=edges, weights=psf.ravel())
+
+    # 2. Count of the number of pixels in each annular bin
+    hist_counts, _ = np.histogram(r_mas.ravel(), bins=edges)
+
+    # 3. Calculate the 1D average PSF by dividing the sum by the count
+    # We use np.divide to safely handle bins with zero pixels
+    psf1d = np.divide(hist_power, hist_counts,
+                      out=np.zeros_like(hist_power, dtype=float),
+                      where=hist_counts!=0)
+    psf1d = psf1d/psf1d.max()
+
+    # --- KEY CHANGES END HERE ---
+
+    #hist_power, edges = np.histogram(r_mas.ravel(), bins=edges, weights=psf.ravel())
+    ee = np.cumsum(hist_power)
+    if ee[-1] > 0:
+        ee /= ee[-1]
+    r_centers = 0.5 * (edges[1:] + edges[:-1])
+    return r_centers, psf1d, ee
+
+def load_custom_psf(custom_psf_path, custom_psf_hdu=0):
+    """
+    Load a custom PSF from FITS or image. Returns (psf2d, pixel_scale_x_mas, pixel_scale_y_mas).
+    Pixel scale is not in file; user must set custom_psf_extent_mas externally. We compute mas/pixel from the
+    provided angular half-extent and the image size.
+    """
+    path = custom_psf_path
+    if path.lower().endswith(('.fits', '.fit', '.fts')):
+        if fits is None:
+            raise RuntimeError('astropy is required to read FITS files.')
+        data = fits.getdata(path, ext=custom_psf_hdu).astype(float)
+    else:
+        if Image is None:
+            raise RuntimeError('Pillow is required to read image files (PNG/JPG/BMP).')
+        img = Image.open(path).convert('F')  # 32-bit float
+        data = np.array(img, dtype=float)
+
+    # Normalize to peak=1.0
+    peak = np.max(data)
+    if peak > 0:
+        data = data / peak
+
+    ny, nx = data.shape
+    # Compute mas/pixel from user-provided half-extent
+    px_scale_x = (2.0 * custom_psf_extent_mas) / nx
+    px_scale_y = (2.0 * custom_psf_extent_mas) / ny
+    return data, px_scale_x, px_scale_y
+
+def calc_plate_scale_from_flength(focal_length,pix_size):
+    """
+    Calculate the plate scale from the focal length
+
+    INPUT:
+        focal length in m
+        pixel size in microns
+
+    OUTPUT:
+        plate scale in arcsec/pix
+
+    NOTES:
+        focal_length has to be in m
+        pix_size is in microns
+    """
+    plate_scale_arcsec_pix = 206265./(focal_length*1000.)*pix_size/1000.
+    return plate_scale_arcsec_pix
+
+def get_airy_and_ee_curve(wavelength,r_aper_mas,grid_size=1024,extent_mas=500,verbose=True,jitter_sigma_mas=0,
+                          plot=False,ax1=None,ax2=None,pixel_size=3.74,fnum=15,D=3):
+    """
+    INPUT:
+        wavelength - wavelength in m
+        D - diameter in m
+        grid_size -
+        extent_mas - 
+    EXAMPLE:
+        r_mas, ee_base = get_ee_curve(wavelength=0.6e-6)
+        r_mas, psf1d, ee = wcc_etc.airy.get_airy_and_ee_curve(wavelength=wavelength*1e-6,plot=True,jitter_sigma_mas=JITTER_MAS,ax=ax,r_aper_mas=70)
+    """
+    arcsec_per_radian = 206265.0
+    mas_per_radian = arcsec_per_radian * 1000.0
+    extent_rad = extent_mas / mas_per_radian
+
+    x = np.linspace(-extent_rad, extent_rad, grid_size)
+    y = np.linspace(-extent_rad, extent_rad, grid_size)
+    xx, yy = np.meshgrid(x, y, indexing='xy')
+    rr = np.sqrt(xx**2 + yy**2)
+    psf2d = get_airy_psf(D, rr, wavelength,normalize=True)
+    pixel_scale_mas = (2.0 * extent_mas) / grid_size
+    px_scale_x_mas = pixel_scale_mas
+    px_scale_y_mas = pixel_scale_mas
+    if verbose:
+        source_desc = f"Airy PSF (D={D:.2f} m, λ={wavelength*1e6} μm), grid={grid_size}², px={pixel_scale_mas:.3f} mas"
+        print("Source:", source_desc)
+        print(f"Pixel scales: {px_scale_x_mas:.3f} mas/px (x), {px_scale_y_mas:.3f} mas/px (y)")
+
+    # Baseline, no jitter
+    r_mas, psf1d, ee = psf_to_encircled_energy(psf2d, px_scale_x_mas, px_scale_y_mas)
+
+    if jitter_sigma_mas!=0:
+        print('Broadening with {}mas'.format(jitter_sigma_mas))
+        # Assuming symmetric
+        px_scale_mean = np.sqrt(px_scale_x_mas * px_scale_y_mas)
+        sigma_pix = jitter_sigma_mas / px_scale_mean
+        ker = gaussian_kernel_2d(sigma_pix)
+        psf_blur = fftconvolve(psf2d, ker, mode='same')
+        s = psf_blur.sum()
+        if s > 0:
+            psf_blur /= s
+        r_mas, psf1d, ee = psf_to_encircled_energy(psf_blur, px_scale_x_mas, px_scale_y_mas)
+
+    ee_aper = get_ee_value_at_radius(r_mas,ee,r_aper_mas)
+    if plot:
+        pscale = calc_plate_scale_from_flength(fnum*D,pixel_size) # arcsec/pix
+        # EE plot
+        if ax1 is None:
+            fig, ax1 = plt.subplots()
+        ax1.plot(r_mas,ee)
+        ax1.set_xlabel('Radius [mas]',fontsize=16)
+        ax1.set_ylabel('Encircled Energy',fontsize=16)
+        #ax1.axhline(0.9,color='crimson',ls='--')
+        ax1.grid(lw=0.3,alpha=0.3)
+        ax1.set_title('EE as a function of radius.\nWavelength={:0.3f}micron, Jitter={:0.1f}mas'.format(wavelength*1e6,jitter_sigma_mas),fontsize=14)
+        ax1.axvline(r_aper_mas,color='k',ls='--',label='EE={:0.3f} at r={:0.1f}mas, r={:0.1f}pixels'.format(ee_aper,r_aper_mas,r_aper_mas/(1000*pscale)))
+        ax1.axhline(ee_aper,color='k',ls='--')
+        ax1.legend()
+        ax1.set_xlim(0,300)
+        bx = ax1.twiny()
+        bx.set_xticks(ax1.get_xticks()/(1000*pscale))
+        bx.set_xlabel('Pixels',fontsize=16)
+
+        # EE plot
+        if ax2 is None:
+            fig, ax2 = plt.subplots()
+        ax2.plot(r_mas,psf1d)
+        ax2.set_xlabel('Radius [mas]',fontsize=16)
+        ax2.set_ylabel('Normalized Flux',fontsize=16)
+        ax2.set_title('Airy disk as a function of radius.\nWavelength={:0.3f}micron, Jitter={:0.1f}mas'.format(wavelength*1e6,jitter_sigma_mas),fontsize=14)
+        #ax2.axhline(0.9,color='crimson',ls='--')
+        ax2.grid(lw=0.3,alpha=0.3)
+        ax2.axvline(r_aper_mas,color='k',ls='--',label='EE={:0.3f} at r={:0.1f}mas, r={:0.1f}pixels'.format(ee_aper,r_aper_mas,r_aper_mas/(1000*pscale)))
+        ax2.legend()
+        ax2.set_xlim(0,300)
+        bx = ax2.twiny()
+        bx.set_xticks(ax2.get_xticks()/(1000*pscale))
+        bx.set_xlabel('Pixels',fontsize=16)
+
+    return r_mas, psf1d, ee, ee_aper
+
+
+# Multi-jitter list
+def jittered_ee_list(psf2d, jitter_sigmas_mas, px_scale_x_mas, px_scale_y_mas):
+    """
+    Loop through different PSFs
+    """
+    results = {}
+    # Use geometric mean pixel scale as a representative scale for isotropic jitter kernel
+    px_scale_mean = np.sqrt(px_scale_x_mas * px_scale_y_mas)
+    for sig in jitter_sigmas_mas:
+        sigma_pix = sig / px_scale_mean
+        ker = gaussian_kernel_2d(sigma_pix)
+        psf_blur = fftconvolve(psf2d, ker, mode='same')
+        s = psf_blur.sum()
+        if s > 0:
+            psf_blur /= s
+        r, psf1d, ee = psf_to_encircled_energy(psf_blur, px_scale_x_mas, px_scale_y_mas)
+        results[sig] = (r, ee)
+    return results

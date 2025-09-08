@@ -1,0 +1,91 @@
+{
+    "instrument": {
+        "name": "Lazuli WCC g 20250907 EOL",
+        "description": "End-to-End Throughput of the Lazuli telescope with the WCC instrument and SLOAN r' filter, EOL",
+        "outputfolder": "output/wcc/"
+    },
+    "wavelength_range": {
+        "start_nm": 350.0,
+        "end_nm": 1800.0,
+        "step_nm": 5.0
+    },
+    "settings": {
+        "interpolation_method": "linear",
+        "plot_results": true,
+        "debug_output": true,
+        "save_plots_pdf": true,
+        "save_instrument_data": true
+    },
+    "surfaces": {
+        "mirror_PM": {
+            "file": "coating/RTX_20250819_bare_aluminum_reflectance_extracted.csv",
+            "description": "Primary mirror coating",
+            "wavelength_unit": "nm",
+            "throughput_scale": "percent"
+        },
+        "mirror_SM": {
+            "file": "coating/RTX_20250820_M2_3_4_Coating.csv",
+            "description": "Secondary mirror coating",
+            "wavelength_unit": "nm",
+            "throughput_scale": "percent"
+        },
+        "mirror_TM": {
+            "file": "coating/RTX_20250820_M2_3_4_Coating.csv",
+            "description": "Tertiary mirror coating",
+            "wavelength_unit": "nm",
+            "throughput_scale": "percent"
+        },
+        "mirror_FSM": {
+            "file": "coating/RTX_20250820_M2_3_4_Coating.csv",
+            "description": "M4 - fast steering mirror coating",
+            "wavelength_unit": "nm",
+            "throughput_scale": "percent"
+        },
+        "EOL": {
+            "file": "coating/rtx_bol_eol_ratio_smoothed_gaussian_45px_20250907.csv",
+            "description": "EOL / BOL reflectance ratio, Gaussian smoothed 45px",
+            "wavelength_unit": "nm",
+            "throughput_scale": "fraction"
+        },
+        "filter_sloan_g": {
+            "file": "filter/SLOAN_SDSS.gprime_filter.dat",
+            "description": "Sloan g-band filter",
+            "wavelength_unit": "angstrom",
+            "throughput_scale": "fraction"
+        },
+        "detector": {
+            "file": "detector/IMX455_QE_digitized_corrected.csv",
+            "description": "Sony IMX 455 sCMOS detector quantum efficiency",
+            "wavelength_unit": "nm",
+            "throughput_scale": "percent"
+        }
+    },
+    "subsystems": {
+        "telescope": {
+            "surfaces": [
+                "mirror_PM",
+                "mirror_SM",
+                "mirror_TM",
+                "mirror_FSM",
+                "EOL"
+            ],
+            "description": "Telescope optics"
+        },
+        "photometric_instrument": {
+            "surfaces": [
+                "filter_sloan_g",
+                "detector"
+            ],
+            "description": "Photometric system"
+        }
+    },
+    "instruments": {
+        "photometer": {
+            "subsystems": [
+                "telescope",
+                "photometric_instrument"
+            ],
+            "description": "Lazuli Photometric System: Telescope + WCC, EOL"
+        }
+    }
+}

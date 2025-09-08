@@ -9,15 +9,17 @@
 diameter_primary = 3.065 # m
 f_num = 15.0 # unitless
 # Mirror coatings
-path_m1_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
-path_m2_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
-path_m3_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
-path_m4_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
+path_m1_coating = ""
+path_m2_coating = ""
+path_m3_coating = ""
+path_m4_coating = ""
 # Filter choice
 #path_filter = "../data/support_data/filters/sdss_r_005_syn.fits"
-path_filter = "../data/support_data/filters/SLOAN_SDSS.rprime_filter.txt"
+path_filter = ""
 #path_filter = "../data/support_data/filters/SLOAN_SDSS.gprime_filter.txt"
 #path_filter = "../data/support_data/filters/sdss_i_005_syn.fits"
+#path_total_throughput = "../data/support_data/throughput/Lazuli_WCC_g_20250820/Lazuli_WCC_g_20250820_throughput.csv"
+path_total_throughput = "../data/support_data/throughput/Lazuli_WCC_g_20250907_EOL/Lazuli_WCC_g_20250907_EOL_throughput.csv"
 #########################################################
 
 #########################################################
@@ -38,7 +40,7 @@ path_dark_current = "../data/support_data/sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pr
 path_gain_curve =   "../data/support_data/sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Gain_vs_Gain_Setting.csv"
 path_read_noise =   "../data/support_data/sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Read_Noise_vs_Gain_Setting.csv"
 path_well_depth =   "../data/support_data/sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Well_Depth_vs_Gain_Setting.csv"
-path_qe = "../data/support_data/sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_QE_curve.csv"
+path_qe = ""
 #temp_stability = '0.1Kelvin/hour' # WAG
 #########################################################
 

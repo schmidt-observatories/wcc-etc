@@ -9,10 +9,10 @@
 diameter_primary = 3.065 # m
 f_num = 15.0 # unitless
 # Mirror coatings
-path_m1_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
-path_m2_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
-path_m3_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
-path_m4_coating = "../data/support_data/coatings/NIST_1st_surface_Al.csv"
+path_m1_coating = "../data/support_data/coatings/unit.csv"
+path_m2_coating = "../data/support_data/coatings/unit.csv"
+path_m3_coating = "../data/support_data/coatings/unit.csv"
+path_m4_coating = "../data/support_data/coatings/rtx_bol_req.csv"
 # Filter choice
 #path_filter = "../data/support_data/filters/sdss_r_005_syn.fits"
 path_filter = "../data/support_data/filters/SLOAN_SDSS.rprime_filter.txt"
