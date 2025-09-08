@@ -15,16 +15,33 @@ from . import airy
 #   One line function prepends the support path to variable s2 if s1 is provided, else returns s2 as is.
 prepend_if_not_none = lambda s1, s2: f"{s1}{s2}" if s1 is not None else s2
 
+
+
 class WCCETC(object):
-    def get_final_throughput_curve(self, wave_unit='nm'):
-        """
-        Return wavelength and throughput arrays for the final throughput curve.
-        """
-        self.path_total_throughput = self.config['telescope']['path_total_throughput']
-        bp = SpectralElement.from_file(self.path_total_throughput, wave_unit=wave_unit)
-        # Get arrays for plotting
-        wave, throughput = bp._get_arrays(None)
-        return wave, throughput
+    # Static paths for source and background data
+    SOURCE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'astr_obj_models', 'stars', 'pickles_models', 'dat_uvk'))
+    PATH_SUPPORT_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'astr_obj_models', 'galaxies', 'brown'))
+    DEFAULT_BKG_FILE = 'ngc_2537_spec.fits'
+
+    @classmethod
+    def get_source_files(cls):
+        if os.path.isdir(cls.SOURCE_DIR):
+            return [f for f in os.listdir(cls.SOURCE_DIR) if f.endswith('.fits')]
+        else:
+            return []
+
+    @classmethod
+    def get_default_source_file(cls):
+        files = cls.get_source_files()
+        return files[0] if files else None
+
+    @classmethod
+    def get_support_data_path(cls):
+        return cls.PATH_SUPPORT_DATA_DIR
+
+    @classmethod
+    def get_default_background_file(cls):
+        return cls.DEFAULT_BKG_FILE
 
     def __init__(self,config_file: str):
         """
@@ -100,6 +117,26 @@ class WCCETC(object):
         self.add_sensor(num_curves=1, plot=plot)
         if verbose:
             self.describe()
+
+    def get_source_spectrum_curve(self):
+        """
+        Return wavelength and flux arrays for the source spectrum.
+        """
+        if hasattr(self, 'source_spectrum'):
+            w, y = self.source_spectrum._get_arrays(None)
+            return w, y
+        else:
+            return None, None
+
+    def get_final_throughput_curve(self, wave_unit='nm'):
+        """
+        Return wavelength and throughput arrays for the final throughput curve.
+        """
+        self.path_total_throughput = self.config['telescope']['path_total_throughput']
+        bp = SpectralElement.from_file(self.path_total_throughput, wave_unit=wave_unit)
+        # Get arrays for plotting
+        wave, throughput = bp._get_arrays(None)
+        return wave, throughput
 
     def add_total_throughput(self,plot=False,verbose=True, plot_title="Final Throughput", wave_unit='nm'):
         """
@@ -306,6 +343,7 @@ class WCCETC(object):
         """
         out = []
         out.append('##################################################')
+        out.append('# System Summary from .toml configuration file')
         out.append('# Main')
         out.append('Diameter Primary: {:15.2f}'.format(self.diameter_primary))
         out.append('Fnum:             {:15.1f}'.format(self.f_num))
@@ -321,13 +359,12 @@ class WCCETC(object):
         out.append('Gain:             {:15.4f}'.format(self.gain))
         out.append('Sensor Area:      {:15.1f}mm2'.format(self.sensor_area))
         out.append('Pixel Size:       {:15.3f}'.format(self.pixel_size))
-        #out.append('Num Pixels:       {:20.1f}'.format(self.num_pixels))
         out.append('Read Noise:       {:15.3f}'.format(self.read_noise))
         out.append('Dark Current:     {:15.4f}'.format(self.dark_current))
         out.append('Well depth:       {:15.1f}'.format(self.well_depth))
         out.append('# Other')
-        out.append('Plate Scale:      {:15.3f}'.format(self.plate_scale))
-        #out.append('Num PSF Pixels:   {:20.1f}'.format(self.num_psf_pixels))
+        out.append('Plate Scale:      {:15.3f} arcsec/pix'.format(self.plate_scale))
+        out.append('Zodi S. brightn.: {:15.1f} mag/arcsec2'.format(self.bg_surface_brightness))
         #out.append('Jitter RMS:       {}'.format(self.jitter_rms))
         out.append('#################################################')
         result = '\n'.join(out)
@@ -459,7 +496,7 @@ class WCCETC(object):
         # Create background for observation
         # info from: https://etc.stsci.edu/etcstatic/users_guide/1_ref_9_background.html
         if support_data_path is not None:
-            background_file = prepend_if_not_none(support_data_path, background_file)
+            background_file = os.path.join(support_data_path, background_file)
         self.background_spectrum = SourceSpectrum.from_file(background_file)
         self.background_name = background_file
 

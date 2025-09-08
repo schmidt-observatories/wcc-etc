@@ -33,6 +33,12 @@ packages = ["wcc_etc"]
 package-dir = { "" = "src" }
 include-package-data = true
 
+[tool.setuptools.package-data]
+"wcc_etc" = [
+  "data/astr_obj_models/stars/pickles_models/dat_uvk/*.fits",
+  "data/astr_obj_models/galaxies/brown/*"
+]
+
 
 
 [tool.pytest.ini_options]
