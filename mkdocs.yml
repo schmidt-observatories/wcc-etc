@@ -7,7 +7,6 @@ nav:
   - API Reference: api.md
   - Tutorials: tutorials.md
   - Changelog: changelog.md
-  - License: ../LICENSE
 theme:
   name: readthedocs
 docs_dir: docs
