@@ -22,6 +22,10 @@ def get_airy_psf(D, rr, wavelength, normalize=True):
         psf2d = wcc_etc.airy.airy_psf(D, rr, k)
         psf2d /= psf2d.sum()
     """
+    # Ensure all arguments are unitless floats
+    D = float(D.value) if hasattr(D, 'unit') else float(D)
+    wavelength = float(wavelength.value) if hasattr(wavelength, 'unit') else float(wavelength)
+    rr = np.array(rr)
     k = 2.0 * np.pi / wavelength
     x = (k * D * rr) / 2.0
     psf = np.ones_like(x)
@@ -175,6 +179,16 @@ def get_airy_and_ee_curve(wavelength,r_aper_mas,grid_size=1024,extent_mas=500,ve
         r_mas, ee_base = get_ee_curve(wavelength=0.6e-6)
         r_mas, psf1d, ee = wcc_etc.airy.get_airy_and_ee_curve(wavelength=wavelength*1e-6,plot=True,jitter_sigma_mas=JITTER_MAS,ax=ax,r_aper_mas=70)
     """
+    # Strip units from all arguments
+    wavelength = float(wavelength.value) if hasattr(wavelength, 'unit') else float(wavelength)
+    r_aper_mas = float(r_aper_mas.value) if hasattr(r_aper_mas, 'unit') else float(r_aper_mas)
+    grid_size = int(grid_size)
+    extent_mas = float(extent_mas.value) if hasattr(extent_mas, 'unit') else float(extent_mas)
+    jitter_sigma_mas = float(jitter_sigma_mas.value) if hasattr(jitter_sigma_mas, 'unit') else float(jitter_sigma_mas)
+    pixel_size = float(pixel_size.value) if hasattr(pixel_size, 'unit') else float(pixel_size)
+    fnum = float(fnum.value) if hasattr(fnum, 'unit') else float(fnum)
+    D = float(D.value) if hasattr(D, 'unit') else float(D)
+
     arcsec_per_radian = 206265.0
     mas_per_radian = arcsec_per_radian * 1000.0
     extent_rad = extent_mas / mas_per_radian

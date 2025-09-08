@@ -1,6 +1,10 @@
+
 # WCC-ETC Documentation
 
 Welcome to the documentation for the WCC-ETC package!
+
+![WCC ETC Web Applet](applet.png)
+*Screenshot of the WCC ETC web applet interface.*
 
 ## Installation
 

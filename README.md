@@ -1,5 +1,9 @@
+
 # wcc-etc
 ETC for the WCC
+
+![WCC ETC Web Applet](docs/applet.png)
+*Screenshot of the WCC ETC web applet interface.*
 
 # Installation
 
@@ -16,6 +20,22 @@ pip install -e .
 
 # Tutorial
 See notebooks/ directory for example tutorials.
+
+
+# Running the Flask Applet
+
+To run the web-based SNR calculator applet:
+
+```bash
+cd flask_app
+python app.py
+```
+
+Then open your browser and go to:
+
+    http://127.0.0.1:5000
+
+You can select a config file, enter parameters, and view SNR and plots interactively.
 
 # Notes
 Configuration files (.toml) are in the config/ directory.

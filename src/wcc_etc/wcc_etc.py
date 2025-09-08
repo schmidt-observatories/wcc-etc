@@ -16,6 +16,15 @@ from . import airy
 prepend_if_not_none = lambda s1, s2: f"{s1}{s2}" if s1 is not None else s2
 
 class WCCETC(object):
+    def get_final_throughput_curve(self, wave_unit='nm'):
+        """
+        Return wavelength and throughput arrays for the final throughput curve.
+        """
+        self.path_total_throughput = self.config['telescope']['path_total_throughput']
+        bp = SpectralElement.from_file(self.path_total_throughput, wave_unit=wave_unit)
+        # Get arrays for plotting
+        wave, throughput = bp._get_arrays(None)
+        return wave, throughput
 
     def __init__(self,config_file: str):
         """
@@ -71,7 +80,7 @@ class WCCETC(object):
         self.sensor_temp = self.config['detector']['sensor_temp'] * u.Celsius
         self.bg_surface_brightness = self.config['zodi']['zodi_mag_r']
 
-    def setup(self,plot=True,verbose=True):
+    def setup(self,plot=False,verbose=True):
         """
         Set up the WCC ETC with the current configuration.
         """
@@ -92,7 +101,7 @@ class WCCETC(object):
         if verbose:
             self.describe()
 
-    def add_total_throughput(self,plot=True,verbose=True, plot_title="Final Throughput", wave_unit='nm'):
+    def add_total_throughput(self,plot=False,verbose=True, plot_title="Final Throughput", wave_unit='nm'):
         """
         Read final throughput from a file
         """
@@ -222,7 +231,7 @@ class WCCETC(object):
 
             read_noise_cols = ['gain_setting', 'read_noise']
             try:
-                self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_read_noise']), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix) * 2
+                self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_read_noise']), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix) 
                 print(f"Read noise: {self.read_noise}")
             except Exception as e:
                 print(e)
@@ -295,31 +304,35 @@ class WCCETC(object):
         """
         Describe summary of the system
         """
-        print('###################################################')
-        print('# Main')
-        print('Diameter Primary: {:20.2f}'.format(self.diameter_primary))
-        print('Fnum:             {:20.1f}'.format(self.f_num))
-        print('Focal Length:     {:20.2f}'.format(self.focal_len))
-        print('Num mirrors:      {:20.1f}'.format(self.num_mirrors))
-        print('Surf Area:        {:20.2f}m2'.format(self.surf_area))
-        print('')
-        print('# Detector')
+        out = []
+        out.append('##################################################')
+        out.append('# Main')
+        out.append('Diameter Primary: {:15.2f}'.format(self.diameter_primary))
+        out.append('Fnum:             {:15.1f}'.format(self.f_num))
+        out.append('Focal Length:     {:15.2f}'.format(self.focal_len))
+        out.append('Num mirrors:      {:15.1f}'.format(self.num_mirrors))
+        out.append('Surf Area:        {:15.2f}m2'.format(self.surf_area))
+        out.append('')
+        out.append('# Detector')
         try:
-            print('Gain Setting:     {:20.1f}'.format(self.gain_setting))
+            out.append('Gain Setting:     {:15.1f}'.format(self.gain_setting))
         except Exception as e:
-            print('Gain Setting:     {}'.format(''))
-        print('Gain:             {:20.4f}'.format(self.gain))
-        print('Sensor Area:      {:20.1f}mm2'.format(self.sensor_area))
-        print('Pixel Size:       {:20.3f}'.format(self.pixel_size))
-        #print('Num Pixels:       {:20.1f}'.format(self.num_pixels))
-        print('Read Noise:       {:20.3f}'.format(self.read_noise))
-        print('Dark Current:     {:20.4f}'.format(self.dark_current))
-        print('Well depth:       {:20.1f}'.format(self.well_depth))
-        print('# Other')
-        print('Plate Scale:      {:20.3f}'.format(self.plate_scale))
-        #print('Num PSF Pixels:   {:20.1f}'.format(self.num_psf_pixels))
-        #print('Jitter RMS:       {}'.format(self.jitter_rms))
-        print('###################################################')
+            out.append('Gain Setting:     {}'.format(''))
+        out.append('Gain:             {:15.4f}'.format(self.gain))
+        out.append('Sensor Area:      {:15.1f}mm2'.format(self.sensor_area))
+        out.append('Pixel Size:       {:15.3f}'.format(self.pixel_size))
+        #out.append('Num Pixels:       {:20.1f}'.format(self.num_pixels))
+        out.append('Read Noise:       {:15.3f}'.format(self.read_noise))
+        out.append('Dark Current:     {:15.4f}'.format(self.dark_current))
+        out.append('Well depth:       {:15.1f}'.format(self.well_depth))
+        out.append('# Other')
+        out.append('Plate Scale:      {:15.3f}'.format(self.plate_scale))
+        #out.append('Num PSF Pixels:   {:20.1f}'.format(self.num_psf_pixels))
+        #out.append('Jitter RMS:       {}'.format(self.jitter_rms))
+        out.append('#################################################')
+        result = '\n'.join(out)
+        print(result)
+        return result
 
     def set_source(self, source_pickles_file, source_z=0, support_data_path=None, plot=False, ax = None):
         """

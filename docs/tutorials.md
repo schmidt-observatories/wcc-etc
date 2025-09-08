@@ -20,6 +20,3 @@ print(f'SNR: {snr}')
 
 ---
 Add more step-by-step guides as needed.
-
-theme:
-  name: readthedocs
