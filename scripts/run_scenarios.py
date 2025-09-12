@@ -156,11 +156,11 @@ if __name__ == "__main__":
     #calc_snr_g(TEXP=60) # 9.41 in SDSS g
     #calc_snr_r(TEXP=120) # 6.06 in SDSS r
 
-    plot_jitter("../config/config_wcc_sdssg_from_final_eol.toml", title_extra='2x read noise')
-    plot_jitter("../config/config_wcc_sdssr_from_final_eol.toml", title_extra='2x read noise')
+    #plot_jitter("../config/config_wcc_sdssg_from_final_eol.toml", title_extra='2x read noise')
+    #plot_jitter("../config/config_wcc_sdssr_from_final_eol.toml", title_extra='2x read noise')
 
     plot_time("../config/config_wcc_sdssg_from_final_eol.toml", title_extra='2x read noise')
     plot_time("../config/config_wcc_sdssr_from_final_eol.toml", title_extra='2x read noise')
 
-    plot_aper("../config/config_wcc_sdssg_from_final_eol.toml", title_extra='2x read noise')
-    plot_aper("../config/config_wcc_sdssr_from_final_eol.toml", title_extra='2x read noise')
+    #plot_aper("../config/config_wcc_sdssg_from_final_eol.toml", title_extra='2x read noise')
+    #plot_aper("../config/config_wcc_sdssr_from_final_eol.toml", title_extra='2x read noise')

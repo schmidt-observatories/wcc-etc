@@ -89,7 +89,7 @@ def index():
 
         # Final throughput plot
         wave, throughput = wcc.get_final_throughput_curve(wave_unit='nm')
-        p3 = figure(title="Final Throughput Curve", x_axis_label="Wavelength [A]", y_axis_label="Throughput", width=500, height=350, x_range=(3800, 18000))
+        p3 = figure(title="Final Throughput Curve", x_axis_label="Wavelength [A]", y_axis_label="Throughput", width=500, height=350, x_range=(3000, 18000))
         p3.line(wave, throughput, line_width=2, color="orange", legend_label="Throughput")
         p3.legend.location = "top_right"
         throughput_script, throughput_div = components(p3)
@@ -153,7 +153,7 @@ def index():
                     swave = swave.value.tolist()
                 if hasattr(sflux, 'value'):
                     sflux = sflux.value.tolist()
-                p4 = figure(title="Source Spectrum", x_axis_label="Wavelength [A]", y_axis_label="Flux", width=500, height=350, x_range=(3800, 18000))
+                p4 = figure(title="Source Spectrum", x_axis_label="Wavelength [A]", y_axis_label="Flux", width=500, height=350, x_range=(3000, 18000))
                 p4.line(swave, sflux, line_width=2, color="purple", legend_label="Source Spectrum")
                 p4.legend.location = "top_right"
                 source_script, source_div = components(p4)
