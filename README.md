@@ -9,7 +9,7 @@ ETC for the WCC
 
 ## **1. Clone the Repository**
 ```sh
-git clone git@github.com:uasal/config_stp_wcc.git
+git clone git@github.com:schmidt-observatories/wcc-etc.git
 cd wcc-etc
 ```
 
