@@ -268,7 +268,7 @@ class WCCETC(object):
 
             read_noise_cols = ['gain_setting', 'read_noise']
             try:
-                self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_read_noise']), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix) 
+                self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_read_noise']), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix) *2
                 print(f"Read noise: {self.read_noise}")
             except Exception as e:
                 print(e)
