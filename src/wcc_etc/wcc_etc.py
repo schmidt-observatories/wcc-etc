@@ -117,6 +117,8 @@ class WCCETC(object):
         self.add_sensor(num_curves=1, plot=plot)
         if verbose:
             self.describe()
+        self.wavelength = self.bandpass.wpeak().value / 1e10 #A to nm
+        print('Setting wavelength: {} nm'.format(self.wavelength))
 
     def get_source_spectrum_curve(self):
         """

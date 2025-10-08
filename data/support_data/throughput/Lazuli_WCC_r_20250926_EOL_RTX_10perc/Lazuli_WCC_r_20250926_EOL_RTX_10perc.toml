@@ -1,0 +1,114 @@
+
+##############################################################################
+# Throughput Budget Configuration
+# This file defines the hierarchical structure of Lazuli
+##############################################################################
+
+[instrument]
+name = "Lazuli WCC r 20250925 EOL RTX 10perc"  # also serves as root file name for output files
+description = "End-to-End Throughput of the Lazuli telescope with the WCC instrument and SLOAN r' filter, EOL, RTX Requirement, 10% lower"
+outputfolder = "output/wcc/"  # output folder to save plots and data files in relation to base path
+
+# System wavelength range - values outside this range will be set to zero
+[wavelength_range]
+start_nm = 350.0
+end_nm = 1800.0
+step_nm = 5.0  # Output wavelength sampling
+
+# Global settings
+[settings]
+interpolation_method = "linear"  # linear, cubic, quadratic
+plot_results = true
+debug_output = true  # Set to true for detailed loading information
+save_plots_pdf = true  # Save plots as PDF files
+save_instrument_data = true  # Save instrument throughput to CSV files
+
+
+##############################################################################
+# Define individual optical surfaces
+# Each surface should have a data file in the surface_data/ directory
+# Supported formats: CSV, space-separated, tab-separated
+# Lines starting with '#' are treated as comments and ignored
+# Will try to auto-detect Angstrom/nm (any WL value > 2000 ==> likely A)
+# and percentage/fraction (any throughput vale > 1.0 ==> likely %) units
+#   OR it can be explicitly spcified
+##############################################################################
+
+#[surfaces.mirror_PM]
+#file = "coating/RTX_20250819_bare_aluminum_reflectance_extracted.csv"
+#description = "Primary mirror coating"
+#wavelength_unit = "nm"  # "nm" or "angstrom"
+#throughput_scale = "percent"  # "fraction" (0.0-1.0) or "percent" (0-100)
+#
+#[surfaces.mirror_SM]
+#file = "coating/RTX_20250820_M2_3_4_Coating.csv"
+#description = "Secondary mirror coating"
+#wavelength_unit = "nm"  # "nm" or "angstrom"
+#throughput_scale = "percent"  # "fraction" (0.0-1.0) or "percent" (0-100)
+#
+#
+#[surfaces.mirror_TM]
+#file = "coating/RTX_20250820_M2_3_4_Coating.csv"
+#description = "Tertiary mirror coating"
+#wavelength_unit = "nm"  # "nm" or "angstrom"
+#throughput_scale = "percent"  # "fraction" (0.0-1.0) or "percent" (0-100)
+#
+#
+#[surfaces.mirror_FSM]
+#file = "coating/RTX_20250820_M2_3_4_Coating.csv"
+#description = "M4 - fast steering mirror coating"
+#wavelength_unit = "nm"  # "nm" or "angstrom"
+#throughput_scale = "percent"  # "fraction" (0.0-1.0) or "percent" (0-100)
+
+[surfaces.EOL_req]
+file = "requirements/rtx_telescope_eol_req_10perc.csv"
+description = "RTX EOL Requirement"
+wavelength_unit = "nm"  # "nm" or "angstrom"
+throughput_scale = "fraction"  # "fraction" (0.0-1.0) or "percent" (0-100)
+
+
+[surfaces.filter_sloan_r]
+file = "filter/SLOAN_SDSS.rprime_filter.dat"
+description = "Sloan r-band filter"
+wavelength_unit = "angstrom"  # "nm" or "angstrom"
+throughput_scale = "fraction"  # "fraction" (0.0-1.0) or "percent" (0-100)
+#[surfaces.filter_sloan_r]
+#file = "filter/SLOAN_SDSS.rprime_filter.dat"
+#description = "Sloan r-band filter"
+#[surfaces.filter_sloan_i]
+#file = "filter/SLOAN_SDSS.iprime_filter.dat"
+#description = "Sloan i-band filter"
+
+
+[surfaces.detector]
+file = "detector/IMX455_QE_digitized_corrected.csv"
+description = "Sony IMX 455 sCMOS detector quantum efficiency"
+wavelength_unit = "nm"  # "nm" or "angstrom"
+throughput_scale = "percent"  # "fraction" (0.0-1.0) or "percent" (0-100)
+
+
+
+
+##############################################################################
+# Define subsystems (groups of surfaces), e.g. telescope, unstrument
+##############################################################################
+[subsystems.telescope]
+surfaces = ["EOL_req"]
+description = "Telescope optics, RTX EOL Req"
+
+[subsystems.photometric_instrument]
+surfaces = ["filter_sloan_r", "detector"] # SLOAN g'
+#surfaces = ["detector"] # SLOAN g'
+#surfaces = ["filter_sloan_r", "detector"] # SLOAN r'
+#surfaces = ["filter_sloan_i", "detector"] # SLOAN i'
+#surfaces = ["detector"] # no filter or "broadband"
+description = "Photometric system"
+
+
+
+##############################################################################
+# Define the overall observatory configuration
+##############################################################################
+[instruments.photometer]
+subsystems = ["telescope", "photometric_instrument"]
+description = "Lazuli Photometric System: Telescope + WCC, EOL"

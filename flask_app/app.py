@@ -1,4 +1,5 @@
 from bokeh.plotting import figure
+import scipy.interpolate
 from bokeh.embed import components
 import numpy as np
 from wcc_etc.airy import get_airy_and_ee_curve
@@ -53,44 +54,58 @@ def index():
     jitter = float(request.form['jitter']) if request.method == 'POST' else 0
 
     # Get wavelength and D from config (fallbacks if missing)
-    wavelength = getattr(wcc, 'wavelength', 0.6e-6) if config_path else 0.6e-6
-    D = getattr(wcc, 'diameter_primary', 3) if config_path else 3
-    fnum = getattr(wcc, 'f_num', 15) if config_path else 15
-    pixel_size = getattr(wcc, 'pixel_size', 3.74) if config_path else 3.74
+    wavelength_eff = getattr(wcc, 'wavelength')
+    print(f'Wavelength: {wavelength_eff} m')
+    D = getattr(wcc, 'diameter_primary')
+    fnum = getattr(wcc, 'f_num')
+    pixel_size = getattr(wcc, 'pixel_size')
+    plate_scale = getattr(wcc, 'plate_scale') * 1000 # mas / pix
+    NPIX = 15
 
     # Generate EE, Airy, Throughput, and Source plots using Bokeh
     try:
-        r_mas, psf1d, ee, ee_aper = get_airy_and_ee_curve(
-            wavelength=wavelength,
-            r_aper_mas=r_aper_mas,
-            grid_size=1024,
-            extent_mas=500,
-            verbose=False,
-            jitter_sigma_mas=jitter,
-            plot=False,
-            pixel_size=pixel_size,
-            fnum=fnum,
-            D=D
-        )
+        r_mas, psf1d, ee, ee_aper = get_airy_and_ee_curve( wavelength=wavelength_eff, r_aper_mas=r_aper_mas, grid_size=1024,
+                                                           extent_mas=500, verbose=False, jitter_sigma_mas=jitter,
+                                                           plot=False, pixel_size=pixel_size, fnum=fnum, D=D)
         # EE curve plot
-        p1 = figure(title="EE vs Radius", x_axis_label="Radius [mas]", y_axis_label="Encircled Energy", width=500, height=350)
+        p1 = figure(title="EE vs Radius. Grey vertical lines show pixel boundaries", x_axis_label="Radius [mas]", y_axis_label="Encircled Energy", width=500, height=350, x_range=(0, 300))
         p1.line(r_mas, ee, line_width=2, color="navy", legend_label="EE curve")
-        p1.line([r_aper_mas, r_aper_mas], [0, ee_aper], line_dash="dashed", color="black", legend_label="Aperture radius")
-        p1.line([0, r_aper_mas], [ee_aper, ee_aper], line_dash="dashed", color="black")
+        p1.line([r_aper_mas, r_aper_mas], [0, ee_aper], line_dash="dashed", color="orange", legend_label="Aperture radius")
+        p1.line([0, r_aper_mas], [ee_aper, ee_aper], line_dash="dashed", color="orange")
         p1.legend.location = "bottom_right"
+        p1.xgrid.grid_line_color = None
+        p1.ygrid.grid_line_color = None
+        for i in range(NPIX):
+            p1.line([i * plate_scale, i * plate_scale], [0, max(psf1d)], color="gray",alpha=0.5,line_width=0.3)# legend_label=f"{i} pixel{'s' if i!=1 else ''} ({i*plate_scale:.1f} mas)")
         ee_script, ee_div = components(p1)
 
-        # Airy disk plot
-        p2 = figure(title="Airy Disk vs Radius", x_axis_label="Radius [mas]", y_axis_label="Normalized Flux", width=500, height=350)
+            # Airy disk plot
+        p2 = figure(title="Airy Disk vs Radius. Grey vertical lines show pixel boundaries", x_axis_label="Radius [mas]", y_axis_label="Normalized Flux", width=500, height=350, x_range=(0, 300))
         p2.line(r_mas, psf1d, line_width=2, color="green", legend_label="Airy disk")
-        p2.line([r_aper_mas, r_aper_mas], [0, max(psf1d)], line_dash="dashed", color="black", legend_label="Aperture radius")
+        p2.line([r_aper_mas, r_aper_mas], [0, max(psf1d)], line_dash="dashed", color="orange", legend_label="Aperture radius")
         p2.legend.location = "top_right"
+        p2.xgrid.grid_line_color = None
+        p2.ygrid.grid_line_color = None
+        for i in range(NPIX):
+            p2.line([i * plate_scale, i * plate_scale], [0, max(psf1d)], color="gray",alpha=0.5,line_width=0.3)# legend_label=f"{i} pixel{'s' if i!=1 else ''} ({i*plate_scale:.1f} mas)")
         airy_script, airy_div = components(p2)
+
 
         # Final throughput plot
         wave, throughput = wcc.get_final_throughput_curve(wave_unit='nm')
-        p3 = figure(title="Final Throughput Curve", x_axis_label="Wavelength [A]", y_axis_label="Throughput", width=500, height=350, x_range=(3000, 18000))
+        p3 = figure(title="Final Throughput Curve", x_axis_label="Wavelength [A]", y_axis_label="Throughput", width=500, height=350, x_range=(2000, 18000))
         p3.line(wave, throughput, line_width=2, color="orange", legend_label="Throughput")
+        # Add vertical line at effective wavelength
+        if wavelength_eff is not None:
+            try:
+                # Convert wavelength to Angstroms for plot (if needed)
+                eff_wave_angstrom = float(wavelength_eff) * 1e10
+                print(eff_wave_angstrom)
+                eff_wave_y = scipy.interpolate.interp1d(wave, throughput)(eff_wave_angstrom)
+                p3.line([eff_wave_angstrom, eff_wave_angstrom], [0, eff_wave_y], line_dash="dashed", color="red", legend_label="Effective Wavelength, {:.1f} A".format(eff_wave_angstrom))
+                eff_wave_angstrom = float(f'{eff_wave_angstrom:.1f}')
+            except Exception as e:
+                print(f"Error plotting effective wavelength line: {e}")
         p3.legend.location = "top_right"
         throughput_script, throughput_div = components(p3)
 
@@ -123,8 +138,9 @@ def index():
                 verbose=False
             )
             snr = snr.value if hasattr(snr, 'value') else snr
-            if snr is not None:
-                snr = f"{snr:.2f}"
+            photometric_precision = 1e6/snr # in ppm
+            snr = f"{snr:.2f}"
+            photometric_precision = f"{photometric_precision:.1f}"
             print(f'Calculated SNR: {snr}')
 
             # Get total flux in electrons
@@ -160,7 +176,7 @@ def index():
         except Exception as e:
             error = f'Error: {e}'
             print(f'Exception occurred: {error}')
-    return render_template('index.html', snr=snr, error=error, config_files=config_files, selected_config=selected_config, config_description=config_description, ee_script=ee_script, ee_div=ee_div, airy_script=airy_script, airy_div=airy_div, throughput_script=throughput_script, throughput_div=throughput_div, source_script=source_script, source_div=source_div, source_files=[os.path.join(WCCETC.SOURCE_DIR, f) for f in source_files], selected_source=source_path, total_flux_e=flux_e, bg_flux_e=bg_flux_e, bg_mag_out=bg_mag_out)
+    return render_template('index.html', snr=snr, photometric_precision = photometric_precision, error=error, config_files=config_files, selected_config=selected_config, config_description=config_description, ee_script=ee_script, ee_div=ee_div, airy_script=airy_script, airy_div=airy_div, throughput_script=throughput_script, throughput_div=throughput_div, source_script=source_script, source_div=source_div, source_files=[os.path.join(WCCETC.SOURCE_DIR, f) for f in source_files], selected_source=source_path, total_flux_e=flux_e, bg_flux_e=bg_flux_e, bg_mag_out=bg_mag_out, eff_wave_angstrom=eff_wave_angstrom)
 
 if __name__ == '__main__':
     app.run(debug=True)

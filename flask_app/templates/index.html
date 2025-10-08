@@ -91,6 +91,11 @@
                                                 {{ ee_script|safe }}
                                                 <div>{{ ee_div|safe }}</div>
                                             {% endif %}
+                                            <!-- Bokeh Airy curve plot -->
+                                            {% if airy_script and airy_div %}
+                                                {{ airy_script|safe }}
+                                                <div>{{ airy_div|safe }}</div>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>
@@ -112,6 +117,10 @@
                                                         <td>{% if snr is not none %}{{ snr }}{% else %}<span style="color:#bbb;">(not calculated)</span>{% endif %}</td>
                                                     </tr>
                                                     <tr>
+                                                        <td><strong>Photometric Precision (ppm)</strong></td>
+                                                        <td>{% if photometric_precision is not none %}{{ photometric_precision }}{% else %}<span style="color:#bbb;">(not calculated)</span>{% endif %}</td>
+                                                    </tr>
+                                                    <tr>
                                                         <td><strong>Source Flux Rate (e⁻/s)</strong></td>
                                                         <td>{% if total_flux_e %}{{ total_flux_e }}{% else %}<span style="color:#bbb;">(not calculated)</span>{% endif %}</td>
                                                     </tr>
@@ -123,6 +132,10 @@
                                                         <td><strong>Background Magnitude (ABmag)</strong></td>
                                                         <td>{% if bg_mag_out %}{{ bg_mag_out }}{% else %}<span style="color:#bbb;">(not calculated)</span>{% endif %}</td>
                                                     </tr>
+                                                        <tr>
+                                                            <td><strong>Effective Wavelength (A)</strong></td>
+                                                            <td>{% if eff_wave_angstrom %}{{ eff_wave_angstrom }}{% else %}<span style="color:#bbb;">(not available)</span>{% endif %}</td>
+                                                        </tr>
                                                 </tbody>
                                             </table>
                                     </div>

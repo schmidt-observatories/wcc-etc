@@ -13,9 +13,16 @@ git clone git@github.com:schmidt-observatories/wcc-etc.git
 cd wcc-etc
 ```
 
+
 ## **2. Install the Package**
+Install the package itself:
 ```sh
 pip install -e .
+```
+
+If you need to install additional dependencies, can run
+```sh
+pip install -r requirements.txt
 ```
 
 # Tutorial
