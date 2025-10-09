@@ -167,6 +167,106 @@ def calc_plate_scale_from_flength(focal_length,pix_size):
     plate_scale_arcsec_pix = 206265./(focal_length*1000.)*pix_size/1000.
     return plate_scale_arcsec_pix
 
+
+def get_airy_and_ee_curve_pixel_grid(wavelength,r_aper_mas,grid_size=100,verbose=True,jitter_sigma_mas=0,
+                          plot=False,ax1=None,ax2=None,pixel_size=3.74,fnum=15,D=3):
+    """
+    INPUT:
+        wavelength - wavelength in m
+        D - diameter in m
+        grid_size -
+        extent_mas - 
+    EXAMPLE:
+        r_mas, ee_base = get_ee_curve(wavelength=0.6e-6)
+        r_mas, psf1d, ee = wcc_etc.airy.get_airy_and_ee_curve(wavelength=wavelength*1e-6,plot=True,jitter_sigma_mas=JITTER_MAS,ax=ax,r_aper_mas=70)
+    """
+    # Strip units from all arguments
+    wavelength = float(wavelength.value) if hasattr(wavelength, 'unit') else float(wavelength)
+    r_aper_mas = float(r_aper_mas.value) if hasattr(r_aper_mas, 'unit') else float(r_aper_mas)
+    grid_size = int(grid_size)
+    #extent_mas = float(extent_mas.value) if hasattr(extent_mas, 'unit') else float(extent_mas)
+    jitter_sigma_mas = float(jitter_sigma_mas.value) if hasattr(jitter_sigma_mas, 'unit') else float(jitter_sigma_mas)
+    pixel_size = float(pixel_size.value) if hasattr(pixel_size, 'unit') else float(pixel_size)
+    fnum = float(fnum.value) if hasattr(fnum, 'unit') else float(fnum)
+    D = float(D.value) if hasattr(D, 'unit') else float(D)
+
+    pscale = calc_plate_scale_from_flength(fnum*D,pixel_size) * 1000 # mas/pix
+    extent_mas = pscale * grid_size / 2
+
+    arcsec_per_radian = 206265.0
+    mas_per_radian = arcsec_per_radian * 1000.0
+    extent_rad = extent_mas / mas_per_radian
+
+    x = np.linspace(-extent_rad, extent_rad, grid_size)
+    y = np.linspace(-extent_rad, extent_rad, grid_size)
+    xx, yy = np.meshgrid(x, y, indexing='xy')
+    rr = np.sqrt(xx**2 + yy**2)
+    psf2d = get_airy_psf(D, rr, wavelength,normalize=True)
+    pixel_scale_mas = (2.0 * extent_mas) / grid_size
+    px_scale_x_mas = pixel_scale_mas
+    px_scale_y_mas = pixel_scale_mas
+    if verbose:
+        source_desc = f"Airy PSF (D={D:.2f} m, λ={wavelength*1e6} μm), grid={grid_size}², px={pixel_scale_mas:.3f} mas"
+        print("Source:", source_desc)
+        print(f"Pixel scales: {px_scale_x_mas:.3f} mas/px (x), {px_scale_y_mas:.3f} mas/px (y)")
+
+    # Baseline, no jitter
+    r_mas, psf1d, ee = psf_to_encircled_energy(psf2d, px_scale_x_mas, px_scale_y_mas)
+
+    if jitter_sigma_mas!=0:
+        print('Broadening with {}mas'.format(jitter_sigma_mas))
+        # Assuming symmetric
+        px_scale_mean = np.sqrt(px_scale_x_mas * px_scale_y_mas)
+        sigma_pix = jitter_sigma_mas / px_scale_mean
+        ker = gaussian_kernel_2d(sigma_pix)
+        psf_blur = fftconvolve(psf2d, ker, mode='same')
+        s = psf_blur.sum()
+        if s > 0:
+            psf_blur /= s
+        r_mas, psf1d, ee = psf_to_encircled_energy(psf_blur, px_scale_x_mas, px_scale_y_mas)
+
+    ee_aper = get_ee_value_at_radius(r_mas,ee,r_aper_mas)
+    if plot:
+        # EE plot
+        if ax1 is None:
+            fig, ax1 = plt.subplots()
+        ax1.plot(r_mas,ee)
+        ax1.set_xlabel('Radius [mas]',fontsize=16)
+        ax1.set_ylabel('Encircled Energy',fontsize=16)
+        #ax1.axhline(0.9,color='crimson',ls='--')
+        ax1.grid(lw=0.3,alpha=0.3)
+        ax1.set_title('EE as a function of radius.\nWavelength={:0.3f}micron, Jitter={:0.1f}mas'.format(wavelength*1e6,jitter_sigma_mas),fontsize=14)
+        ax1.axvline(r_aper_mas,color='k',ls='--',label='EE={:0.3f} at r={:0.1f}mas, r={:0.1f}pixels'.format(ee_aper,r_aper_mas,r_aper_mas/(1000*pscale)))
+        ax1.axhline(ee_aper,color='k',ls='--')
+        ax1.legend()
+        ax1.set_xlim(0,300)
+        bx = ax1.twiny()
+        bx.set_xticks(ax1.get_xticks()/(1000*pscale))
+        bx.set_xlabel('Pixels',fontsize=16)
+
+        # EE plot
+        if ax2 is None:
+            fig, ax2 = plt.subplots()
+        ax2.plot(r_mas,psf1d)
+        ax2.set_xlabel('Radius [mas]',fontsize=16)
+        ax2.set_ylabel('Normalized Flux',fontsize=16)
+        ax2.set_title('Airy disk as a function of radius.\nWavelength={:0.3f}micron, Jitter={:0.1f}mas'.format(wavelength*1e6,jitter_sigma_mas),fontsize=14)
+        #ax2.axhline(0.9,color='crimson',ls='--')
+        ax2.grid(lw=0.3,alpha=0.3)
+        ax2.axvline(r_aper_mas,color='k',ls='--',label='EE={:0.3f} at r={:0.1f}mas, r={:0.1f}pixels'.format(ee_aper,r_aper_mas,r_aper_mas/(1000*pscale)))
+        ax2.legend()
+        ax2.set_xlim(0,300)
+        bx = ax2.twiny()
+        bx.set_xticks(ax2.get_xticks()/(1000*pscale))
+        bx.set_xlabel('Pixels',fontsize=16)
+
+
+    if jitter_sigma_mas==0:
+        psf_blur = psf2d
+
+    return r_mas, psf1d, ee, ee_aper, psf_blur
+
+
 def get_airy_and_ee_curve(wavelength,r_aper_mas,grid_size=1024,extent_mas=500,verbose=True,jitter_sigma_mas=0,
                           plot=False,ax1=None,ax2=None,pixel_size=3.74,fnum=15,D=3):
     """
