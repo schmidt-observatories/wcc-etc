@@ -22,6 +22,7 @@ config_files = [f for f in os.listdir(CONFIG_DIR) if f.endswith('.toml')]
 @app.route('/', methods=['GET', 'POST'])
 def index():
     snr = None
+    photometric_precision = None
     error = None
     total_flux_e = None
     flux_e = None
@@ -114,6 +115,7 @@ def index():
 
     if request.method == 'POST':
         print('Received POST request')
+        photometric_precision = 0.
         try:
             wcc.set_source(source_path, plot=False)
             # Source spectrum plot
@@ -138,9 +140,13 @@ def index():
                 verbose=False
             )
             snr = snr.value if hasattr(snr, 'value') else snr
-            photometric_precision = 1e6/snr # in ppm
-            snr = f"{snr:.2f}"
-            photometric_precision = f"{photometric_precision:.1f}"
+            if snr not in (None, 0):
+                photometric_precision = 1e6/snr # in ppm
+                photometric_precision = f"{photometric_precision:.1f}"
+                snr = f"{snr:.2f}"
+            else:
+                photometric_precision = None
+                snr = None
             print(f'Calculated SNR: {snr}')
 
             # Get total flux in electrons
@@ -176,6 +182,7 @@ def index():
         except Exception as e:
             error = f'Error: {e}'
             print(f'Exception occurred: {error}')
+            photometric_precision = None
     return render_template('index.html', snr=snr, photometric_precision = photometric_precision, error=error, config_files=config_files, selected_config=selected_config, config_description=config_description, ee_script=ee_script, ee_div=ee_div, airy_script=airy_script, airy_div=airy_div, throughput_script=throughput_script, throughput_div=throughput_div, source_script=source_script, source_div=source_div, source_files=[os.path.join(WCCETC.SOURCE_DIR, f) for f in source_files], selected_source=source_path, total_flux_e=flux_e, bg_flux_e=bg_flux_e, bg_mag_out=bg_mag_out, eff_wave_angstrom=eff_wave_angstrom)
 
 if __name__ == '__main__':
