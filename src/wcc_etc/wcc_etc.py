@@ -67,7 +67,7 @@ class WCCETC(object):
         self.tel_config = self.config['telescope']
         #self.bandpass = SpectralElement(Box1D, amplitude=1, x_0=10000, width=16000)
         # this is faster
-        self.bandpass = SpectralElement(Box1D, amplitude=1, x_0=6000, width=5000)
+        self.bandpass = SpectralElement(Box1D, amplitude=1, x_0=7000, width=12000)
         self.qe_curves = []
         self.filters = []
         self.num_mirrors = 0
@@ -589,7 +589,6 @@ class WCCETC(object):
 
         NOTES:
         """
-
         #def calc_PSF_new(self, r_aper_mas=70,jitter_sigma_mas=0,wavelength=None,verbose=True,ax1=None,ax2=None):
         wavelength = self.bandpass.wpeak().value / 1e10 #A to nm
         self.r_psf_mas, self.psf1d, self.ee, self.ee_at_aper = airy.get_airy_and_ee_curve(wavelength,r_aper_mas,plot=plot,
@@ -618,7 +617,7 @@ class WCCETC(object):
         if flux_units in ['vega', units.VEGAMAG]:
             vega = SourceSpectrum.from_vega()  # For unit conversion
             normalization_units = flux * units.VEGAMAG
-            sp_rn = self.source_spectrum.normalize(normalization_units
+            self.sp_rn = self.source_spectrum.normalize(normalization_units
                                                       , self.bandpass
                                                       , vegaspec=vega
                                                       # , force='taper'
@@ -627,7 +626,7 @@ class WCCETC(object):
 
         elif flux_units in ['AB', 'ABmag', 'AB mag', 'AB magnitude', u.ABmag]:
             normalization_units = flux * u.ABmag
-            sp_rn = self.source_spectrum.normalize(normalization_units
+            self.sp_rn = self.source_spectrum.normalize(normalization_units
                                                       , self.bandpass
                                                       # , vegaspec=vega
                                                       # , force='taper'
@@ -636,7 +635,7 @@ class WCCETC(object):
         else:
             raise NotImplementedError("User-defined source flux units not currently implemented")
 
-        self.sp_obs = Observation(sp_rn, self.bandpass, force='extrap')
+        self.sp_obs = Observation(self.sp_rn, self.bandpass, force='extrap')
 
         if plot==True:
             self.sp_obs.plot(title='Source')
