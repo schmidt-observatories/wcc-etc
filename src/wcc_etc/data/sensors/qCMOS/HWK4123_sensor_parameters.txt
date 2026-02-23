@@ -1,0 +1,9 @@
+qty,value,unit,source-comment
+---,----,-----,--------------
+pixel-size,4.6,um,"manufacturer value"
+pixel-count-X,4096,"manufacturer value"
+pixel-count-Y.2304,"manufacturer value"
+read-noise,0.28,e/pix,"up to 225 Mpix/sec read speads" 
+dark-current,0.004,e/pix/sec,"at -20C, as measured by MIT"
+full-well,7000,e,"manufacturer value"
+gain,8.9,ADU/e,"as measured by MIT"

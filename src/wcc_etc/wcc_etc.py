@@ -18,14 +18,16 @@ prepend_if_not_none = lambda s1, s2: f"{s1}{s2}" if s1 is not None else s2
 
 class WCCETC(object):
     # Static paths for source and background data
-    SOURCE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'astr_obj_models', 'stars', 'pickles_models', 'dat_uvk'))
-    PATH_SUPPORT_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'astr_obj_models', 'galaxies', 'brown'))
+    SOURCE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
+    CONFIG_DIR = os.path.abspath(os.path.join(SOURCE_DIR, 'config'))
+    PICKLES_DIR = os.path.abspath(os.path.join(SOURCE_DIR, 'astr_obj_models', 'stars', 'pickles_models', 'dat_uvk'))
+    GALAXY_BACKGROUND_DIR = os.path.abspath(os.path.join(SOURCE_DIR, 'astr_obj_models', 'galaxies', 'brown'))
     DEFAULT_BKG_FILE = 'ngc_2537_spec.fits'
 
     @classmethod
     def get_source_files(cls):
-        if os.path.isdir(cls.SOURCE_DIR):
-            return [f for f in os.listdir(cls.SOURCE_DIR) if f.endswith('.fits')]
+        if os.path.isdir(cls.PICKLES_DIR):
+            return [f for f in os.listdir(cls.PICKLES_DIR) if f.endswith('.fits')]
         else:
             return []
 
@@ -36,7 +38,7 @@ class WCCETC(object):
 
     @classmethod
     def get_support_data_path(cls):
-        return cls.PATH_SUPPORT_DATA_DIR
+        return cls.GALAXY_BACKGROUND_DIR
 
     @classmethod
     def get_default_background_file(cls):
@@ -133,7 +135,7 @@ class WCCETC(object):
         """
         Return wavelength and throughput arrays for the final throughput curve.
         """
-        self.path_total_throughput = self.config['telescope']['path_total_throughput']
+        self.path_total_throughput = os.path.join(self.SOURCE_DIR, self.config['telescope']['path_total_throughput'])
         bp = SpectralElement.from_file(self.path_total_throughput, wave_unit=wave_unit)
         # Get arrays for plotting
         wave, throughput = bp._get_arrays(None)
@@ -144,7 +146,8 @@ class WCCETC(object):
         Read final throughput from a file
         """
         print('Reading total throughput from file')
-        self.path_total_throughput = self.config['telescope']['path_total_throughput']
+        self.path_total_throughput = os.path.join(self.SOURCE_DIR, self.config['telescope']['path_total_throughput'])
+        print('Total throughput path:', self.path_total_throughput)
 
         bp = SpectralElement.from_file(self.path_total_throughput, wave_unit=wave_unit)
 
@@ -255,21 +258,21 @@ class WCCETC(object):
             # Adding gain
             gain_cols = ['gain_setting', 'gain']
             try:
-                self.gain = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_gain_curve']), gain_setting, gain_cols) * (u.electron / u.ct)
+                self.gain = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(self.SOURCE_DIR,sensor_toml['path_gain_curve'])), gain_setting, gain_cols) * (u.electron / u.ct)
             except Exception as e:
                 print(e)
                 self.gain = self.config['detector']['gain'] * (u.electron / u.ct)
 
             dark_current_cols = ['sensor_temperature', 'dark_current']
             try:
-                self.dark_current = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_dark_current']), sensor_temp, dark_current_cols) * (u.electron / (u.s * u.pix))
+                self.dark_current = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(self.SOURCE_DIR,sensor_toml['path_dark_current'])), sensor_temp, dark_current_cols) * (u.electron / (u.s * u.pix))
             except Exception as e:
                 print(e)
                 self.dark_current = self.config['detector']['dark_current'] * (u.electron / (u.s * u.pix))
 
             read_noise_cols = ['gain_setting', 'read_noise']
             try:
-                self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_read_noise']), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix) *2
+                self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(self.SOURCE_DIR,sensor_toml['path_read_noise'])), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix) *2
                 print(f"Read noise: {self.read_noise}")
             except Exception as e:
                 print(e)
@@ -277,7 +280,7 @@ class WCCETC(object):
 
             well_depth_cols = ['gain_setting', 'well_depth']
             try:
-                self.well_depth = get_interpolated_value(prepend_if_not_none(support_data_path, sensor_toml['path_well_depth']), gain_setting, well_depth_cols) * (u.electron / u.pix)
+                self.well_depth = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(self.SOURCE_DIR,sensor_toml['path_well_depth'])), gain_setting, well_depth_cols) * (u.electron / u.pix)
             except Exception as e:
                 print(e)
                 self.well_depth = self.config['detector']['well_depth'] * (u.electron / u.pix)

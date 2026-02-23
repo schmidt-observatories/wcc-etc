@@ -1,0 +1,84 @@
+{
+    "instrument": {
+        "name": "Lazuli WCC r zwo 20250820",
+        "description": "End-to-End Throughput of the Lazuli telescope with the WCC instrument and SLOAN r' filter",
+        "outputfolder": "output/wcc/"
+    },
+    "wavelength_range": {
+        "start_nm": 350.0,
+        "end_nm": 1800.0,
+        "step_nm": 5.0
+    },
+    "settings": {
+        "interpolation_method": "linear",
+        "plot_results": true,
+        "debug_output": true,
+        "save_plots_pdf": true,
+        "save_instrument_data": true
+    },
+    "surfaces": {
+        "mirror_PM": {
+            "file": "coating/RTX_20250819_bare_aluminum_reflectance_extracted.csv",
+            "description": "Primary mirror coating",
+            "wavelength_unit": "nm",
+            "throughput_scale": "percent"
+        },
+        "mirror_SM": {
+            "file": "coating/RTX_20250820_M2_3_4_Coating.csv",
+            "description": "Secondary mirror coating",
+            "wavelength_unit": "nm",
+            "throughput_scale": "percent"
+        },
+        "mirror_TM": {
+            "file": "coating/RTX_20250820_M2_3_4_Coating.csv",
+            "description": "Tertiary mirror coating",
+            "wavelength_unit": "nm",
+            "throughput_scale": "percent"
+        },
+        "mirror_FSM": {
+            "file": "coating/RTX_20250820_M2_3_4_Coating.csv",
+            "description": "M4 - fast steering mirror coating",
+            "wavelength_unit": "nm",
+            "throughput_scale": "percent"
+        },
+        "filter_sloan_r": {
+            "file": "filter/SLOAN_SDSS.rprime_filter.dat",
+            "description": "Sloan r-band filter",
+            "wavelength_unit": "angstrom",
+            "throughput_scale": "fraction"
+        },
+        "detector": {
+            "file": "detector/ZWO_ASI6200MM_Pro_QE_curve.csv",
+            "description": "ZWO sCMOS detector quantum efficiency",
+            "wavelength_unit": "nm",
+            "throughput_scale": "fraction"
+        }
+    },
+    "subsystems": {
+        "telescope": {
+            "surfaces": [
+                "mirror_PM",
+                "mirror_SM",
+                "mirror_TM",
+                "mirror_FSM"
+            ],
+            "description": "Telescope optics"
+        },
+        "photometric_instrument": {
+            "surfaces": [
+                "filter_sloan_r",
+                "detector"
+            ],
+            "description": "Photometric system"
+        }
+    },
+    "instruments": {
+        "photometer": {
+            "subsystems": [
+                "telescope",
+                "photometric_instrument"
+            ],
+            "description": "Lazuli Photometric System: Telescope + WCC"
+        }
+    }
+}

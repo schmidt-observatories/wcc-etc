@@ -19,8 +19,8 @@ from scipy.ndimage import zoom, shift
 from scipy.signal import fftconvolve
 from scipy.interpolate import UnivariateSpline
 from . import airy
-#from . import radial_data
 from .radial_data import radial_data
+import warnings
 
 def howell_center(postage_stamp):
     """
@@ -146,14 +146,18 @@ def apply_nl_scaling(df_nl,data,how='makenonlinear',scale=1):
     return data_scaled
 
 class PSFSimulator(object):
-    _path_nonlinearity = '../data/support_data/sensors/qCMOS/qCMOS_nonlinearity_scaling.csv'
-    _path_gain_welldepth = '../data/support_data/sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Well_Depth_vs_Gain_Setting.csv' 
-    _path_master_flat = '../../psfsim/data/20251029_qCMOSflats/flats_1000nm/master_flat_1000nm.fits'
+    # Resolve support-data paths relative to this module so imports don't fail
+    _pkg_dir = os.path.dirname(__file__)
+    print(_pkg_dir)
+    _path_nonlinearity = os.path.join(_pkg_dir, 'data', 'sensors', 'qCMOS', 'qCMOS_nonlinearity_scaling.csv')
+    _path_gain_welldepth = os.path.join(_pkg_dir, 'data', 'sensors', 'ZWO_ASI6200MM', 'ZWO_ASI6200MM_Pro_Well_Depth_vs_Gain_Setting.csv')
+    _path_master_flat = os.path.join(_pkg_dir, 'data', 'psfsim', '20251029_qCMOSflats', 'flats_1000nm', 'master_flat_1000nm.fits')
     #FIMG.plot(colorbar=True)
 
-    df_nl = pd.read_csv(_path_nonlinearity,comment='#')
-    df_gain_welldepth = pd.read_csv(_path_gain_welldepth,names=['gain_setting','well_depth_electrons'],skiprows=1)
-    #astropy.io.fits.getdata(_path_master_flat)
+    # Try to read nonlinearity and gain/well-depth tables, but do not raise on import if missing.
+    df_nl = pd.read_csv(_path_nonlinearity, comment='#')
+
+    df_gain_welldepth = pd.read_csv(_path_gain_welldepth, names=['gain_setting', 'well_depth_electrons'], skiprows=1)
 
     def __init__(self,
                  wavelength,

@@ -2,6 +2,7 @@ from bokeh.plotting import figure
 import scipy.interpolate
 from bokeh.embed import components
 import numpy as np
+import wcc_etc
 from wcc_etc.airy import get_airy_and_ee_curve
 
 from flask import Flask, request, render_template
@@ -14,8 +15,9 @@ import astropy.units as u
 app = Flask(__name__)
 
 # List available config files in /config
-CONFIG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config'))
+CONFIG_DIR = os.path.abspath(WCCETC.CONFIG_DIR)
 config_files = [f for f in os.listdir(CONFIG_DIR) if f.endswith('.toml')]
+print(config_files)
 
 
 
@@ -39,7 +41,7 @@ def index():
     print(f'Selected config file: {selected_config}')
     print(f'Selected source file: {selected_source}')
     config_path = os.path.join(CONFIG_DIR, selected_config) if selected_config else None
-    source_path = os.path.join(WCCETC.SOURCE_DIR, selected_source) if selected_source and not os.path.isabs(selected_source) else selected_source
+    source_path = os.path.join(WCCETC.PICKLES_DIR, selected_source) if selected_source and not os.path.isabs(selected_source) else selected_source
     if config_path:
         try:
             wcc = WCCETC(config_path)
@@ -117,8 +119,9 @@ def index():
         print('Received POST request')
         photometric_precision = 0.
         try:
-            wcc.set_source(source_path, plot=False)
             # Source spectrum plot
+            print('set source')
+            wcc.set_source(source_path, plot=False)
 
             wcc.set_background(
                 background_file=WCCETC.get_default_background_file(),
@@ -183,7 +186,7 @@ def index():
             error = f'Error: {e}'
             print(f'Exception occurred: {error}')
             photometric_precision = None
-    return render_template('index.html', snr=snr, photometric_precision = photometric_precision, error=error, config_files=config_files, selected_config=selected_config, config_description=config_description, ee_script=ee_script, ee_div=ee_div, airy_script=airy_script, airy_div=airy_div, throughput_script=throughput_script, throughput_div=throughput_div, source_script=source_script, source_div=source_div, source_files=[os.path.join(WCCETC.SOURCE_DIR, f) for f in source_files], selected_source=source_path, total_flux_e=flux_e, bg_flux_e=bg_flux_e, bg_mag_out=bg_mag_out, eff_wave_angstrom=eff_wave_angstrom)
+    return render_template('index.html', snr=snr, photometric_precision = photometric_precision, error=error, config_files=config_files, selected_config=selected_config, config_description=config_description, ee_script=ee_script, ee_div=ee_div, airy_script=airy_script, airy_div=airy_div, throughput_script=throughput_script, throughput_div=throughput_div, source_script=source_script, source_div=source_div, source_files=[os.path.join(WCCETC.PICKLES_DIR, f) for f in source_files], selected_source=source_path, total_flux_e=flux_e, bg_flux_e=bg_flux_e, bg_mag_out=bg_mag_out, eff_wave_angstrom=eff_wave_angstrom)
 
 if __name__ == '__main__':
     app.run(debug=True,port=5002)

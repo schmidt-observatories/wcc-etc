@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wcc_etc"
-version = "0.0.2"
+version = "0.1.2"
 authors = [
   {name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org"}
 ]
@@ -41,8 +41,12 @@ include-package-data = true
 "wcc_etc" = [
   "data/astr_obj_models/stars/pickles_models/dat_uvk/*.fits",
   "data/astr_obj_models/galaxies/brown/*",
-  "data/flats/*",
-  "data/psfs/*",
+  "data/astrophysics/*",
+  "data/config/*",
+  "data/sensors/*",
+  "data/throughput/*"
+  #"data/flats/*",
+  #"data/psfs/*",
 ]
 
 
