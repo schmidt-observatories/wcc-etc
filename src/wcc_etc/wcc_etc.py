@@ -11,11 +11,10 @@ from math import ceil, floor, log10
 import os
 import matplotlib.pyplot as plt
 from . import airy
+from . import psfsim
 
 #   One line function prepends the support path to variable s2 if s1 is provided, else returns s2 as is.
 prepend_if_not_none = lambda s1, s2: f"{s1}{s2}" if s1 is not None else s2
-
-
 
 class WCCETC(object):
     # Static paths for source and background data
@@ -568,8 +567,6 @@ class WCCETC(object):
         else:
             raise ValueError("Only one of flux, r_aper_mas, jitter_sigma_mas, or texp can be an array at a time.")
 
-        
-
     def make_observation(self, flux, r_aper_mas, jitter_sigma_mas=0,flux_units=u.ABmag, bg_flux=None, 
                          bg_flux_units=u.ABmag, plot=True, verbose=False,ax1=None,ax2=None):
         """
@@ -666,13 +663,13 @@ class WCCETC(object):
         self.sky_counts_ADU_per_s = self.sky_counts_e_per_s / self.gain  # ADU/s   
 
         if verbose:
-            print('Source Count rate total: {}e/s'.format(self.count_rate_e_per_s_total))
-            print('Source Count rate total: {}ADU/s'.format(self.count_rate_ADU_per_s_total))
+            print('Source Count rate total: {}e/s'.format(self.count_rate_e_per_s_total.value))
+            print('Source Count rate total: {}ADU/s'.format(self.count_rate_ADU_per_s_total.value))
             print('EE = {:0.3f} at r={:0.1f}mas'.format(self.ee_at_aper,r_aper_mas))
-            print('Source Count rate at EE: {}e/s'.format(self.count_rate_e_per_s))
-            print('Source Count rate at EE: {}ADU/s'.format(self.count_rate_ADU_per_s))
-            print('Background Count rate: {}e/s'.format(self.sky_counts_e_per_s))
-            print('Background Count rate: {}ADU/s'.format(self.sky_counts_ADU_per_s))
+            print('Source Count rate at EE: {}e/s'.format(self.count_rate_e_per_s.value))
+            print('Source Count rate at EE: {}ADU/s'.format(self.count_rate_ADU_per_s.value))
+            print('Background Count rate: {}e/s'.format(self.sky_counts_e_per_s.value))
+            print('Background Count rate: {}ADU/s'.format(self.sky_counts_ADU_per_s.value))
 
         return self.count_rate_e_per_s, self.sky_counts_e_per_s
 
@@ -767,6 +764,53 @@ class WCCETC(object):
 
         return int_time * u.electron / u.ct
 
+    def simulate_2D_psf(self,wavelength,exptime,npix=500,flat_scale=1,filename_psf=None,
+                        jitter_mas=0,center=None,src_micron_per_pixel=4):
+        """
+        Simulate PSF
+
+        INPUT:
+            wavelength - wavelength in nm
+            exptime - exposure time in seconds
+            npix - number of pixels for PSF simulation
+            flat_scale - flat field scale
+
+        """
+        self.PSF = psfsim.PSFSimulator(wavelength=wavelength*u.nm,
+                                       diameter=self.diameter_primary*u.m,
+                                       focal_ratio=self.f_num,
+                                       pixel_size= self.pixel_size.value*u.micron,
+                                       total_flux=self.count_rate_e_per_s_total.value*exptime,
+                                       exp_time=exptime*u.s,
+                                       dark_current_rate=self.dark_current.value*u.electron/u.s,
+                                       read_noise_rms=self.read_noise.value*u.electron,
+                                       npix=npix,
+                                       flat_scale=flat_scale)
+        self.PSF.simulate_psf(filename=filename_psf,
+                              jitter_mas=jitter_mas,
+                              center=center,
+                              src_micron_per_pixel=src_micron_per_pixel)
+        return self.PSF.data_flat
+
+    def aperture_photometry(self, r_ap, r_in, r_out, data=None, center=None, gain=1, plot=True,**kwargs):
+        """
+        Perform aperture photometry on the PSF data.
+        """
+        if data is None:
+            data = self.PSF.data_flat
+            print('Using simulated PSF data from self.data_flat for aperture photometry')
+        self.fimg = psfsim.FitsImg(data=data)
+        res = self.fimg.aperture_photometry(r_ap=r_ap,
+                                      r_in=r_in,
+                                      r_out=r_out,
+                                      center=center,
+                                      gain=gain,
+                                      plot=plot,
+                                      **kwargs)
+        return res
+
+
+
 def phot_error(star_ADU,n_pix,n_b,sky_ADU,dark,read,gain=1.0):
     """
     Photometric error
@@ -814,6 +858,7 @@ def get_interpolated_value(input_file, interpolation_xval, col_headers):
     interp = interp1d(xlist, ylist)
 
     return interp(interpolation_xval)
+
 
 
 if __name__ == '__main__':

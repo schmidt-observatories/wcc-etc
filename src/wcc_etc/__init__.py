@@ -6,3 +6,5 @@ __all__ = [ "__version__"]
 
 from .wcc_etc import WCCETC
 from .airy import *
+from .psfsim import *
+from .radial_data import *

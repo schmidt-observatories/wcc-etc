@@ -186,4 +186,4 @@ def index():
     return render_template('index.html', snr=snr, photometric_precision = photometric_precision, error=error, config_files=config_files, selected_config=selected_config, config_description=config_description, ee_script=ee_script, ee_div=ee_div, airy_script=airy_script, airy_div=airy_div, throughput_script=throughput_script, throughput_div=throughput_div, source_script=source_script, source_div=source_div, source_files=[os.path.join(WCCETC.SOURCE_DIR, f) for f in source_files], selected_source=source_path, total_flux_e=flux_e, bg_flux_e=bg_flux_e, bg_mag_out=bg_mag_out, eff_wave_angstrom=eff_wave_angstrom)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True,port=5002)
