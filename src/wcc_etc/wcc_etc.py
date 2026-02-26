@@ -1,5 +1,6 @@
 import toml
 import math
+import pathlib
 from astropy import units as u
 from synphot import units, SourceSpectrum, SpectralElement, Observation, Empirical1D
 from synphot.models import BlackBodyNorm1D, GaussianFlux1D, Box1D
@@ -10,13 +11,16 @@ import pandas as pd
 from math import ceil, floor, log10
 import os
 import matplotlib.pyplot as plt
+
 from . import airy
 from . import psfsim
+from .io import read_config
+
 
 #   One line function prepends the support path to variable s2 if s1 is provided, else returns s2 as is.
 prepend_if_not_none = lambda s1, s2: f"{s1}{s2}" if s1 is not None else s2
 
-class WCCETC(object):
+class WCCETC( object ):
     # Static paths for source and background data
     SOURCE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
     CONFIG_DIR = os.path.abspath(os.path.join(SOURCE_DIR, 'config'))
@@ -44,7 +48,7 @@ class WCCETC(object):
     def get_default_background_file(cls):
         return cls.DEFAULT_BKG_FILE
 
-    def __init__(self,config_file: str):
+    def __init__(self, config: [str, dict], setup=True):
         """
         Initialize the WCC ETC with a configuration file.
 
@@ -53,13 +57,23 @@ class WCCETC(object):
             WCC.setup()
         """
         print('Initializing WCC ETC. Reading in Config')
-        self.config = toml.load(config_file)
+        if any( isinstance(config, test_type) for test_type in [pathlib.Path, str]):
+            self.config = read_config(config, source="config")
+        else:
+            self.config = config
 
         # Load config
         self._load_config()
 
         # Perform relevant calculations
+        if setup:
+            self.setup()
 
+    @classmethod
+    def from_config(cls, config):
+        """ conveniant method that instanciate the class from a config (dict or path to)"""
+        return cls(config)
+        
     def _load_config(self):
         """
         Load the configuration from the config file.
