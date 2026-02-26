@@ -1,0 +1,10 @@
+[detector]
+pixel_size = 3.76			# micron / pix
+gain_setting = 100 			# 0.1 db
+sensor_temp = 0.0 			# C
+sensor_area = 864 			# mm2: (36 mm * 24mm = 864 mm2)
+path_dark_current = "sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Dark_Current_vs_Sensor_Temperature.csv"
+path_gain_curve =   "sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Gain_vs_Gain_Setting.csv"
+path_read_noise =   "sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Read_Noise_vs_Gain_Setting.csv"
+path_well_depth =   "sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Well_Depth_vs_Gain_Setting.csv"
+path_qe = ""  				# already included in total throughput

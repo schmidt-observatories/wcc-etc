@@ -107,7 +107,7 @@ class WCCETC( object ):
         self.path_m2_coating = self.config['telescope']['path_m2_coating']
         self.path_m3_coating = self.config['telescope']['path_m3_coating']
         self.path_m4_coating = self.config['telescope']['path_m4_coating']
-        self.path_filter = self.config['telescope']['path_filter']
+        self.path_filter = self.config['telescope'].get('path_filter', None) # None by default
         self.sensor_area = self.config['detector']['sensor_area'] * u.mm**2
         self.sensor_temp = self.config['detector']['sensor_temp'] * u.Celsius
         self.bg_surface_brightness = self.config['zodi']['zodi_mag_r']

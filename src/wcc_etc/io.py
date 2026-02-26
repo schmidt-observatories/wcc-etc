@@ -5,7 +5,31 @@ from importlib.resources import files
 
 PACKAGE_PATH = str(files("wcc_etc.data")._paths[0])    #: Path to data & config files.
 
-__all__ = ["read_config"]
+__all__ = ["read_config", "get_sensor_config"]
+
+SENSORS = {"zwo": {"bb": "Lazuli_WCC_kepler_20251010_eol_zwo",
+                      "u": None,
+                      "r": None,
+                      "z": None,
+                      "g": None,
+                      "i": None,
+                      "r_defocus": None,
+                      "bb_defocus": None,
+                      "halpha": None,
+                      "nii": None,
+                      "oiii": None,
+                      "heii": None,
+                  },
+          "qcmos": {"u": None,
+                    "bb": None,
+                    "g": None,
+                    "z": None,
+                    "i": None,
+                   }
+          }
+
+# shortcut to simplify usage.
+_KIND_NAMES = {shortcut:"zwo" for shortcut in ["sony", "imx", "imx455"]}
 
 def read_config(filename, source="config"):
     """Read a single configuration file.
@@ -53,6 +77,26 @@ def read_config(filename, source="config"):
         raise NotImplementedError(f"Unknown configuration extension {extension=}.")
     
     return config
+
+def get_sensor_config(kind, band, **kwargs):
+    """ """
+    # trick to allow nicknames like 'sony' in place of 'zwo'
+    kind = _KIND_NAMES.get(kind, kind) 
+    kind_sensors = SENSORS.get(kind)
+    if band not in kind_sensors:
+        raise ValueError(f"{kind_sensors} sensor do not have {band} band.")
+    else:
+        throughput_filter = kind_sensors.get(band)
+        if throughput_filter is None:
+            raise NotImplementedError("{kind_sensors} {band} sensor exists but no throghputcurve implemented yet.")
+
+    # Build the config file
+    config = read_config("lazuli")
+    config |= read_config(kind)
+    config["telescope"]["path_total_throughput"] = os.path.join("throughput", throughput_filter,
+                                                               f"{throughput_filter}_throughput.csv")
+    return config | kwargs
+
 
 def expand_path(filename, source=None):
     """Get the full file path, including the config path if necessary.

@@ -1,0 +1,9 @@
+[detector]
+pixel_size = 4.6			# micron / pix
+read_noise = 0.56	  	   	# 0.28 # e/pix, doubling to be conservative, as haven't implemented non-linearity noise
+dark_current = 0.05	           	# e/pix/s, confirmed from Gabor, measured at -20C at MIT, now setting as 0.05 e/pix/s for 0C
+gain = 0.112   		  	   	# ADU/e # NOTE: Gabor's note suggest gain is ADU/e rather than e/ADU. Ask
+sensor_temp = 0.0 	   	   	# C, NOTE: Gabor's note suggest temp is -20C. Now assuming 0.05 e/pix/s at 0C
+sensor_area = 199.69081344 		# mm2: (18.8416 mm * 10.5984 mm = mm2)
+well_depth = 7000 			# e/pix
+path_qe = ""  				# already included in total throughput
