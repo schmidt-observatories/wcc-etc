@@ -3,7 +3,7 @@ import tomllib
 import numpy as np
 from importlib.resources import files
 
-PACKAGE_PATH = files("wcc_etc.data")     #: Path to data & config files.
+PACKAGE_PATH = str(files("wcc_etc.data")._paths[0])    #: Path to data & config files.
 
 __all__ = ["read_config"]
 
@@ -78,9 +78,9 @@ def expand_path(filename, source=None):
         fname = filename
     else:                          # use PACKAGE_PATH as default
         if source is not None:
-            fname = PACKAGE_PATH.joinpath(source).joinpath(filename)
+            fname = os.path.join(PACKAGE_PATH, source, filename)
         else:
-            fname = PACKAGE_PATH.joinpath(filename)
+            fname = os.path.join(PACKAGE_PATH, filename)
 
         _, extension = os.path.splitext(fname)
         if extension is None or len(extension) == 0:
