@@ -5,6 +5,7 @@ __version__ = importlib.metadata.version(__package__ or "wcc_etc")
 __all__ = [ "__version__"]
 
 from .wcc_etc import WCCETC
+from .io import read_config
 from .airy import *
 from .psfsim import *
 from .radial_data import *
