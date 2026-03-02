@@ -19,7 +19,7 @@ path_filter = ""
 #path_filter = "../data/support_data/filters/SLOAN_SDSS.gprime_filter.txt"
 #path_filter = "../data/support_data/filters/sdss_i_005_syn.fits"
 #path_total_throughput = "../data/support_data/throughput/Lazuli_WCC_r_20250820/Lazuli_WCC_r_20250820_throughput.csv"
-path_total_throughput = "../data/support_data/throughput//Lazuli_WCC_r_20251008_EOL_qCMOS/Lazuli_WCC_r_20251008_EOL_qCMOS_throughput.csv"
+path_total_throughput = "throughput//Lazuli_WCC_r_20251008_EOL_qCMOS/Lazuli_WCC_r_20251008_EOL_qCMOS_throughput.csv"
 #########################################################
 
 #########################################################
