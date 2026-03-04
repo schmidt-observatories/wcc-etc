@@ -45,9 +45,9 @@ include-package-data = true
   "data/astrophysics/*",
   "data/config/*",
   "data/sensors/*",
-  "data/throughput/*"
-  #"data/flats/*",
-  #"data/psfs/*",
+  "data/throughput/*",
+  "data/flats/*",
+  "data/psfs/*",
 ]
 
 
