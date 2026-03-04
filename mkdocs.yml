@@ -1,15 +1,21 @@
 site_name: WCC-ETC
 site_description: Documentation for the WCC-ETC exposure time calculator package
 site_author: Gudmundur Stefansson
-repo_url: https://github.com/uasal/config_stp
+repo_url: https://github.com/schmidt-observatories/wcc-etc
+site_name: WCC-ETC
+site_description: Documentation for the WCC-ETC exposure time calculator package
+site_author: Gudmundur Stefansson
+repo_url: https://github.com/schmidt-observatories/wcc-etc
 nav:
   - Home: index.md
+  - Usage: usage.md
   - API Reference: api.md
   - Tutorials: tutorials.md
   - Changelog: changelog.md
 theme:
-  name: readthedocs
-docs_dir: docs
+  name: material
+plugins:
+  - search
 markdown_extensions:
   - admonition
   - codehilite

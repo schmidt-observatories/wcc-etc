@@ -151,7 +151,7 @@ class PSFSimulator(object):
     print(_pkg_dir)
     _path_nonlinearity = os.path.join(_pkg_dir, 'data', 'sensors', 'qCMOS', 'qCMOS_nonlinearity_scaling.csv')
     _path_gain_welldepth = os.path.join(_pkg_dir, 'data', 'sensors', 'ZWO_ASI6200MM', 'ZWO_ASI6200MM_Pro_Well_Depth_vs_Gain_Setting.csv')
-    _path_master_flat = os.path.join(_pkg_dir, 'data', 'psfsim', '20251029_qCMOSflats', 'flats_1000nm', 'master_flat_1000nm.fits')
+    _path_master_flat = os.path.join(_pkg_dir, 'data', 'flats', 'master_flat_1000nm.fits') # 'psfs', '20251029_qCMOSflats', 'flats_1000nm',
     #FIMG.plot(colorbar=True)
 
     # Try to read nonlinearity and gain/well-depth tables, but do not raise on import if missing.
@@ -270,7 +270,7 @@ class PSFSimulator(object):
             print('Applying jitter {}mas'.format(jitter_mas))
         return apply_jitter(data,jitter_mas=jitter_mas,pixel_scale=self.pixel_scale*1000)
 
-    def simulate_psf(self,center=None,jitter_mas=0,apply_nonlinearity=True,verbose=True,nl_scale=10,filename=None,src_micron_per_pixel=4,addnoise=True):
+    def simulate_psf(self,center=None,jitter_mas=0,apply_nonlinearity=True,verbose=True,nl_scale=10,filename=None,src_micron_per_pixel=4,addnoise=True,skiprows=22):
         """
         Generate the ideal PSF based on the current parameters.
         """
@@ -298,7 +298,7 @@ class PSFSimulator(object):
         else:
             self.filename = filename
             self.cpsf = CustomPSF(self.filename, src_micron_per_pix=src_micron_per_pixel, telescope_diameter_m=self.diameter.value, 
-                                  fnum=self.focal_ratio, target_pixel_size_micron=self.pixel_size.value)
+                                  fnum=self.focal_ratio, target_pixel_size_micron=self.pixel_size.value,skiprows=skiprows)
             self.data_nonoise = self.cpsf.resample_to_grid(npix=self.npix, total_flux=self.total_flux, center=center)
 
         self.data = np.copy(self.data_nonoise)
@@ -792,7 +792,6 @@ class CustomPSF(object):
         fimg.plot()
         fimg.get_radial_profile(plot=True)
     """
-
     def __init__(self, filename, src_micron_per_pix, telescope_diameter_m, fnum, target_pixel_size_micron, skiprows=22, encoding="utf-16", verbose=True):
         self.filename = filename
         self.src_micron_per_pix = float(src_micron_per_pix)
@@ -815,6 +814,9 @@ class CustomPSF(object):
         self.resampled = None
 
     def _center_crop_or_pad(self, img, out_shape, center=None, fill=0.0, interp_order=3):
+        """
+        Center crop or pad the input image to the desired output shape.
+        """
         ny, nx = img.shape
         oy, ox = out_shape
         # center is (cx, cy)
@@ -855,7 +857,8 @@ class CustomPSF(object):
         return out
 
     def resample_to_grid(self, npix, total_flux, center=None, interp_order=1):
-        """Resample the PSF onto an output grid of size npix.
+        """
+        Resample the PSF onto an output grid of size npix.
 
         `center` is in output (resampled) pixel coordinates (cx_out, cy_out).
         The routine maps the source center to the requested output pixel.
@@ -901,6 +904,13 @@ class CustomPSF(object):
         return self.data_resampled
 
     def plot_resampled(self, title='Resampled PSF', cmap='viridis'):
+        """
+        Plot the original and resampled PSF images.
+
+        INPUTS:
+            title - Title for the resampled PSF plot
+            cmap - Colormap to use for the plots
+        """
         if self.data_resampled is None:
             raise RuntimeError('No resampled image found. Call resample_to_grid(...) first')
         fig, ax = plt.subplots()
