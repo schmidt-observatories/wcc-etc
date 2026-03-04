@@ -64,7 +64,7 @@ def read_config(filename, source="config"):
         return filename
     
     # make sure you get the fullpath
-    filename = expand_path(filename, source=source)
+    filename = expand_path(filename, source=source, test_extension=False)
 
     # parse the extension to know how to read it.
     _, extension = os.path.splitext(filename)
@@ -94,12 +94,12 @@ def get_sensor_config(kind, band, **kwargs):
     # Build the config file
     config = read_config("lazuli")
     config |= read_config(kind)
-    config["telescope"]["path_total_throughput"] = os.path.join("throughput", throughput_filter,
-                                                               f"{throughput_filter}_throughput.csv")
+    config["sensor"]["path_total_throughput"] = os.path.join("throughput", throughput_filter,
+                                                  f"{throughput_filter}_throughput.csv")
     return config | kwargs
 
 
-def expand_path(filename, source=None):
+def expand_path(filename, source=None, test_extension=False):
     """Get the full file path, including the config path if necessary.
 
     If the input filename does not specifically include a path, it will be
@@ -119,7 +119,7 @@ def expand_path(filename, source=None):
         Filename including the default path if needed.
     """
 
-    if os.path.dirname(filename):  # filename includes a path
+    if os.path.isfile(filename):  # filename includes a path
         fname = filename
     else:                          # use PACKAGE_PATH as default
         if source is not None:
@@ -130,7 +130,7 @@ def expand_path(filename, source=None):
         _, extension = os.path.splitext(fname)
         if extension is None or len(extension) == 0:
             fname = f"{fname}.toml"
-        elif extension not in [".toml"]: # specify here list of accepted extensions.
+        elif test_extension and (extension not in [".toml", ".csv", ".parquet"]): # specify here list of accepted extensions.
             raise NotImplementedError(f"Unknown configuration extension {extension=}.")
 
     return fname

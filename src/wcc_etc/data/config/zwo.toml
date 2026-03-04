@@ -1,4 +1,4 @@
-[detector]
+[sensor]
 pixel_size = 3.76			# micron / pix
 gain_setting = 100 			# 0.1 db
 sensor_temp = 0.0 			# C

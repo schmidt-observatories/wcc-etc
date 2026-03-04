@@ -608,6 +608,7 @@ class WCCETC( object ):
                                                                   jitter_sigma_mas=jitter_sigma_mas,ax1=ax1,ax2=ax2,
                                                                   fnum=self.f_num,D=self.diameter_primary.value,
                                                                   pixel_size=self.pixel_size.value,verbose=verbose)
+        
         self.num_pixels_at_r =r_aper_mas/(self.plate_scale*1000) # pix
         self.num_psf_pixels = (self.num_pixels_at_r**2)*np.pi * u.pix
 

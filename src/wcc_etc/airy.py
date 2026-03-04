@@ -214,7 +214,9 @@ def get_airy_and_ee_curve_pixel_grid(wavelength,r_aper_mas,grid_size=100,verbose
     r_mas, psf1d, ee = psf_to_encircled_energy(psf2d, px_scale_x_mas, px_scale_y_mas)
 
     if jitter_sigma_mas!=0:
-        print('Broadening with {}mas'.format(jitter_sigma_mas))
+        if verbose:
+            print('Broadening with {}mas'.format(jitter_sigma_mas))
+            
         # Assuming symmetric
         px_scale_mean = np.sqrt(px_scale_x_mas * px_scale_y_mas)
         sigma_pix = jitter_sigma_mas / px_scale_mean
@@ -310,7 +312,9 @@ def get_airy_and_ee_curve(wavelength,r_aper_mas,grid_size=1024,extent_mas=500,ve
     r_mas, psf1d, ee = psf_to_encircled_energy(psf2d, px_scale_x_mas, px_scale_y_mas)
 
     if jitter_sigma_mas!=0:
-        print('Broadening with {}mas'.format(jitter_sigma_mas))
+        if verbose:
+            print('Broadening with {}mas'.format(jitter_sigma_mas))
+            
         # Assuming symmetric
         px_scale_mean = np.sqrt(px_scale_x_mas * px_scale_y_mas)
         sigma_pix = jitter_sigma_mas / px_scale_mean
