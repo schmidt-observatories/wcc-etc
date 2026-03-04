@@ -1,4 +1,4 @@
-[detector]
+[sensor]
 pixel_size = 4.6			# micron / pix
 read_noise = 0.56	  	   	# 0.28 # e/pix, doubling to be conservative, as haven't implemented non-linearity noise
 dark_current = 0.05	           	# e/pix/s, confirmed from Gabor, measured at -20C at MIT, now setting as 0.05 e/pix/s for 0C
