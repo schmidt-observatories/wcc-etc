@@ -23,7 +23,7 @@ class Simulation():
         """ """
         self._telescope = telescope
         self._sensor = sensor
-        self._source = source
+        self.set_source(source)
 
         input_parameters = {key:value for key,value in locals().items()
                              if key not in ["self", "telescope", "sensor", "source", "meta"] and value is not None}
@@ -60,9 +60,58 @@ class Simulation():
 
         return cls(telescope=telescope, sensor=sensor, source=source)
 
+
+    @classmethod
+    def from_sensorname_and_source(cls, name, source):
+        """ """
+        from .io import get_sensor_config
+        config = get_sensor_config("sony", "bb")
+
+        this = cls.from_config(config) # this has no source
+        this.set_source(source)
+        return this
+    
     # ================ #
     #   methods        #
     # ================ #
+    def set_source(self, source_or_config):
+        """ """
+        if isinstance(source_or_config, dict):
+            source = Source.from_config(source_or_config)
+        else:
+            source = source_or_config
+        
+        self._source = source
+        
+        # this should move inside source eventually
+        self._h_spec_observation = None
+        self._h_sky_observation = None
+
+    def set_sensor(self, sensor_or_config):
+        """ """
+        if isinstance(sensor_or_config, dict):
+            sensor = Sensor.from_config(sensor_or_config)
+        else:
+            sensor = sensor_or_config
+        
+        self._sensor = source
+        self._psf_profile = {} # reset the psf profile
+        # these following entry 'might' depend on sensor for the bandpass
+        self._h_spec_observation = None
+        self._h_sky_observation = None 
+
+    def set_telescope(self, telescope_or_config):
+        """ """
+        if isinstance(telescope_or_config, dict):
+            telescope = Telescope.from_config(telescope_or_config)
+        else:
+            telescope = telescope_or_config
+        
+        self._telescope = telescope
+        self._psf_profile = {} # reset the psf profile
+
+        
+
     # ------- #
     #  GETTER #
     # ------- #
@@ -205,6 +254,8 @@ class Simulation():
                 for element in ["telescope", "sensor", "source"]
                 if self.has_element(element)}
 
+    # ---------- #
+    # cashed     #
     # ---------- #
     @property
     def psf_profile(self):
