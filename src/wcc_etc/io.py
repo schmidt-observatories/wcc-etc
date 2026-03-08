@@ -7,26 +7,26 @@ PACKAGE_PATH = str(files("wcc_etc.data")._paths[0])    #: Path to data & config 
 
 __all__ = ["read_config", "get_sensor_config"]
 
-SENSORS = {"zwo": {"bb": "Lazuli_WCC_kepler_20251010_eol_zwo",
-                      "u": "Lazuli_WCC_u_20250912",
-                      "r": "Lazuli_WCC_r_20250907_EOL",
-                      "z": None,
-                      "g": "Lazuli_WCC_g_20250907_EOL",
-                      "i": None,
-                      "r_defocus": None,
-                      "bb_defocus": None,
-                      "halpha": None,
-                      "nii": None,
-                      "oiii": None,
-                      "heii": None,
+SENSORS = {"zwo": {"bb": "wcc_imx_bb_throughput.csv",#"Lazuli_WCC_kepler_20251010_eol_zwo",
+                   "u":  "wcc_imx_u_throughput.csv", #"Lazuli_WCC_u_20250912",
+                   "g":  "wcc_imx_g_throughput.csv", #"Lazuli_WCC_g_20250907_EOL",
+                   "r":  "wcc_imx_r_throughput.csv", #"Lazuli_WCC_r_20250907_EOL",
+                   "i":  "wcc_imx_i_throughput.csv", # None,
+                   "z":  "wcc_imx_z_throughput.csv", # None,
+                   "r_defocus": None,
+                   "bb_defocus": None,
+                   "halpha": None,
+                   "nii": None,
+                   "oiii": None,
+                   "heii": None,
                   },
-          "qcmos": {"u": None,
-                    "bb": "Lazuli_WCC_kepler_20251010_eol_qCMOS",
-                    "r": "Lazuli_WCC_r_20251008_EOL_qCMOS",
-                    "g": None,
-                    "z": None,
-                    "i": None,
-                   }
+          "qcmos": {"bb": "wcc_hwk_bb_throughput.csv",#"Lazuli_WCC_kepler_20251010_eol_qCMOS",
+                  "u":  "wcc_hwk_u_throughput.csv",
+                  "g":  "wcc_hwk_g_throughput.csv",#"Lazuli_WCC_g_20250907_EOL_qCMOS",
+                  "r":  "wcc_hwk_r_throughput.csv",#"Lazuli_WCC_r_20251008_EOL_qCMOS",
+                  "i":  "wcc_hwk_i_throughput.csv",
+                  "z":  "wcc_hwk_z_throughput.csv",# None,
+                  }
           }
 
 # shortcut to simplify usage.
@@ -80,7 +80,9 @@ def read_config(filename, source="config"):
     return config
 
 def get_sensor_config(kind, band, **kwargs):
-    """ """
+    """
+    Get sensor configuration for a specific band.
+    """
     # trick to allow nicknames like 'sony' in place of 'zwo'
     kind = _KIND_NAMES.get(kind, kind) 
     kind_sensors = SENSORS.get(kind)
@@ -94,8 +96,11 @@ def get_sensor_config(kind, band, **kwargs):
     # Build the config file
     config = read_config("lazuli")
     config |= read_config(kind)
-    config["sensor"]["path_total_throughput"] = os.path.join("throughput", throughput_filter,
-                                                  f"{throughput_filter}_throughput.csv")
+    # Old
+    #config["sensor"]["path_total_throughput"] = os.path.join("throughput", throughput_filter,
+    #                                              f"{throughput_filter}_throughput.csv")
+    config["sensor"]["path_total_throughput"] = os.path.join("throughput", "20260304_wcc_throughputs",
+                                                             throughput_filter)
     return config | kwargs
 
 
