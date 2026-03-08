@@ -99,6 +99,7 @@ def get_sensor_config(kind, band, **kwargs):
     return config | kwargs
 
 
+
 def expand_path(filename, source=None, test_extension=False):
     """Get the full file path, including the config path if necessary.
 

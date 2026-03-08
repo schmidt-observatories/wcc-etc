@@ -16,7 +16,12 @@ class Sensor():
                  temperature=None,
                  qe= 1, # part of the total throughput for now.
                 meta={}):
-        """ """
+        """
+        Initialize the sensor.
+
+        INPUT:
+
+        """
 
         init_parameters = {key: value for key, value in locals().items()
                             if key not in ["self", "bandpass", "meta"] and value is not None}
@@ -60,7 +65,7 @@ class Sensor():
         gain_setting = config.get('gain_setting', None)        
         if gain_setting is not None:
             gain = parse_and_interpolate(config.get("path_gain_curve"), gain_setting)
-            read_noise = parse_and_interpolate(config.get("path_read_noise"), gain_setting)
+            read_noise = parse_and_interpolate(config.get("path_read_noise"), gain_setting) * 2 # multiply by 2 to allow for unmodelled noise sources
             dark_current = parse_and_interpolate(config.get("path_dark_current"), sensor_temp.to("Celsius").value) # careful temperature here.
             well_depth = parse_and_interpolate(config.get("path_well_depth"), gain_setting)
             

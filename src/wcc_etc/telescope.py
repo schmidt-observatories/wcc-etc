@@ -36,7 +36,14 @@ class Telescope():
     # ================ #
     #  methods         #
     # ================ #
-    
+
+    def describe(self):
+        """
+        List parameters
+        """
+        for key, value in self.meta.items():
+            print("  {}: {}".format(key, value))
+
     # ================ #
     #  Properties      #
     # ================ #
