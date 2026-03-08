@@ -11,9 +11,11 @@ def test_snrs_25p4_mag_60s():
 
     Allow a small tolerance.
     """
+    SPT = 'G5V'
+
     # build source using repository bundled files (same as notebook)
     source_config = {
-        "spectrum": wcc_io.expand_path('astr_obj_models/stars/pickles_models/dat_uvk/pickles_uk_55.fits'),
+        "spectrum": wcc_io.get_pickles_spectrum_filename(SPT),
         "background": wcc_io.expand_path('astr_obj_models/galaxies/brown/ngc_2537_spec.fits'),
         "bg_surface_brightness": 22.5,
     }

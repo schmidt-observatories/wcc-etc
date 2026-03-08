@@ -1,9 +1,12 @@
 import os
+import pandas as pd
 import tomllib
 import numpy as np
 from importlib.resources import files
 
 PACKAGE_PATH = str(files("wcc_etc.data")._paths[0])    #: Path to data & config files.
+PICKLES_DIR = os.path.join(PACKAGE_PATH, "astr_obj_models","stars","pickles_models")
+PICKLES_MAPPING = os.path.join(PICKLES_DIR, "pickles_mapping.csv")
 
 __all__ = ["read_config", "get_sensor_config"]
 
@@ -31,6 +34,33 @@ SENSORS = {"zwo": {"bb": "wcc_imx_bb_throughput.csv",#"Lazuli_WCC_kepler_2025101
 
 # shortcut to simplify usage.
 _KIND_NAMES = {shortcut:"zwo" for shortcut in ["sony", "imx", "imx455"]}
+
+def get_pickles_mapping():
+    """Get the pickles mapping DataFrame."""
+    df = pd.read_csv(PICKLES_MAPPING, sep='\s+')
+    return df
+
+def get_pickles_spectrum_filename(spt,fullpath=True):
+    """Get the pickles spectrum for a given spectral type. The following are available:
+       'O5V', 'O9V', 'B0V', 'B1V', 'B3V', 'B5-7V', 'B8V', 'A0V', 'A2V',
+       'A3V', 'A5V', 'F0V', 'F2V', 'F5V', 'F8V', 'G0V', 'G2V', 'G5V',
+       'G8V', 'K0V', 'K2V', 'K5V', 'K7V', 'M0V', 'M2V', 'M4V', 'M5V',
+       'B2IV', 'B6IV', 'A0IV', 'A4-7IV', 'F0-2IV', 'F5IV', 'F8IV', 'G0IV',
+       'G2IV', 'G5IV', 'G8IV', 'K0IV', 'K1IV', 'K3IV', 'O8III', 'B1-2III',
+       'B5III', 'B9III', 'A0III', 'A5III', 'F0III', 'F5III', 'G0III',
+       'G5III', 'G8III', 'K0III', 'K3III', 'K5III', 'M0III', 'M5III',
+       'M10III', 'B2II', 'B5II', 'F0II', 'F2II', 'G5II', 'K0-1II',
+       'K3-4II', 'M3II', 'B0I', 'B5I', 'B8I', 'A0I', 'F0I', 'F5I', 'F8I',
+       'G0I', 'G5I', 'G8I', 'K2I', 'K4I', 'M2I'
+    """
+    df = get_pickles_mapping()
+    filename = df[df['spt'].values == spt]['filename'].values[0] + '.fits'
+    if not filename:
+        raise ValueError(f"No spectrum found for {spt}. Available SPT are {df['spt'].values}.")
+    if fullpath:
+        filename = os.path.join(PICKLES_DIR,'dat_uvk', filename)
+    return filename
+
 
 def read_config(filename, source="config"):
     """Read a single configuration file.
