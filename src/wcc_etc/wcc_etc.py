@@ -1,5 +1,6 @@
 import toml
 import math
+import pathlib
 from astropy import units as u
 from synphot import units, SourceSpectrum, SpectralElement, Observation, Empirical1D
 from synphot.models import BlackBodyNorm1D, GaussianFlux1D, Box1D
@@ -10,18 +11,21 @@ import pandas as pd
 from math import ceil, floor, log10
 import os
 import matplotlib.pyplot as plt
+
 from . import airy
 from . import psfsim
+from .io import read_config, PACKAGE_PATH
+
 
 #   One line function prepends the support path to variable s2 if s1 is provided, else returns s2 as is.
 prepend_if_not_none = lambda s1, s2: f"{s1}{s2}" if s1 is not None else s2
 
-class WCCETC(object):
+class WCCETC( object ):
     # Static paths for source and background data
-    SOURCE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
-    CONFIG_DIR = os.path.abspath(os.path.join(SOURCE_DIR, 'config'))
-    PICKLES_DIR = os.path.abspath(os.path.join(SOURCE_DIR, 'astr_obj_models', 'stars', 'pickles_models', 'dat_uvk'))
-    GALAXY_BACKGROUND_DIR = os.path.abspath(os.path.join(SOURCE_DIR, 'astr_obj_models', 'galaxies', 'brown'))
+    # => This should be handled by wcc-etc/io.py, this is somewhat expand_path.
+    CONFIG_DIR = os.path.join(PACKAGE_PATH, 'config')
+    PICKLES_DIR = os.path.join(PACKAGE_PATH, 'astr_obj_models', 'stars', 'pickles_models', 'dat_uvk')
+    GALAXY_BACKGROUND_DIR = os.path.join(PACKAGE_PATH, 'astr_obj_models', 'galaxies', 'brown')
     DEFAULT_BKG_FILE = 'ngc_2537_spec.fits'
 
     @classmethod
@@ -44,7 +48,7 @@ class WCCETC(object):
     def get_default_background_file(cls):
         return cls.DEFAULT_BKG_FILE
 
-    def __init__(self,config_file: str):
+    def __init__(self, config: [str, dict], setup=True):
         """
         Initialize the WCC ETC with a configuration file.
 
@@ -53,13 +57,23 @@ class WCCETC(object):
             WCC.setup()
         """
         print('Initializing WCC ETC. Reading in Config')
-        self.config = toml.load(config_file)
+        if any( isinstance(config, test_type) for test_type in [pathlib.Path, str]):
+            self.config = read_config(config, source="config")
+        else:
+            self.config = config
 
         # Load config
         self._load_config()
 
         # Perform relevant calculations
+        if setup:
+            self.setup()
 
+    @classmethod
+    def from_config(cls, config):
+        """ conveniant method that instanciate the class from a config (dict or path to)"""
+        return cls(config)
+        
     def _load_config(self):
         """
         Load the configuration from the config file.
@@ -93,7 +107,7 @@ class WCCETC(object):
         self.path_m2_coating = self.config['telescope']['path_m2_coating']
         self.path_m3_coating = self.config['telescope']['path_m3_coating']
         self.path_m4_coating = self.config['telescope']['path_m4_coating']
-        self.path_filter = self.config['telescope']['path_filter']
+        self.path_filter = self.config['telescope'].get('path_filter', None) # None by default
         self.sensor_area = self.config['detector']['sensor_area'] * u.mm**2
         self.sensor_temp = self.config['detector']['sensor_temp'] * u.Celsius
         self.bg_surface_brightness = self.config['zodi']['zodi_mag_r']
@@ -135,7 +149,7 @@ class WCCETC(object):
         """
         Return wavelength and throughput arrays for the final throughput curve.
         """
-        self.path_total_throughput = os.path.join(self.SOURCE_DIR, self.config['telescope']['path_total_throughput'])
+        self.path_total_throughput = os.path.join(PACKAGE_PATH, self.config['telescope']['path_total_throughput'])
         bp = SpectralElement.from_file(self.path_total_throughput, wave_unit=wave_unit)
         # Get arrays for plotting
         wave, throughput = bp._get_arrays(None)
@@ -146,7 +160,7 @@ class WCCETC(object):
         Read final throughput from a file
         """
         print('Reading total throughput from file')
-        self.path_total_throughput = os.path.join(self.SOURCE_DIR, self.config['telescope']['path_total_throughput'])
+        self.path_total_throughput = os.path.join(PACKAGE_PATH, self.config['telescope']['path_total_throughput'])
         print('Total throughput path:', self.path_total_throughput)
 
         bp = SpectralElement.from_file(self.path_total_throughput, wave_unit=wave_unit)
@@ -258,21 +272,21 @@ class WCCETC(object):
             # Adding gain
             gain_cols = ['gain_setting', 'gain']
             try:
-                self.gain = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(self.SOURCE_DIR,sensor_toml['path_gain_curve'])), gain_setting, gain_cols) * (u.electron / u.ct)
+                self.gain = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(PACKAGE_PATH, sensor_toml['path_gain_curve'])), gain_setting, gain_cols) * (u.electron / u.ct)
             except Exception as e:
                 print(e)
                 self.gain = self.config['detector']['gain'] * (u.electron / u.ct)
 
             dark_current_cols = ['sensor_temperature', 'dark_current']
             try:
-                self.dark_current = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(self.SOURCE_DIR,sensor_toml['path_dark_current'])), sensor_temp, dark_current_cols) * (u.electron / (u.s * u.pix))
+                self.dark_current = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(PACKAGE_PATH, sensor_toml['path_dark_current'])), sensor_temp, dark_current_cols) * (u.electron / (u.s * u.pix))
             except Exception as e:
                 print(e)
                 self.dark_current = self.config['detector']['dark_current'] * (u.electron / (u.s * u.pix))
 
             read_noise_cols = ['gain_setting', 'read_noise']
             try:
-                self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(self.SOURCE_DIR,sensor_toml['path_read_noise'])), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix) *2
+                self.read_noise = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(PACKAGE_PATH, sensor_toml['path_read_noise'])), gain_setting, read_noise_cols) * sqrt(1.0 * u.electron / u.pix) *2
                 print(f"Read noise: {self.read_noise}")
             except Exception as e:
                 print(e)
@@ -280,13 +294,12 @@ class WCCETC(object):
 
             well_depth_cols = ['gain_setting', 'well_depth']
             try:
-                self.well_depth = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(self.SOURCE_DIR,sensor_toml['path_well_depth'])), gain_setting, well_depth_cols) * (u.electron / u.pix)
+                self.well_depth = get_interpolated_value(prepend_if_not_none(support_data_path, os.path.join(PACKAGE_PATH, sensor_toml['path_well_depth'])), gain_setting, well_depth_cols) * (u.electron / u.pix)
             except Exception as e:
                 print(e)
                 self.well_depth = self.config['detector']['well_depth'] * (u.electron / u.pix)
 
             #self.add_qe_curve(self.path_qe, wave_unit='nm', num_curves=1, plot=plot)
-
 
     def add_mirror(self, mirror_qe_fits_file, num_curves=1 ,wave_unit='nm', support_data_path=None, plot=False,plot_title="Mirror"):
         """
@@ -298,7 +311,7 @@ class WCCETC(object):
             wave_unit - 'nm'
 
         EXAMPLE:
-            WCC.add_mirror("../data/support_data/coatings/NIST_1st_surface_Al.csv", num_curves=1, wave_unit='nm', plot=True, plot_title="AL")
+            WCC.add_mirror("coatings/NIST_1st_surface_Al.csv", num_curves=1, wave_unit='nm', plot=True, plot_title="AL")
         """
         self.num_mirrors += num_curves
         mirror_qe_fits_file = prepend_if_not_none(support_data_path,mirror_qe_fits_file)
@@ -595,6 +608,7 @@ class WCCETC(object):
                                                                   jitter_sigma_mas=jitter_sigma_mas,ax1=ax1,ax2=ax2,
                                                                   fnum=self.f_num,D=self.diameter_primary.value,
                                                                   pixel_size=self.pixel_size.value,verbose=verbose)
+        
         self.num_pixels_at_r =r_aper_mas/(self.plate_scale*1000) # pix
         self.num_psf_pixels = (self.num_pixels_at_r**2)*np.pi * u.pix
 

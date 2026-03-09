@@ -4,9 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wcc_etc"
-version = "0.1.2"
+version = "0.3.0"
 authors = [
-  {name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org"}
+  {name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org"},
+  {name = "Mickael Rigault", email = "m.rigault@ip2i.in2p3.fr"},
 ]
 maintainers = [
   {name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org"}
@@ -14,7 +15,7 @@ maintainers = [
 description = "Exposure Time Calculator for the WCC."
 readme = "README.md"
 license = { text = "GNU GENERAL PUBLIC LICENSE - Version 3" }
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
   "synphot",
   "numpy",

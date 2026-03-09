@@ -214,7 +214,9 @@ def get_airy_and_ee_curve_pixel_grid(wavelength,r_aper_mas,grid_size=100,verbose
     r_mas, psf1d, ee = psf_to_encircled_energy(psf2d, px_scale_x_mas, px_scale_y_mas)
 
     if jitter_sigma_mas!=0:
-        print('Broadening with {}mas'.format(jitter_sigma_mas))
+        if verbose:
+            print('Broadening with {}mas'.format(jitter_sigma_mas))
+            
         # Assuming symmetric
         px_scale_mean = np.sqrt(px_scale_x_mas * px_scale_y_mas)
         sigma_pix = jitter_sigma_mas / px_scale_mean
@@ -270,11 +272,14 @@ def get_airy_and_ee_curve_pixel_grid(wavelength,r_aper_mas,grid_size=100,verbose
 def get_airy_and_ee_curve(wavelength,r_aper_mas,grid_size=1024,extent_mas=500,verbose=True,jitter_sigma_mas=0,
                           plot=False,ax1=None,ax2=None,pixel_size=3.74,fnum=15,D=3):
     """
+    Calculate airy curve
+
     INPUT:
         wavelength - wavelength in m
+        grid_size - number of pixels in the grid (square)
+        extent_mas - size of the grid in milliarcseconds
         D - diameter in m
-        grid_size -
-        extent_mas - 
+
     EXAMPLE:
         r_mas, ee_base = get_ee_curve(wavelength=0.6e-6)
         r_mas, psf1d, ee = wcc_etc.airy.get_airy_and_ee_curve(wavelength=wavelength*1e-6,plot=True,jitter_sigma_mas=JITTER_MAS,ax=ax,r_aper_mas=70)
@@ -310,7 +315,9 @@ def get_airy_and_ee_curve(wavelength,r_aper_mas,grid_size=1024,extent_mas=500,ve
     r_mas, psf1d, ee = psf_to_encircled_energy(psf2d, px_scale_x_mas, px_scale_y_mas)
 
     if jitter_sigma_mas!=0:
-        print('Broadening with {}mas'.format(jitter_sigma_mas))
+        if verbose:
+            print('Broadening with {}mas'.format(jitter_sigma_mas))
+            
         # Assuming symmetric
         px_scale_mean = np.sqrt(px_scale_x_mas * px_scale_y_mas)
         sigma_pix = jitter_sigma_mas / px_scale_mean

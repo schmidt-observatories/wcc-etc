@@ -1,0 +1,8 @@
+[sensor]
+pixel_size = 3.45				# micron / pix
+read_noise = 103 				# e/pix, from Gabor, ZWO value
+dark_current = 103 				# e/pix/s, at 0C, is 10e/pix/s at -20C
+gain = 0.111   					# ADU/e, from Gabor, ZWO value
+sensor_temp = 0.0 				# C, 
+sensor_area = 63.425606 			# CHECK https://us.zwoastro.com/collections/cameras/products/asi990mm-pro-asi992mm-pro
+well_depth = 35000.0 				# e/pix ZWO value
