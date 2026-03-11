@@ -2,16 +2,34 @@ import numpy as np
 from astropy import units as u
 from synphot import SpectralElement, Observation
 from copy import deepcopy
+import logging
+
 from .telescope import Telescope
 from .sensor import Sensor
 from .source import Source
-import logging
+from .meta import _MetaHolder_
+
+
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class Simulation():
+def calculate_bg_normalization_magnitude(bg_surface_brightness, psf_area):
+    """
+    Convert the Background Surface Brightness into the total magnitude given the PSF area (in arcseconds squared)
+    The area needs to be in square arcseconds since this the typical definition of Surface Brightness is in units
+    of magnitudes per arcseconds^2
+    :return: None
+    """
+    bg_magnitude = bg_surface_brightness - 2.5 * np.log10(psf_area)
+    return bg_magnitude
+
+class Simulation(_MetaHolder_):
     """ """
+
+    _mutable_parameters = ["mag", "bandpass", "skymag", "skybandpass",
+                          "time", "r_aper_mas"]
     def __init__(self, 
                  telescope,
                  sensor, 
@@ -27,26 +45,41 @@ class Simulation():
         """ 
         Simulation object
 
-        INPUT:
-            telescope: Telescope object
-            sensor: Sensor object
-            source: Source object (optional)
-            mag: float, magnitude of the source
-            bandpass: str, bandpass filter to use
-            skymag: float, sky background magnitude
-            skybandpass: str, sky background bandpass filter
-            time: float, exposure time in seconds
-            r_aper_mas: float, radius of the aperture in milliarcseconds
-            meta: dict, additional parameters to store in the meta dictionary (optional)"""
+        Parameters:
+        -----------
+        telescope: Telescope
+            telescope to be used for this simulation
+        sensor: Sensor
+            sensor to be used for this simulation
+        source: Source
+            source to be used for this simulation. This could be set later.
+        mag: float, 
+            magnitude of the source
+        bandpass: str, 
+            bandpass filter to use
+        skymag: float
+            sky background magnitude
+        skybandpass: str, 
+            sky background bandpass filter
+        time: float, array
+            exposure time(s) in seconds
+        r_aper_mas: float
+            radius of the aperture in milliarcseconds
+        meta: dict
+            additional parameters to store in the meta dictionary (optional)
+
+        Returns
+        -------
+        """
         self._telescope = telescope
         self._sensor = sensor
         self.set_source(source)
 
         input_parameters = {key:value for key,value in locals().items()
-                             if key not in ["self", "telescope", "sensor", "source", "meta"] and value is not None}
-        
-        self._meta = deepcopy(meta) | input_parameters
-        self._meta_in = deepcopy(self._meta)
+                             if key not in ["self", "telescope", "sensor", "source", "meta"]
+                                and value is not None}
+
+        super().__init__(meta | input_parameters)
         
     # ============= #
     #  properties   #
@@ -78,7 +111,6 @@ class Simulation():
             source = None
 
         return cls(telescope=telescope, sensor=sensor, source=source)
-
 
     @classmethod
     def from_sensorname_and_source(cls, name, source):
@@ -140,13 +172,6 @@ class Simulation():
         self._telescope = telescope
         self._psf_profile = {} # reset the psf profile
 
-        
-    def describe(self):
-        """
-        List parameters
-        """
-        for key, value in self.meta.items():
-            print("  {}: {}".format(key, value))
 
     # ------- #
     #  GETTER #
@@ -223,15 +248,11 @@ class Simulation():
         return source_signal, total_variance
     
     def get_snr(self, time=None):
-        """
-        Get SNR for a given exposure
-        """
+        """ Get the signal to noise ration for a given exposure """
         # sources of noise
         signal, variance = self.get_signal_and_variance(time) # units doesn't matter
         return signal / np.sqrt(variance)
     
-
-
     # -------------- #
     #  Internal      #
     # -------------- #
@@ -306,8 +327,6 @@ class Simulation():
                 for element in ["telescope", "sensor", "source"]
                 if self.has_element(element)}
 
-    
-
     # ---------- #
     # cashed     #
     # ---------- #
@@ -355,13 +374,3 @@ class Simulation():
     #                                                                 )
     #    return self._h_bkgd_observation       
 
-
-def calculate_bg_normalization_magnitude(bg_surface_brightness, psf_area):
-    """
-    Convert the Background Surface Brightness into the total magnitude given the PSF area (in arcseconds squared)
-    The area needs to be in square arcseconds since this the typical definition of Surface Brightness is in units
-    of magnitudes per arcseconds^2
-    :return: None
-    """
-    bg_magnitude = bg_surface_brightness - 2.5 * np.log10(psf_area)
-    return bg_magnitude

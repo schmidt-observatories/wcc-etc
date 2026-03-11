@@ -7,6 +7,11 @@ from .utils import parse_element, parse_and_interpolate
 
 class Sensor():
     """ """
+
+    _mutable_parameters = ["bandpass", "bandpass_name",
+                            "pixel_size", "read_noise", "dark_current",
+                            "gain", "area", "temperature"]
+    
     def __init__(self, bandpass, 
                  pixel_size,                  
                  read_noise,
