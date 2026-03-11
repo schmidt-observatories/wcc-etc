@@ -95,7 +95,7 @@ class Sensor():
         kind: str
             kind of sensor of the WCC: 
             - 'zwo' ('sony', 'imx', 'imx455' accepted)
-            - 'qcmos'
+            - 'hwk'
         band: str
             name of the band associated to the sensor.
             e.g. bb, u, r, z etc.

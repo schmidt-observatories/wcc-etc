@@ -4,6 +4,7 @@ import pathlib
 from astropy import units as u
 from synphot import units, SourceSpectrum, SpectralElement, Observation, Empirical1D
 from synphot.models import BlackBodyNorm1D, GaussianFlux1D, Box1D
+import synphot
 import numpy as np
 from numpy import sqrt
 from scipy.interpolate import interp1d
@@ -14,7 +15,11 @@ import matplotlib.pyplot as plt
 
 from . import airy
 from . import psfsim
+from .source import Source
+from . import simulation
+from . import io
 from .io import read_config, PACKAGE_PATH
+from astropy import units as u
 
 
 #   One line function prepends the support path to variable s2 if s1 is provided, else returns s2 as is.
@@ -875,6 +880,86 @@ def get_interpolated_value(input_file, interpolation_xval, col_headers):
     interp = interp1d(xlist, ylist)
 
     return interp(interpolation_xval)
+
+
+def get_wcc_snr_and_simulation(mag,texp,spt='G5V',
+                               sensor_and_filter='zwo:r',
+                               bg_surface_brightness=22.5,
+                               r_aper_mas=70):
+    """
+    Get the SNR for a given set of parameters.
+
+    EXAMPLE:
+        get_wcc_snr(25.4,60)
+    """
+    source_config = {"spectrum": io.get_pickles_spectrum_filename(spt),
+                     "background": io.expand_path('astr_obj_models/galaxies/brown/ngc_2537_spec.fits'),
+                     "bg_surface_brightness": bg_surface_brightness,
+    }
+    source = Source.from_config(source_config)
+    sim = simulation.Simulation.from_sensorname_and_source(sensor_and_filter, source)
+    test_sim = simulation.Simulation(telescope=sim.telescope,
+                                     sensor=sim.sensor,
+                                     source=sim.source,
+                                     mag=mag,
+                                     time=texp * u.s,
+                                     r_aper_mas=r_aper_mas)
+    snr = test_sim.get_snr()
+    return snr, test_sim
+
+
+def get_blackbody_flux(w,teff,mag,unit='FLAM',filter='johnson_v',plot=False,ax=None):
+    """
+    Get a blackbody spectrum normalized to a given magnitude in the V band.
+
+    INPUT:
+        w in A
+        teff in K
+        mag in V band magnitude
+
+    OUTPUT:
+        f in erg/s/cm^2/Å if unit=='FLAM', else W/m^2/μm
+
+    EXAMPLE:
+        # Sun
+        w = np.linspace(3000,10000,10000)
+        Teff = 5777
+        teff in K
+        mag in V band magnitude
+
+    OUTPUT:
+        f in erg/s/cm^2/Å if unit=='FLAM', else W/m^2/μm
+
+    EXAMPLE:
+        # Sun
+        w = np.linspace(3000,10000,10000)
+        Teff = 5777
+        mag = -26.8
+        f = get_blackbody_spectrum(w,Teff, mag,filter='johnson_v',plot=True)
+    """
+    sp = SourceSpectrum(BlackBodyNorm1D, temperature=teff)
+    bp = SpectralElement.from_filter(filter)
+    vega = SourceSpectrum.from_vega()  # For unit conversion
+    sp_norm = sp.normalize(mag * units.VEGAMAG, bp, vegaspec=vega)
+
+    if unit=='FLAM':
+        unit = 'erg/s/cm2/A'
+        f = synphot.units.convert_flux(w,sp_norm(w),'FLAM')
+    elif unit=='W/m2/micron':
+        unit = 'W/m2/micron'
+        f = synphot.units.convert_flux(w,sp_norm(w),'FLAM').value*10
+    else:
+        print("Unknown unit")
+        return None
+    if plot:
+        if ax is None:
+            fig, ax = plt.subplots(dpi=200)
+        ax.plot(w, f, label=unit)
+        ax.set_xlabel('Wavelength (Angstrom)')
+        ax.set_ylabel(f'Flux [{unit}]')
+        ax.legend()
+    return f
+
 
 
 
