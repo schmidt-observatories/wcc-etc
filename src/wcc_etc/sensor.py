@@ -108,9 +108,10 @@ class Sensor():
         -------
         instance
         """
+        from .io import get_sensor_config
         # grabs the configuration associated to this sensor
         config = get_sensor_config(kind, band)
-        return cls.from_config(config)
+        return cls.from_config(config["sensor"])
 
     # ================ #
     #  Methods         #
@@ -122,7 +123,7 @@ class Sensor():
     def get_plate_scale(self, telescope):
         """ """
         # why 206265
-        return (self.pixel_size.to("m/pix") / telescope.diameter_primary.to("m") / telescope.f_num * 206265) # arcsec/pix
+        return (self.pixel_size.to("m/pix") / telescope.diameter_primary.to("m") / telescope.f_num * 206265*u.arcsec) # arcsec/pix
         
     # ================ #
     #  Properties      #

@@ -6,7 +6,7 @@ import logging
 
 from .telescope import Telescope
 from .sensor import Sensor
-from .source import Source
+from .scene import Scene
 from .meta import _MetaHolder_
 
 
@@ -33,7 +33,7 @@ class Simulation(_MetaHolder_):
     def __init__(self, 
                  telescope,
                  sensor, 
-                 source=None, 
+                 scene=None, 
                  mag=20, 
                  bandpass="sensor",
                  skymag=24, 
@@ -51,10 +51,10 @@ class Simulation(_MetaHolder_):
             telescope to be used for this simulation
         sensor: Sensor
             sensor to be used for this simulation
-        source: Source
-            source to be used for this simulation. This could be set later.
+        scene: Scene
+            scene to be used for this simulation. This could be set later.
         mag: float, 
-            magnitude of the source
+            magnitude of the scene
         bandpass: str, 
             bandpass filter to use
         skymag: float
@@ -73,10 +73,10 @@ class Simulation(_MetaHolder_):
         """
         self._telescope = telescope
         self._sensor = sensor
-        self.set_source(source)
+        self.set_scene(scene)
 
         input_parameters = {key:value for key,value in locals().items()
-                             if key not in ["self", "telescope", "sensor", "source", "meta"]
+                             if key not in ["self", "telescope", "sensor", "scene", "meta"]
                                 and value is not None}
 
         super().__init__(meta | input_parameters)
@@ -103,19 +103,19 @@ class Simulation(_MetaHolder_):
         else:
             sensor = None
 
-        # Source
-        config_source = config.get("source", None)
-        if config_source is not None:
-            source = Source.from_config(config_source)
+        # Scene
+        config_scene = config.get("scene", None)
+        if config_scene is not None:
+            scene = Scene.from_config(config_scene)
         else:
-            source = None
+            scene = None
 
-        return cls(telescope=telescope, sensor=sensor, source=source)
+        return cls(telescope=telescope, sensor=sensor, scene=scene)
 
     @classmethod
-    def from_sensorname_and_source(cls, name, source):
+    def from_sensorname_and_scene(cls, name, scene):
         """
-        Initialize using a sensor name and a source
+        Initialize using a sensor name and a scene
         """
         from .io import get_sensor_config
 
@@ -129,23 +129,23 @@ class Simulation(_MetaHolder_):
 
         config = get_sensor_config(kind, band)
 
-        this = cls.from_config(config) # this has no source
-        this.set_source(source)
+        this = cls.from_config(config) # this has no scene
+        this.set_scene(scene)
         return this
     
     # ================ #
     #   methods        #
     # ================ #
-    def set_source(self, source_or_config):
+    def set_scene(self, scene_or_config):
         """ """
-        if isinstance(source_or_config, dict):
-            source = Source.from_config(source_or_config)
+        if isinstance(scene_or_config, dict):
+            scene = Scene.from_config(scene_or_config)
         else:
-            source = source_or_config
+            scene = scene_or_config
 
-        self._source = source
+        self._scene = scene
 
-        # this should move inside source eventually
+        # this should move inside scene eventually
         self._h_spec_observation = None
         self._h_bkgd_observation = None
 
@@ -182,31 +182,44 @@ class Simulation(_MetaHolder_):
         spec_at_mag = spectrum.normalize(abmag * u.ABmag, bandpass, force='extrap')
         return Observation(spec_at_mag, bandpass, force='extrap')
 
-    def get_countrates(self, units="adu/s"):
+    def get_countrates(self, scene=None, band=None, units="adu/s", as_dict=True):
         """ get the countrates in """
         if units not in ["adu/s", "e/s", "e-/s"]:
             raise ValueError(f"unknown countrate units. Should be 'adu/s' or 'e/s'. {units=} given")
 
         
         # INFO: self.psf_profile is computed automatically if needed.
+        if band is None:
+            band = self.sensor.bandpass
+
+        if scene is None:
+            scene = self.scene
+            
         
         # these are the countrate in e/s
-        # - source
-        count_rate_total = self._spec_observation.countrate(area=self.telescope.surface) * u.electron/u.ct 
-        count_rate = count_rate_total * self.psf_profile["ee_at_aper"]
-
-        # - background
-        if self.source.has_background():
-            sky_counts_total = self._background_observation.countrate(area=self.telescope.surface)* u.electron/u.ct # e/s
-            sky_count_rate = sky_counts_total * self.psf_profile["ee_at_aper"]
+        if np.any( scene.call_down("mag_is_surface_brightness")):
+            area = self.psf_profile['psf_area'].value # area in arcsec**2
         else:
-            sky_count_rate = 0
+            area = None
             
-        if units in ["adu/s"]: # in [] enables short cut.
-            count_rate /= self.sensor.gain  #   ADU/s
-            sky_count_rate /= self.sensor.gain  #   ADU/s
+        scene_observations = scene.get_observation(band=band, area=area, as_dict=True)
+
+        # loop over the scene elements and get the countrate for each.
+        countrates = {}
+        for element, observation in scene_observations.items():
+            # - scene
+            count_rate_total = observation.countrate(area=self.telescope.surface) * u.electron/u.ct 
+            count_rate = count_rate_total * self.psf_profile["ee_at_aper"]
             
-        return count_rate, sky_count_rate
+            if units in ["adu/s"]: # in [] enables short cut.
+                count_rate /= self.sensor.gain  #   ADU/s
+
+            countrates[element] = count_rate
+
+        if as_dict:
+            return countrates
+        
+        return list(countrates.values())
 
 
     def get_signal_and_variance(self, time=None, units="e-"):
@@ -222,34 +235,34 @@ class Simulation(_MetaHolder_):
 
         # get the count rates in {adu,e-}/s
         count_rate, sky_count_rate = self.get_countrates(units="e/s")
-        logging.info(f"Source count rate: {count_rate:.2f} e/s")
+        logging.info(f"Scene count rate: {count_rate:.2f} e/s")
         logging.info(f"Background count rate: {sky_count_rate:.2f} e/s")
 
         # poisson noise is at the electron level, not adu.
-        source_signal = count_rate * time # e-
+        scene_signal = count_rate * time # e-
         sky_signal = sky_count_rate * time # e-
         dark_signal = self.sensor.dark_current * time # e-
         detector_variance = (dark_signal + self.sensor.read_noise**2) * self.psf_profile["num_psf_pixels"]
-        logging.info(f"signal: {source_signal:.2f} e-")
+        logging.info(f"signal: {scene_signal:.2f} e-")
         logging.info(f"sky signal: {sky_signal:.2f} e-")
         logging.info(f"dark signal: {dark_signal:.2f} e-")
         logging.info(f"detector variance: {detector_variance:.2f} e-^2.")
 
         # total noise
-        total_variance = (source_signal + sky_signal + detector_variance) * u.electron # variance is in e-**2
+        total_variance = (scene_signal + sky_signal + detector_variance) * u.electron # variance is in e-**2
         
         # units
         if units.lower() == "adu":
-            source_signal /= self.sensor.gain
+            scene_signal /= self.sensor.gain
             total_variance /= self.sensor.gain**2
         elif units not in ["e", "e-", "electron"]:
             raise ValueError(f"unknown units {units=}. adu or electron/e- expected.")
             
-        return source_signal, total_variance
+        return scene_signal, total_variance
     
     def get_snr(self, time=None):
         """ Get the signal to noise ration for a given exposure """
-        # sources of noise
+        # scenes of noise
         signal, variance = self.get_signal_and_variance(time) # units doesn't matter
         return signal / np.sqrt(variance)
     
@@ -278,11 +291,11 @@ class Simulation(_MetaHolder_):
 
         # compute the number of pixels associated to the PSF
         plate_scale = self.sensor.get_plate_scale(self.telescope) # in arcsec/pix
-        num_pixels_at_r = self.meta["r_aper_mas"]/(plate_scale * 1000) # pix
-        num_psf_pixels = (np.pi * num_pixels_at_r**2).value * u.pix # in pixels
+        num_pixels_at_r = self.meta["r_aper_mas"]*u.arcsec/(plate_scale * 1000) # pix
+        num_psf_pixels = (np.pi * num_pixels_at_r**2) # in pixels**2
 
         # area of the psf in angular units
-        psf_area = num_psf_pixels * plate_scale **2
+        psf_area = num_psf_pixels * plate_scale **2 # in arcsec**2
 
         logging.info(f"PSF profile computed:")
         logging.info(f"EE={ee_at_aper:.2f} at {self.meta['r_aper_mas']} mas aperture")
@@ -306,9 +319,9 @@ class Simulation(_MetaHolder_):
     #   Properties      #
     # ================= #
     @property
-    def source(self):
+    def scene(self):
         """ """
-        return self._source
+        return self._scene
 
     @property
     def telescope(self):
@@ -324,7 +337,7 @@ class Simulation(_MetaHolder_):
     def meta(self):
         """ generic parameters """
         return self._meta | {element: getattr(self, element).meta
-                for element in ["telescope", "sensor", "source"]
+                for element in ["telescope", "sensor", "scene"]
                 if self.has_element(element)}
 
     # ---------- #
@@ -337,40 +350,3 @@ class Simulation(_MetaHolder_):
             self._psf_profile = self.compute_psf_profile()
             
         return self._psf_profile
-
-    @property
-    def _spec_observation(self):
-        """ """
-        if not hasattr(self, "_h_spec_observation") or self._h_spec_observation is None:
-            self._h_spec_observation = self._get_spectrum_observation( spectrum = self.source.spectrum, 
-                                                                       abmag = self.meta["mag"],
-                                                                       bandpass = self._parse_bandpass(self.meta["bandpass"])
-                                                                     )
-        return self._h_spec_observation
-
-    @property
-    def _background_observation(self):
-        """ """
-        if not hasattr(self, "_h_bkgd_observation") or self._h_bkgd_observation is None:
-            psf_area = self.psf_profile['psf_area'].value
-            bg_magnitude = calculate_bg_normalization_magnitude(self.source.bg_surface_brightness, psf_area)
-            self.meta['skymag'] = bg_magnitude
-            logging.info(f"Zodi surface brightness: {bg_magnitude:.2f} ABmag")
-
-            self._h_bkgd_observation = self._get_spectrum_observation( spectrum = self.source.background, 
-                                                                       abmag = bg_magnitude,
-                                                                       #abmag = self.meta["skymag"],
-                                                                       bandpass = self._parse_bandpass(self.meta["skybandpass"])
-                                                                     )
-        return self._h_bkgd_observation       
-
-    #@property
-    #def _background_observation(self):
-    #    """ """
-    #    if not hasattr(self, "_h_bkgd_observation") or self._h_bkgd_observation is None:
-    #        self._h_bkgd_observation = self._get_spectrum_observation( spectrum = self.source.background, 
-    #                                                                   abmag = self.meta["skymag"],
-    #                                                                   bandpass = self._parse_bandpass(self.meta["skybandpass"])
-    #                                                                 )
-    #    return self._h_bkgd_observation       
-
