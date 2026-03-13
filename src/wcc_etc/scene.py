@@ -1,4 +1,5 @@
 import warnings
+import os
 import numpy as np
 
 from astropy import units as u
@@ -62,10 +63,15 @@ class SceneElement(_MetaHolder_):
         
         # make sure you have a spectrum.
         if type(spec_or_file) in [str]:
+            if not os.path.isfile(spec_or_file):
+                # may that is a spectral type:
+                from .io import get_any_astro_name
+                spec_or_file = get_any_astro_name(spec_or_file)
+            
             spectrum = SourceSpectrum.from_file(spec_or_file)
             
         # the or None enables to switch of the host by setting it to None            
-        elif isinstance(spec_or_file, SourceSpectrum) or None:
+        elif isinstance(spec_or_file, SourceSpectrum) or spec_or_file is None:
             spectrum = spec_or_file
 
         self._spectrum = spectrum
