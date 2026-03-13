@@ -13,13 +13,13 @@ def test_name_and_config():
     config3 = {"spectrum": "G5IV"}
 
     source1 = SceneElement.from_config(config1 | baseconfig)
-    lbda1, spec1 = source.get_spectrum(as_array=True)
+    lbda1, spec1 = source1.get_spectrum(as_array=True)
 
     source2 = SceneElement.from_config(config2 | baseconfig)
-    lbda2, spec2 = source.get_spectrum(as_array=True)
+    lbda2, spec2 = source2.get_spectrum(as_array=True)
 
     source3 = SceneElement.from_config(config3 | baseconfig)
-    lbda3, spec3 = source.get_spectrum(as_array=True)
+    lbda3, spec3 = source3.get_spectrum(as_array=True)
 
     assert np.all(spec1 == spec2)
     assert np.all(spec1 == spec3)

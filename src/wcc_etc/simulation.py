@@ -209,7 +209,7 @@ class Simulation(_MetaHolder_):
         for element, observation in scene_observations.items():
             # - scene
             count_rate_total = observation.countrate(area=self.telescope.surface) * u.electron/u.ct 
-            n = count_rate_total * self.psf_profile["ee_at_aper"]
+            count_rate = count_rate_total * self.psf_profile["ee_at_aper"]
             
             if units in ["adu/s"]: # in [] enables short cut.
                 count_rate /= self.sensor.gain  #   ADU/s

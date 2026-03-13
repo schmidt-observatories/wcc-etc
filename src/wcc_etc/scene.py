@@ -54,7 +54,8 @@ class SceneElement(_MetaHolder_):
                         if key in config} # else default as given by __init__
         
         return cls(meta=config, **input_kwargs)
-        
+
+
     # =========== #
     #  methods    #
     # =========== #

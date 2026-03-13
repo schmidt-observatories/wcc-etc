@@ -3,6 +3,9 @@ from synphot import units, SourceSpectrum
 
 from .meta import _MetaHolder_
 
+import warnings
+warnings.warn("DEPRECATION: source.py is deprecated.")
+
 # => Loggin not used.
 import logging
 logging.basicConfig(level=logging.INFO)
