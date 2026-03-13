@@ -36,8 +36,6 @@ class Sensor():
         self._meta = deepcopy(meta) | init_parameters
         self._meta_in = deepcopy(self._meta)
         
-        
-
     @classmethod
     def from_name(cls, name):
         """ """
@@ -160,7 +158,7 @@ class Sensor():
     @property
     def read_noise(self):
         """ """
-        return self.meta["read_noise"] * np.sqrt(1.0 * u.electron / u.pix)
+        return self.meta["read_noise"] * u.electron / u.pix
         
     @property
     def pixel_size(self):

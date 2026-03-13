@@ -38,12 +38,14 @@ def parse_and_interpolate(input_file, xval):
     data = pandas.read_csv(input_file, index_col=0).iloc[:, 0]
     return np.interp(xval, data.index, data.values)
 
-def calculate_bg_normalization_magnitude(bg_surface_brightness, psf_area):
-    """
-    Convert the Background Surface Brightness into the total magnitude given the PSF area (in arcseconds squared)
-    The area needs to be in square arcseconds since this the typical definition of Surface Brightness is in units
-    of magnitudes per arcseconds^2
-    :return: None
-    """
-    bg_magnitude = bg_surface_brightness - 2.5 * np.log10(psf_area)
-    return bg_magnitude
+def list_of_quantity_to_array(quantities):
+    """ """
+    units = [q.unit for q in quantities]
+    if len(np.unique(units)) == 1:
+        unit = units[0]
+    else:
+        warnings.warn("input quantities are not all of the same unit. Nothing can be done.")
+        return quantities
+
+    values = [q.value for q in quantities]
+    return np.asarray(values, dtype="float") * unit

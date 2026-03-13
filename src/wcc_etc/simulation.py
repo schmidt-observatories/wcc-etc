@@ -8,7 +8,7 @@ from .telescope import Telescope
 from .sensor import Sensor
 from .scene import Scene
 from .meta import _MetaHolder_
-
+from .utils import list_of_quantity_to_array
 
 
 
@@ -218,8 +218,8 @@ class Simulation(_MetaHolder_):
 
         if as_dict:
             return countrates
-        
-        return list(countrates.values())
+
+        return list_of_quantity_to_array(countrates.values())
 
 
     def get_signal_and_variance(self, time=None, units="e-"):
@@ -234,22 +234,30 @@ class Simulation(_MetaHolder_):
            time = time*u.second
 
         # get the count rates in {adu,e-}/s
-        count_rate, sky_count_rate = self.get_countrates(units="e/s")
-        logging.info(f"Scene count rate: {count_rate:.2f} e/s")
-        logging.info(f"Background count rate: {sky_count_rate:.2f} e/s")
+        count_rates = self.get_countrates(units="e/s", as_dict=True) # this is an array
+        
+        #logging.info(f"Scene count rate: {count_rates:.2f} e/s")
+        #logging.info(f"Background count rate: {sky_count_rate:.2f} e/s")
 
+        source_signal = count_rates["source"] * time # e-
+        
         # poisson noise is at the electron level, not adu.
-        scene_signal = count_rate * time # e-
-        sky_signal = sky_count_rate * time # e-
-        dark_signal = self.sensor.dark_current * time # e-
-        detector_variance = (dark_signal + self.sensor.read_noise**2) * self.psf_profile["num_psf_pixels"]
-        logging.info(f"signal: {scene_signal:.2f} e-")
-        logging.info(f"sky signal: {sky_signal:.2f} e-")
+        # poisson noise comes from the full scene source.
+        all_countrates = list_of_quantity_to_array( count_rates.values() )
+        scene_signal = np.nansum( all_countrates ) * time # e-
+        
+        dark_signal = self.sensor.dark_current * time # e-/pix
+        
+        # u.electron/u.pixel as variance, so unit square
+        detector_variance = (dark_signal * u.electron/u.pixel + self.sensor.read_noise**2)  * self.psf_profile["num_psf_pixels"] # e-**2
+        #logging.info(f"signal: {scene_signal:.2f} e-")
+#        logging.info(f"sky signal: {sky_signal:.2f} e-") part of the scene signal?
         logging.info(f"dark signal: {dark_signal:.2f} e-")
         logging.info(f"detector variance: {detector_variance:.2f} e-^2.")
 
         # total noise
-        total_variance = (scene_signal + sky_signal + detector_variance) * u.electron # variance is in e-**2
+        # * u.electron as photon noise ; already there in etector_variance
+        total_variance = (scene_signal * u.electron + detector_variance)  # variance in  e-**2
         
         # units
         if units.lower() == "adu":
@@ -258,7 +266,7 @@ class Simulation(_MetaHolder_):
         elif units not in ["e", "e-", "electron"]:
             raise ValueError(f"unknown units {units=}. adu or electron/e- expected.")
             
-        return scene_signal, total_variance
+        return source_signal, total_variance
     
     def get_snr(self, time=None):
         """ Get the signal to noise ration for a given exposure """

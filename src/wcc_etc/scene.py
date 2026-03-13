@@ -12,7 +12,6 @@ from .meta import _MetaHolder_
 # ============= #
 #   Source      #
 # ============= # 
-
 def broadcast_mapping(value, ntargets):
     """Broadcast a value to a given number of targets."""
     value = np.atleast_1d(value)
@@ -77,8 +76,18 @@ class SceneElement(_MetaHolder_):
     def get_mag(self, area=None):
         """ returns the actual magnitude accounting for the area if mag is a surface brightness """
         if self.mag_is_surface_brightness:
-            area = np.asarray(area, dtype="float") # accepts with or without astropy's unit
-            mag = self.mag - 2.5 * np.log10(area) * self.mag.unit
+            # must work in float (not astropy unit) because of mag and np.log.
+            ## area should be in arcsec**2
+            if "astropy.units" in str(type(area)): 
+                area_arcsec2 = area.to("arcsec**2").value
+            else:
+                # if float, assuming it is in arcsec2
+                area_arcsec2 = area
+                
+            ## take the value of mag 
+            mag_per_arcsec2 = self.mag.value 
+            mag_unit = self.mag.unit
+            mag = (mag_per_arcsec2 - 2.5 * np.log10(area_arcsec2)) * mag_unit
         else:
             mag = self.mag
             
@@ -88,7 +97,7 @@ class SceneElement(_MetaHolder_):
         """ """
         if isinstance(self.spectrum, SourceSpectrum):
             if apply_mag:
-                mag = np.asarray(self.get_mag(area=area), dtype="float") 
+                mag = self.get_mag(area=area)
                 spectrum = self.spectrum.normalize(mag, band=self.band)
             else:
                 spectrum = self.spectrum
@@ -150,9 +159,6 @@ class SceneElement(_MetaHolder_):
             #         
             mag = mag * magsys
 
-        #if self.meta.get("surface_brightness", False):
-        #    mag = mag/(u.arcsec**2)
-            
         return mag
 
     def _parse_band_(self):
@@ -282,6 +288,7 @@ class Scene(_MetaHolder_):
             self.background.update(**update_background)
         
         return updated_key
+        
     def get_elements(self, which="*", as_dict=False):
         """ """
         if which in ["*", "all"]:
@@ -298,6 +305,11 @@ class Scene(_MetaHolder_):
     def get_mag(self, area=None, which="*", as_dict=False):
         """ """
         return self.call_down("get_mag", area=area, which=which, as_dict=as_dict)
+
+    def get_spectrum(self, area=None, apply_mag=True, which="*", as_dict=False):
+        """ """
+        return self.call_down("get_spectrum", area=area, apply_mag=apply_mag, 
+                              which=which, as_dict=as_dict)
     
     def get_observation(self, band=None, area=None, which="*", as_dict=False):
         """ """
