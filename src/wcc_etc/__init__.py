@@ -9,7 +9,7 @@ __all__ = [ "__version__"]
 from .io import read_config, get_sensor_config
 from .simulation import Simulation
 from .sensor import Sensor
-#from .source import Source
+from .scene import Scene
 #from .airy import *
 #from .psfsim import *
 #from .radial_data import *
