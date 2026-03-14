@@ -72,9 +72,11 @@ class Simulation(_MetaHolder_):
 
         input_parameters = {key:value for key,value in locals().items()
                              if key not in ["self", "telescope", "sensor", "scene", "meta"]
-                                and value is not None}
+                                and value is not None and not key.startswith("__")}
+        print(input_parameters)
+        non_attr_meta  = {key: value for key, value in meta.items() if key not in ["telescope", "sensor", "scene"]}
 
-        super().__init__(meta | input_parameters)
+        super().__init__(non_attr_meta | input_parameters)
         
     # ============= #
     #  properties   #
@@ -172,7 +174,13 @@ class Simulation(_MetaHolder_):
         self._telescope = telescope
         self._psf_profile = {} # reset the psf profile
 
-
+    # ------- #
+    # update  #
+    # ------- #
+    def reset(self):
+        """ """
+        super().reset() # this resets the meta
+        
     # ------- #
     #  GETTER #
     # ------- #
@@ -225,7 +233,7 @@ class Simulation(_MetaHolder_):
     def get_signal_and_variance(self, time=None, units="e-"):
         """ """
         if time is None:
-            time = self.meta.get("time", None)
+            time = self._meta.get("time", None)
         if time is None:
             raise ValueError("no time given, none set to meta")
             
@@ -290,7 +298,7 @@ class Simulation(_MetaHolder_):
         
         wavelength = self.sensor.wavelength.to("m")
         r_psf_mas, psf1d, ee, ee_at_aper = get_airy_and_ee_curve(wavelength, 
-                                                                 r_aper_mas = self.meta["r_aper_mas"], # no default allower 
+                                                                 r_aper_mas = self._meta["r_aper_mas"], # no default allower 
                                                                  jitter_sigma_mas = self.telescope.jitter_sigma.to("mas"), 
                                                                  fnum=self.telescope.f_num, 
                                                                  D=self.telescope.diameter_primary.value,
@@ -299,7 +307,7 @@ class Simulation(_MetaHolder_):
 
         # compute the number of pixels associated to the PSF
         plate_scale = self.sensor.get_plate_scale(self.telescope) # in arcsec/pix
-        num_pixels_at_r = self.meta["r_aper_mas"]*u.arcsec/(plate_scale * 1000) # pix
+        num_pixels_at_r = self._meta["r_aper_mas"]*u.arcsec/(plate_scale * 1000) # pix
         num_psf_pixels = (np.pi * num_pixels_at_r**2) # in pixels**2
 
         # area of the psf in angular units
@@ -345,10 +353,19 @@ class Simulation(_MetaHolder_):
     @property
     def meta(self):
         """ generic parameters """
-        return self._meta | {element: getattr(self, element).meta
-                for element in ["telescope", "sensor", "scene"]
-                if self.has_element(element)}
+        return self._meta | {element: element.meta
+                                 for element_name in ["telescope", "sensor", "scene"]
+                                 if (element := getattr(self, element_name)) is not None
+                                 }
 
+    @property
+    def mutable_parameters(self):
+        """ generic parameters """
+        return self._mutable_parameters +  [f"{element_name}__{k}"
+                                                for element_name in ["telescope", "sensor", "scene"]
+                                                if (element := getattr(self, element_name)) is not None
+                                                for k in element.mutable_parameters  
+                                            ]
     # ---------- #
     # cashed     #
     # ---------- #

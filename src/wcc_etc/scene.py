@@ -99,7 +99,8 @@ class SceneElement(_MetaHolder_):
         """ """
         input_parameters = {key:value for key,value in locals().items()
                              if key not in ["self", "meta"]
-                                and value is not None}
+                                and value is not None and not key.startswith("__")
+                           }
         
         super().__init__(meta | input_parameters)
         self.set_spectrum(spectrum)
@@ -447,3 +448,19 @@ class Scene(_MetaHolder_):
     def element_names(self):
         """ """
         return ["source", "host", "background"]
+
+    @property
+    def meta(self):
+        """ generic parameters """
+        return self._meta | {element_name: element.meta
+                                 for element_name in self.element_names
+                                 if (element := getattr(self,element_name)) is not None
+                            }
+    @property
+    def mutable_parameters(self):
+        """ generic parameters """
+        return self._mutable_parameters +  [f"{element_name}__{k}"
+                                                for element_name in self.element_names
+                                                if (element := getattr(self,element_name)) is not None
+                                                for k in element.mutable_parameters  
+                                            ]

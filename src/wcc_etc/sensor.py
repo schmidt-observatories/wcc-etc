@@ -5,7 +5,8 @@ from copy import deepcopy
 
 from .utils import parse_element, parse_and_interpolate
 
-class Sensor():
+from .meta import _MetaHolder_
+class Sensor(_MetaHolder_):
     """ """
 
     _mutable_parameters = ["bandpass", "bandpass_name",
@@ -29,12 +30,12 @@ class Sensor():
         """
 
         init_parameters = {key: value for key, value in locals().items()
-                            if key not in ["self", "bandpass", "meta"] and value is not None}
+                            if key not in ["self", "bandpass", "meta"] and value is not None
+                            and not key.startswith("__")}
         
         # overwrite meta with manually given ones.
         self.set_bandpass(bandpass)
-        self._meta = deepcopy(meta) | init_parameters
-        self._meta_in = deepcopy(self._meta)
+        super().__init__(meta | init_parameters)
         
     @classmethod
     def from_name(cls, name):
@@ -164,8 +165,3 @@ class Sensor():
     def pixel_size(self):
         """ """
         return self.meta["pixel_size"] * u.um/u.pix
-
-    @property
-    def meta(self):
-        """ """
-        return self._meta
