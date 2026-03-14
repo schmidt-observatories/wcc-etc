@@ -29,16 +29,10 @@ def calculate_bg_normalization_magnitude(bg_surface_brightness, psf_area):
 class Simulation(_MetaHolder_):
     """ """
 
-    _mutable_parameters = ["mag", "bandpass", "skymag", "skybandpass",
-                          "time", "r_aper_mas"]
     def __init__(self, 
                  telescope,
                  sensor, 
                  scene=None, 
-                 mag=20, 
-                 bandpass="sensor",
-                 skymag=24, 
-                 skybandpass="johnson_v",
                  time=90, 
                  r_aper_mas=70, 
                  meta={}
