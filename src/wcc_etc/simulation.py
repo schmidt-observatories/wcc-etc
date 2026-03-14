@@ -4,6 +4,7 @@ from synphot import SpectralElement, Observation
 from copy import deepcopy
 import logging
 
+from .io import get_sensor_config
 from .telescope import Telescope
 from .sensor import Sensor
 from .scene import Scene
@@ -12,8 +13,8 @@ from .utils import list_of_quantity_to_array
 
 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+#logging.basicConfig(level=logging.INFO)
+#logger = logging.getLogger(__name__)
 
 def calculate_bg_normalization_magnitude(bg_surface_brightness, psf_area):
     """
@@ -113,23 +114,28 @@ class Simulation(_MetaHolder_):
         return cls(telescope=telescope, sensor=sensor, scene=scene)
 
     @classmethod
-    def from_sensorname_and_scene(cls, name, scene):
-        """
-        Initialize using a sensor name and a scene
-        """
-        from .io import get_sensor_config
+    def from_sensor(cls, sensor, scene=None):
+        """ naming simplification of from_sensor_and_scene() """
+        return cls.from_sensor_and_scene(sensor, scene=scene)
+    
+    @classmethod
+    def from_sensor_and_scene(cls, sensor, scene):
+        """ """
+        if type(sensor) is str or type(sensor) in [list, tuple]:
+            if type(sensor) is str:
+                kind, band = sensor.split(":", 1)
+            else:
+                kind, band = sensor
 
-        # accept strings like 'sony:bb' or just 'r' (default kind -> 'sony')
-        if isinstance(name, str) and ":" in name:
-            kind, band = name.split(":", 1)
+            config = get_sensor_config(kind, band)
+            this = cls.from_config(config) # this has no scene
+            
+        elif isinstance(sensor, Sensor):
+            this = cls(sensor=sensor, telescope=sensor.telescope)
+
         else:
-            # treat the whole name as band and default to 'sony' kind
-            kind = "sony"
-            band = name
+            raise ValueError(f"I cannot parse the input {sensor=}")
 
-        config = get_sensor_config(kind, band)
-
-        this = cls.from_config(config) # this has no scene
         this.set_scene(scene)
         return this
     
@@ -252,8 +258,8 @@ class Simulation(_MetaHolder_):
         detector_variance = (dark_signal * u.electron/u.pixel + self.sensor.read_noise**2)  * self.psf_profile["num_psf_pixels"] # e-**2
         #logging.info(f"signal: {scene_signal:.2f} e-")
 #        logging.info(f"sky signal: {sky_signal:.2f} e-") part of the scene signal?
-        logging.info(f"dark signal: {dark_signal:.2f} e-")
-        logging.info(f"detector variance: {detector_variance:.2f} e-^2.")
+        #logging.info(f"dark signal: {dark_signal:.2f} e-")
+        #logging.info(f"detector variance: {detector_variance:.2f} e-^2.")
 
         # total noise
         # * u.electron as photon noise ; already there in etector_variance
@@ -305,10 +311,11 @@ class Simulation(_MetaHolder_):
         # area of the psf in angular units
         psf_area = num_psf_pixels * plate_scale **2 # in arcsec**2
 
-        logging.info(f"PSF profile computed:")
-        logging.info(f"EE={ee_at_aper:.2f} at {self.meta['r_aper_mas']} mas aperture")
-        logging.info(f"num_psf_pixels={num_psf_pixels:.1f} pixels")
-        logging.info(f"PSF area={psf_area:.2f} arcsec^2")
+        
+        #logging.info(f"PSF profile computed:")
+        #logging.info(f"EE={ee_at_aper:.2f} at {self.meta['r_aper_mas']} mas aperture")
+        #logging.info(f"num_psf_pixels={num_psf_pixels:.1f} pixels")
+        #logging.info(f"PSF area={psf_area:.2f} arcsec^2")
 
         return {"wavelength": wavelength,
                 "r_psf_mas": r_psf_mas,

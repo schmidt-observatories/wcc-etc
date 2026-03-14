@@ -7,8 +7,67 @@ from synphot import units, SourceSpectrum, SpectralElement, Observation
 
 from .meta import _MetaHolder_
 
+__all__ = ["get_scene", "get_scene_element", "Scene"]
 
-# ONGOING WORK
+# Top level
+
+def get_scene(name, mag, 
+              host = None, host_prop={},
+              background = "zodi", background_prop={},
+              **kwargs):
+    """ """
+    source = get_scene_element(name, mag=mag, **kwargs)
+    if host is None and not host_prop:
+        host = None
+    else:
+        host = get_scene_element(host, **host_prop)
+        
+    if background is None and not background_prop:
+        background = None
+    else:
+        background = get_scene_element(background, **background_prop)
+
+    return Scene(source=source, host=host, background=background)
+
+def get_scene_element(element=None, **kwargs):
+    """ Generic top level function to instanciate a scene element.
+
+    Parameters
+    ----------
+    element: str, dict, None
+        flexible variable to help instanciating a scene element.
+        if str: name of a specific pre-defined entry, like 'zodi'
+        if dict: configuration that will supersede default config. It overwride kwargs entries.
+        if None: not used, all rely on kwargs.
+        Such that, all the following are equivalent:
+        - sc_element = get_scene_element("G5IV", mag=20) # element is str 'G5IV'
+        - sc_element = get_scene_element({"name": "G5IV", "mag": 20}) # element is dict: "name": "G5IV", "mag": 20}
+        - sc_element = get_scene_element(name="G5IV", mag=20) # element is None (no element= not non-keyword arguments)
+        
+    **kwargs is used as SceneElement.from_config(kwargs)
+
+    Returns
+    -------
+    sceneelement: SceneElement
+        the Loaded scene element.
+    """
+    if type(element) is str:
+        name = kwargs["name"] = element
+    elif type(element) is dict:
+        kwargs |= element
+
+    name = kwargs.get("name", kwargs.get("spectrum", None))
+    # build default configuration given names.
+    ## Zodi
+    if name is not None and name in ["zodi", "zodiacal", "background"]:
+        default_config = {"mag": 22.5, "surface_brightness": True, "bandpass": "johnson_v"}
+    ## anything else
+    else:
+        default_config = {"mag": 21, "surface_brightness": False, "bandpass": "johnson_v"}
+
+    return SceneElement.from_config((default_config | kwargs))
+    
+
 
 # ============= #
 #   Source      #
@@ -49,6 +108,9 @@ class SceneElement(_MetaHolder_):
     def from_config(cls, config):
         """ """
         # make sure these keys exist
+        if "name" in config:
+            config["spectrum"] = config.pop("name")
+            
         input_kwargs = {key:config.get(key) for key in ["spectrum", "mag"]}
         input_kwargs |= {key:config.get(key) for key in ["magsys", "bandpass", "surface_brightness"]
                         if key in config} # else default as given by __init__
@@ -299,11 +361,11 @@ class Scene(_MetaHolder_):
     def get_elements(self, which="*", as_dict=False):
         """ """
         if which in ["*", "all"]:
-            which = self.element_names
+            which = [element_ for element_ in self.element_names if getattr(self, element_) is not None]
         else:
             which = np.atleast_1d(which)
 
-        values = [getattr(self, which_) for which_ in self.element_names if which_ in which]
+        values = [element_obj for which_ in self.element_names if which_ in which and (element_obj:=getattr(self, which_)) is not None]
         if as_dict:
             return dict(zip(which, values))
             
