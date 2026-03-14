@@ -1,9 +1,7 @@
-import warnings
 import numpy as np
 from synphot.models import Box1D
 from synphot import SpectralElement
 from astropy import units as u
-from copy import deepcopy
 
 from .meta import _MetaHolder_
 

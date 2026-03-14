@@ -1,8 +1,9 @@
 import os
+import warnings
 import pandas as pd
 import tomllib
 import pandas
-import numpy as np
+
 from importlib.resources import files
 
 
@@ -101,7 +102,7 @@ def get_pickles_spectrum_filename(spectral_type, fullpath=True):
     filename = PICKLES_MAPPING[PICKLES_MAPPING['spt'].values == spectral_type]['filename'].values[0] + '.fits'
     
     if not filename:
-        raise ValueError(f"No spectrum found for {spt}. Available SPT are {df['spt'].values}.")
+        raise ValueError(f"No spectrum found for {spectral_type=}. Available SPT are {PICKLES_MAPPING['spt'].values}.")
     
     if fullpath:
         filename = os.path.join(_PICKLES_DIR, 'dat_uvk', filename)
@@ -146,7 +147,7 @@ def read_config(filename, source="config"):
     # parse the extension to know how to read it.
     _, extension = os.path.splitext(filename)
     if extension is None or len(extension) == 0:
-        raise ValueError(f"no extension associated to given filename {fname=}. It cannot be loaded")
+        raise ValueError(f"no extension associated to given filename {filename=}. It cannot be loaded")
         
     if extension.lower() == ".toml":
         config = tomllib.load( open(filename, "rb") )

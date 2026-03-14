@@ -1,8 +1,7 @@
 import numpy as np
 from astropy import units as u
 from synphot import SpectralElement, Observation
-from copy import deepcopy
-import logging
+
 import warnings
 
 from .io import get_sensor_config
@@ -13,7 +12,7 @@ from .meta import _MetaHolder_
 from .utils import list_of_quantity_to_array
 
 
-
+#import logging
 #logging.basicConfig(level=logging.INFO)
 #logger = logging.getLogger(__name__)
 
@@ -215,8 +214,6 @@ class Simulation(_MetaHolder_):
                      "sensor": {},
                      "scene": {}
                     }
-        update_scene = {}
-        update_sensor = {}
         for key, value in kwargs.items():
             key = key.replace(".", "__") # generi trick, sensor.gain == sensor__gain.
             

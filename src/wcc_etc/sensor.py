@@ -1,5 +1,4 @@
 
-import numpy as np
 from astropy import units as u
 from copy import deepcopy
 
@@ -21,6 +20,7 @@ class Sensor(_MetaHolder_):
                  area,
                  temperature=None,
                  qe= 1, # part of the total throughput for now.
+                 well_depth=None,
                 meta={}):
         """
         Initialize the sensor.
@@ -87,6 +87,7 @@ class Sensor(_MetaHolder_):
                      gain=gain,
                      area=sensor_area,
                      temperature=sensor_temp,
+                     well_depth=well_depth,
                      qe=1, # forced qe=1 as included in total throughput
                     meta=config)
     

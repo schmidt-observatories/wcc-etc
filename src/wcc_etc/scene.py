@@ -3,7 +3,7 @@ import os
 import numpy as np
 
 from astropy import units as u
-from synphot import units, SourceSpectrum, SpectralElement, Observation
+from synphot import SourceSpectrum, SpectralElement, Observation
 
 from .meta import _MetaHolder_
 
