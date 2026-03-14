@@ -3,6 +3,7 @@ from astropy import units as u
 from synphot import SpectralElement, Observation
 from copy import deepcopy
 import logging
+import warnings
 
 from .io import get_sensor_config
 from .telescope import Telescope
@@ -28,7 +29,8 @@ def calculate_bg_normalization_magnitude(bg_surface_brightness, psf_area):
 
 class Simulation(_MetaHolder_):
     """ """
-
+    _mutable_parameters = ["time", "r_aper_mas"]
+    
     def __init__(self, 
                  telescope,
                  sensor, 
@@ -177,10 +179,123 @@ class Simulation(_MetaHolder_):
     # ------- #
     # update  #
     # ------- #
+    @staticmethod
+    def _fullkey_to_element_and_key(fullkey):
+        """ """
+        element, *keys = fullkey.split("__")
+        if len(keys) == 0:
+            key = element
+            element = None
+        else:
+            key = "__".join(keys) # trick to allow scene__background__mag => scene, background__mag
+                
+        return element, key
+
+    def _fullkey_to_value(self, fullkey):
+        """ """
+        *origin, baseparam = fullkey.split("__")
+        origin = "__".join(origin)
+        if len(origin)==0:
+            return self.meta.get(baseparam)
+        else:
+            return eval(f"self.{origin.replace('__', '.')}").meta.get(baseparam)     
+    
     def reset(self):
         """ """
         super().reset() # this resets the meta
+        for element in [self.telescope, self.sensor, self.scene]:
+            if element is not None:
+                element.reset()
+            
+                
+    def update(self, **kwargs):
+        """ """        
+        update_this = {}
+        to_update = {"telescope": {},
+                     "sensor": {},
+                     "scene": {}
+                    }
+        update_scene = {}
+        update_sensor = {}
+        for key, value in kwargs.items():
+            key = key.replace(".", "__") # generi trick, sensor.gain == sensor__gain.
+            
+            # is that a fully defined name like sensor__dark_current ?
+            if np.any([key.startswith(f"{element}__")
+                       for element in ["telescope", "sensor", "scene"]]):
+                # yes ? easy then
+                element, down_key = self._fullkey_to_element_and_key(key)
+                to_update[element][down_key] = value
+                continue
+    
+            # see if it is missing a key
+            fetch_key = [fullkey for fullkey in self.mutable_parameters
+                          if fullkey.endswith(key)]
+            if len(fetch_key) == 1:
+                # ok, well defined, easy:
+                element, down_key = self._fullkey_to_element_and_key(fetch_key[0])
+                if element is None:
+                    # means not a mutable parameter of a sub-element:
+                    update_this[down_key] = value
+                else:
+                    # it is a sub-element
+                    to_update[element][down_key] = value
+                continue
+                
+            if len(fetch_key)>1:
+                # not well defined, more than one entry exist for they key
+                warnings.warn(f"several entries found matiching {key=} : {fetch_key}. Please clarify. *{key=} ignored*")
+                continue
+    
+            # if we are here, it means fetch_key didn't match.
+            warnings.warn(f"no entries found matiching {key=}. *{key=} ignored*")
+    
+        self.update_telescope(**to_update["telescope"])
+        self.update_sensor(**to_update["sensor"])
+        self.update_scene(**to_update["scene"])
+    
+        self._meta |= update_this
+                    
+    
+    def update_telescope(self, **kwargs):
+        """ """
+        shortcuts = {"jitter": "jitter_sigma", 
+                    "diameter": "diameter_primary"}
+        to_update = {shortcuts.get(key, key): value for key, value in kwargs.items()}
+        self.telescope.update(**to_update)
+    
+    def update_scene(self, **kwargs):
+        """ """
+        self.scene.update(**kwargs)
+    
+    def update_sensor(self, **kwargs):
+        """ """
+        self.sensor.update(**kwargs)
+
+    def get_parameter(self, name, as_dict=False):
+        """ """
+        values = []
+        names = np.atleast_1d(name)
+        for name_ in names:
+            name_ = name_.replace(".","__") # accept this generic way
+            fetch_key = [fullkey for fullkey in self.mutable_parameters
+                                if fullkey.endswith(name_)]
+            if len(fetch_key) == 1:
+                values.append( self._fullkey_to_value(fetch_key[0]) ) 
+            else:
+                if len(fetch_key)==0:
+                    warnings.warn(f"not matching found for {name_=}")
+                else:
+                    warnings.warn(f"several matching found for {name_=} ; {fetch_key}")
+                                      
+                values.append(None)
+    
+        if as_dict:
+            return dict(zip(names, values))
         
+        return values
+    
+      
     # ------- #
     #  GETTER #
     # ------- #
