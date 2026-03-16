@@ -49,7 +49,21 @@ SENSORS = {"zwo": {"bb": "wcc_imx_bb_throughput.csv",#"Lazuli_WCC_kepler_2025101
 _KIND_NAMES = {shortcut:"zwo" for shortcut in ["sony", "imx", "imx455"]}
 
 def get_any_astro_name(name, retry=True):
-    """ """
+    """
+    Search for an astronomical object spectrum file by name or spectral type.
+
+    Parameters
+    ----------
+    name : str
+        The name of the astronomical object or its spectral type.
+    retry : bool, optional
+        Whether to attempt a more precise search if the initial search fails. Default is True.
+
+    Returns
+    -------
+    str or None
+        The full path to the matching spectrum file, or None if no match is found.
+    """
     # check if spectral type given.
     pickle_entry = PICKLES_MAPPING[PICKLES_MAPPING["spt"] == name]
     # if so, then get its true name.
@@ -73,31 +87,37 @@ def get_any_astro_name(name, retry=True):
 
     warnings.warn(f"cannot parse {name=}")
     return None
+
 def get_pickles_spectrum_filename(spectral_type, fullpath=True):
-    """Get the pickles spectrum for a given spectral type. 
+    """
+    Get the Pickles spectrum filename for a given spectral type.
 
     Parameters
     ----------
-    spectral_type: str
-        The following are available:
-           'O5V', 'O9V', 'B0V', 'B1V', 'B3V', 'B5-7V', 'B8V', 'A0V', 'A2V',
-           'A3V', 'A5V', 'F0V', 'F2V', 'F5V', 'F8V', 'G0V', 'G2V', 'G5V',
-           'G8V', 'K0V', 'K2V', 'K5V', 'K7V', 'M0V', 'M2V', 'M4V', 'M5V',
-           'B2IV', 'B6IV', 'A0IV', 'A4-7IV', 'F0-2IV', 'F5IV', 'F8IV', 'G0IV',
-           'G2IV', 'G5IV', 'G8IV', 'K0IV', 'K1IV', 'K3IV', 'O8III', 'B1-2III',
-           'B5III', 'B9III', 'A0III', 'A5III', 'F0III', 'F5III', 'G0III',
-           'G5III', 'G8III', 'K0III', 'K3III', 'K5III', 'M0III', 'M5III',
-           'M10III', 'B2II', 'B5II', 'F0II', 'F2II', 'G5II', 'K0-1II',
-           'K3-4II', 'M3II', 'B0I', 'B5I', 'B8I', 'A0I', 'F0I', 'F5I', 'F8I',
-           'G0I', 'G5I', 'G8I', 'K2I', 'K4I', 'M2I'
-
-    fullpath: bool
-        should this be the full path (True) of simply the basename (False)
+    spectral_type : str
+        The spectral type of the star. Available types include:
+        'O5V', 'O9V', 'B0V', 'B1V', 'B3V', 'B5-7V', 'B8V', 'A0V', 'A2V',
+        'A3V', 'A5V', 'F0V', 'F2V', 'F5V', 'F8V', 'G0V', 'G2V', 'G5V',
+        'G8V', 'K0V', 'K2V', 'K5V', 'K7V', 'M0V', 'M2V', 'M4V', 'M5V',
+        'B2IV', 'B6IV', 'A0IV', 'A4-7IV', 'F0-2IV', 'F5IV', 'F8IV', 'G0IV',
+        'G2IV', 'G5IV', 'G8IV', 'K0IV', 'K1IV', 'K3IV', 'O8III', 'B1-2III',
+        'B5III', 'B9III', 'A0III', 'A5III', 'F0III', 'F5III', 'G0III',
+        'G5III', 'G8III', 'K0III', 'K3III', 'K5III', 'M0III', 'M5III',
+        'M10III', 'B2II', 'B5II', 'F0II', 'F2II', 'G5II', 'K0-1II',
+        'K3-4II', 'M3II', 'B0I', 'B5I', 'B8I', 'A0I', 'F0I', 'F5I', 'F8I',
+        'G0I', 'G5I', 'G8I', 'K2I', 'K4I', 'M2I'.
+    fullpath : bool, optional
+        Whether to return the full path (True) or just the basename (False). Default is True.
 
     Returns
     -------
-    str:
-        path to the spectrum file.
+    str
+        Path to the spectrum file.
+
+    Raises
+    ------
+    ValueError
+        If no spectrum is found for the given spectral type.
     """
     filename = PICKLES_MAPPING[PICKLES_MAPPING['spt'].values == spectral_type]['filename'].values[0] + '.fits'
     
@@ -111,21 +131,21 @@ def get_pickles_spectrum_filename(spectral_type, fullpath=True):
 
 
 def read_config(filename, source="config"):
-    """Read a single configuration file.
+    """
+    Read a single configuration file.
 
     - If the input filename does not specifically include a path, it will be
-      looked for in the default :data:`PACKAGE_PATH` directory.
+      looked for in the default `PACKAGE_PATH` directory.
     - Currently, only `.toml` configuration files are supported.
 
     Parameters
     ----------
-    filename : str or list
-        Filename of the configuration file. If no extension is provided,
-        `.toml` is assumed. `filename="this"` is equivalent to `filename="this.toml".
-    source: str
-        provide the directory where the file is supposed to be stored, e.g. source="config".
-        This is used only if the input filename is not a fullpath and this function
-        has to look for the fullpath using expand_path.
+    filename : str or dict
+        Filename of the configuration file or a dictionary (returned as is).
+        If no extension is provided, `.toml` is assumed.
+    source : str, optional
+        The directory where the file is supposed to be stored (e.g., "config").
+        Used if the filename is not a full path. Default is "config".
 
     Returns
     -------
@@ -134,6 +154,8 @@ def read_config(filename, source="config"):
 
     Raises
     ------
+    ValueError
+        If no extension is associated with the given filename.
     NotImplementedError
         If the configuration file extension is not supported.
     """
@@ -159,7 +181,28 @@ def read_config(filename, source="config"):
 
 def get_sensor_config(kind, band, **kwargs):
     """
-    Get sensor configuration for a specific band.
+    Get sensor configuration for a specific detector kind and band.
+
+    Parameters
+    ----------
+    kind : str
+        The kind of sensor (e.g., 'zwo', 'qcmos', 'sony', 'imx').
+    band : str
+        The observation band (e.g., 'bb', 'u', 'g', 'r', 'i', 'z').
+    **kwargs
+        Additional keyword arguments to override or add to the configuration.
+
+    Returns
+    -------
+    dict
+        The combined configuration dictionary.
+
+    Raises
+    ------
+    ValueError
+        If the specified band is not available for the sensor kind.
+    NotImplementedError
+        If the throughput curve for the specified band is not yet implemented.
     """
     # trick to allow nicknames like 'sony' in place of 'zwo'
     kind = _KIND_NAMES.get(kind, kind) 
@@ -184,23 +227,31 @@ def get_sensor_config(kind, band, **kwargs):
 
 
 def expand_path(filename, source=None, test_extension=False):
-    """Get the full file path, including the config path if necessary.
+    """
+    Get the full file path, including the package path if necessary.
 
     If the input filename does not specifically include a path, it will be
-    looked for in the default :data:`PACKAGE_PATH` directory.
+    looked for in the default `PACKAGE_PATH` directory.
 
     Parameters
     ----------
     filename : str
-        File name.
-    source: str, None
-        provide the directory where the file is supposed to be stored, e.g. source="config"
-        if given, the file will be looked for inside PACKAGE_PATH/{source}.
-        if None, it will be inside PACKAGE_PATH/
+        The file name or path.
+    source : str, optional
+        The subdirectory inside `PACKAGE_PATH` to look into (e.g., "config").
+        If None, it will be looked for directly in `PACKAGE_PATH`.
+    test_extension : bool, optional
+        Whether to validate if the extension is supported. Default is False.
+
     Returns
     -------
     str
         Filename including the default path if needed.
+
+    Raises
+    ------
+    NotImplementedError
+        If `test_extension` is True and the extension is not supported.
     """
 
     if os.path.isfile(filename):  # filename includes a path
@@ -218,3 +269,4 @@ def expand_path(filename, source=None, test_extension=False):
             raise NotImplementedError(f"Unknown configuration extension {extension=}.")
 
     return fname
+

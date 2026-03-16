@@ -15,7 +15,31 @@ def get_scene(name, mag,
               host = None, host_prop={},
               background = "zodi", background_prop={},
               **kwargs):
-    """ """
+    """
+    Get a Scene object with a source, an optional host, and an optional background.
+
+    Parameters
+    ----------
+    name : str
+        Name of the source spectrum.
+    mag : float
+        Magnitude of the source.
+    host : str, optional
+        Name of the host spectrum. Default is None.
+    host_prop : dict, optional
+        Properties for the host spectrum. Default is {}.
+    background : str, optional
+        Name of the background spectrum. Default is "zodi".
+    background_prop : dict, optional
+        Properties for the background spectrum. Default is {}.
+    **kwargs
+        Additional keyword arguments passed to get_scene_element for the source.
+
+    Returns
+    -------
+    Scene
+        The initialized Scene object.
+    """
     source = get_scene_element(name, mag=mag, **kwargs)
     if host is None and not host_prop:
         host = None
@@ -30,26 +54,27 @@ def get_scene(name, mag,
     return Scene(source=source, host=host, background=background)
 
 def get_scene_element(element=None, **kwargs):
-    """ Generic top level function to instanciate a scene element.
+    """
+    Generic top level function to instanciate a scene element.
 
     Parameters
     ----------
-    element: str, dict, None
-        flexible variable to help instanciating a scene element.
-        if str: name of a specific pre-defined entry, like 'zodi'
-        if dict: configuration that will supersede default config. It overwride kwargs entries.
-        if None: not used, all rely on kwargs.
-        Such that, all the following are equivalent:
-        - sc_element = get_scene_element("G5IV", mag=20) # element is str 'G5IV'
-        - sc_element = get_scene_element({"name": "G5IV", "mag": 20}) # element is dict: "name": "G5IV", "mag": 20}
-        - sc_element = get_scene_element(name="G5IV", mag=20) # element is None (no element= not non-keyword arguments)
-        
-    **kwargs is used as SceneElement.from_config(kwargs)
+    element : str, dict, or None, optional
+        Flexible variable to help instantiating a scene element.
+        - If str: name of a specific pre-defined entry, like 'zodi'.
+        - If dict: configuration that will supersede default config. It overrides kwargs entries.
+        - If None: not used, all rely on kwargs.
+        Example equivalent calls:
+        - get_scene_element("G5IV", mag=20)
+        - get_scene_element({"name": "G5IV", "mag": 20})
+        - get_scene_element(name="G5IV", mag=20)
+    **kwargs
+        Configuration parameters used as SceneElement.from_config(kwargs).
 
     Returns
     -------
-    sceneelement: SceneElement
-        the Loaded scene element.
+    SceneElement
+        The loaded scene element.
     """
     if type(element) is str:
         name = kwargs["name"] = element
@@ -73,7 +98,21 @@ def get_scene_element(element=None, **kwargs):
 #   Source      #
 # ============= # 
 def broadcast_mapping(value, ntargets):
-    """Broadcast a value to a given number of targets."""
+    """
+    Broadcast a value to a given number of targets.
+
+    Parameters
+    ----------
+    value : array_like
+        Value(s) to be broadcasted.
+    ntargets : int
+        Number of targets to broadcast to.
+
+    Returns
+    -------
+    ndarray
+        The broadcasted values.
+    """
     value = np.atleast_1d(value)
     if np.ndim(value)>1:
         # squeeze drop useless dimensions.
@@ -89,14 +128,44 @@ def broadcast_mapping(value, ntargets):
 # ============= # 
 
 class SceneElement(_MetaHolder_):
-    """ """
+    """
+    A class representing a single element of a scene (source, host, or background).
+
+    Attributes
+    ----------
+    spectrum : SourceSpectrum
+        The spectrum of the element.
+    mag : Quantity
+        The magnitude of the element.
+    band : SpectralElement
+        The bandpass used for magnitude normalization.
+    mag_is_surface_brightness : bool
+        Whether the magnitude is defined per unit area.
+    """
     _mutable_parameters = ["spectrum", "mag", "magsys", "bandpass", "surface_brightness"]
     
     def __init__(self, spectrum, mag, 
                  magsys="ABmag", bandpass="johnson_v", 
                  surface_brightness=False,
                  meta={}):
-        """ """
+        """
+        Initialize a SceneElement.
+
+        Parameters
+        ----------
+        spectrum : str or SourceSpectrum
+            The spectrum or path to a spectrum file.
+        mag : float
+            The magnitude of the element.
+        magsys : str, optional
+            The magnitude system (e.g., 'ABmag'). Default is "ABmag".
+        bandpass : str or SpectralElement, optional
+            The bandpass filter. Default is "johnson_v".
+        surface_brightness : bool, optional
+            Whether the magnitude is surface brightness (mag/arcsec^2). Default is False.
+        meta : dict, optional
+            Additional metadata. Default is {}.
+        """
         input_parameters = {key:value for key,value in locals().items()
                              if key not in ["self", "meta"]
                                 and value is not None and not key.startswith("__")
@@ -107,7 +176,20 @@ class SceneElement(_MetaHolder_):
         
     @classmethod
     def from_config(cls, config):
-        """ """
+        """
+        Create a SceneElement from a configuration dictionary.
+
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary containing 'spectrum' (or 'name'), 'mag', and optionally
+            'magsys', 'bandpass', 'surface_brightness'.
+
+        Returns
+        -------
+        SceneElement
+            The initialized SceneElement.
+        """
         # make sure these keys exist
         if "name" in config:
             config["spectrum"] = config.pop("name")
@@ -123,7 +205,14 @@ class SceneElement(_MetaHolder_):
     #  methods    #
     # =========== #
     def set_spectrum(self, spec_or_file):
-        """ generic setter for any source component """
+        """
+        Generic setter for any source component.
+
+        Parameters
+        ----------
+        spec_or_file : str or SourceSpectrum or None
+            The spectrum, a path to a spectrum file, or a spectral type name.
+        """
         
         # make sure you have a spectrum.
         if type(spec_or_file) in [str]:
@@ -144,7 +233,19 @@ class SceneElement(_MetaHolder_):
     # GETTER  #
     # ------- # 
     def get_mag(self, area=None):
-        """ returns the actual magnitude accounting for the area if mag is a surface brightness """
+        """
+        Return the actual magnitude, accounting for the area if mag is a surface brightness.
+
+        Parameters
+        ----------
+        area : float or Quantity, optional
+            The area in arcsec^2. Required if mag_is_surface_brightness is True.
+
+        Returns
+        -------
+        Quantity
+            The magnitude.
+        """
         if self.mag_is_surface_brightness:
             # must work in float (not astropy unit) because of mag and np.log.
             ## area should be in arcsec**2
@@ -164,7 +265,23 @@ class SceneElement(_MetaHolder_):
         return mag
             
     def get_spectrum(self, apply_mag=True, as_array=False, area=None):
-        """ """
+        """
+        Get the spectrum of the element.
+
+        Parameters
+        ----------
+        apply_mag : bool, optional
+            Whether to normalize the spectrum to the stored magnitude. Default is True.
+        as_array : bool, optional
+            Whether to return the spectrum as a wavelength/flux array pair. Default is False.
+        area : float or Quantity, optional
+            The area for surface brightness normalization. Default is None.
+
+        Returns
+        -------
+        SourceSpectrum or tuple
+            The spectrum or (wavelength, flux) tuple if as_array is True.
+        """
         if isinstance(self.spectrum, SourceSpectrum):
             if apply_mag:
                 mag = self.get_mag(area=area)
@@ -181,7 +298,21 @@ class SceneElement(_MetaHolder_):
         return spectrum
         
     def get_observation(self, band=None, area=None):
-        """ """
+        """
+        Get a synphot Observation of the element.
+
+        Parameters
+        ----------
+        band : SpectralElement, optional
+            The bandpass filter. Defaults to the element's stored band.
+        area : float or Quantity, optional
+            The area for surface brightness normalization. Default is None.
+
+        Returns
+        -------
+        Observation or None
+            The synphot Observation.
+        """
         if band is None:
             band = self.band
 
@@ -194,6 +325,20 @@ class SceneElement(_MetaHolder_):
     def show(self, ax=None, apply_mag=True, **kwargs):
         """
         Show the spectrum or host flux.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on. If None, a new figure is created.
+        apply_mag : bool, optional
+            Whether to apply magnitude normalization. Default is True.
+        **kwargs
+            Keyword arguments passed to ax.plot.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The figure object.
         """
         if ax is None:
             import matplotlib.pyplot as plt
@@ -214,7 +359,14 @@ class SceneElement(_MetaHolder_):
     #  internal    #
     # ------------ # 
     def _parse_mag_(self):
-        """ """
+        """
+        Parse the magnitude from metadata.
+
+        Returns
+        -------
+        Quantity
+            The parsed magnitude with units.
+        """
          # magnitude
         mag = self.meta.get("mag", None)
         if mag is None:
@@ -232,7 +384,19 @@ class SceneElement(_MetaHolder_):
         return mag
 
     def _parse_band_(self):
-        """ """
+        """
+        Parse the bandpass from metadata.
+
+        Returns
+        -------
+        SpectralElement
+            The parsed bandpass.
+
+        Raises
+        ------
+        ValueError
+            If the band metadata is neither a string nor a SpectralElement.
+        """
         # band or bandpass accepted
         band = self.meta.get("band", self.meta.get("bandpass"))
         if type(band) is str:
@@ -247,26 +411,45 @@ class SceneElement(_MetaHolder_):
     # ============= # 
     @property
     def spectrum(self):
-        """ """
+        """
+        The source spectrum.
+        """
         return self._spectrum
         
     @property
     def mag(self):
-        """ """
+        """
+        The magnitude as an astropy Quantity.
+        """
         return self._parse_mag_()
 
     @property
     def band(self):
-        """ """
+        """
+        The bandpass as a synphot SpectralElement.
+        """
         return self._parse_band_()
 
     @property
     def mag_is_surface_brightness(self):
-        """ """
+        """
+        Boolean indicating if the magnitude is a surface brightness.
+        """
         return self.meta.get("surface_brightness", False)
 
 class Scene(_MetaHolder_):
-    """ """
+    """
+    A collection of SceneElements (source, host, background) representing a full observation scene.
+
+    Attributes
+    ----------
+    source : SceneElement
+        The main source of interest.
+    host : SceneElement
+        The host galaxy or environment.
+    background : SceneElement
+        The sky background.
+    """
     # ZODI TO BE IMPLEMENTED
     # self.background = self.config['zodi']['zodi_mag_r']
 
@@ -278,12 +461,18 @@ class Scene(_MetaHolder_):
                      meta={}
                 ):
         """
-        Source object
+        Initialize a Scene object.
 
-        INPUT:
-            spectrum: SourceSpectrum object
-            host: SourceSpectrum object (optional)
-            background: float, background surface brightness (optional)
+        Parameters
+        ----------
+        source : SceneElement, optional
+            The source element. Default is None.
+        host : SceneElement, optional
+            The host element. Default is None.
+        background : SceneElement, optional
+            The background element. Default is None.
+        meta : dict, optional
+            Additional metadata. Default is {}.
         """
         self._source = source
         self._host = host
@@ -293,7 +482,20 @@ class Scene(_MetaHolder_):
         
     @classmethod
     def from_config(cls, config):
-        """ """
+        """
+        Create a Scene from a configuration dictionary.
+
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary containing 'source', 'host', and 'background' keys,
+            each being a configuration for SceneElement.from_config.
+
+        Returns
+        -------
+        Scene
+            The initialized Scene.
+        """
         # Source
         if (source_config := config.get("source", {})):
             source = SceneElement.from_config(source_config)
@@ -322,12 +524,28 @@ class Scene(_MetaHolder_):
     #   methods     #
     # ============= #
     def reset(self):
-        """ """
+        """
+        Reset each element in the scene.
+        """
         # reset each element
         _ = self.call_down("reset", which="all")
         
     def update(self, reset=False, **kwargs):
-        """ """
+        """
+        Update scene elements using double-underscore prefixed keywords.
+
+        Parameters
+        ----------
+        reset : bool, optional
+            Not currently used. Default is False.
+        **kwargs
+            Keywords like 'source__mag=20' or 'background__mag=22'.
+
+        Returns
+        -------
+        list
+            List of updated keys.
+        """
         update_source = {}
         update_host = {}
         update_background = {}
@@ -360,7 +578,21 @@ class Scene(_MetaHolder_):
         return updated_key
         
     def get_elements(self, which="*", as_dict=False):
-        """ """
+        """
+        Get specified scene elements.
+
+        Parameters
+        ----------
+        which : str or list, optional
+            Which elements to get ('*', 'all', 'source', 'host', 'background'). Default is "*".
+        as_dict : bool, optional
+            Whether to return elements as a dictionary. Default is False.
+
+        Returns
+        -------
+        list or dict
+            The requested scene elements.
+        """
         if which in ["*", "all"]:
             which = [element_ for element_ in self.element_names if getattr(self, element_) is not None]
         else:
@@ -373,28 +605,98 @@ class Scene(_MetaHolder_):
         return values
 
     def get_mag(self, area=None, which="*", as_dict=False):
-        """ """
+        """
+        Get magnitude for specified scene elements.
+
+        Parameters
+        ----------
+        area : float or Quantity, optional
+            The area for surface brightness normalization. Default is None.
+        which : str or list, optional
+            Which elements to get magnitudes for. Default is "*".
+        as_dict : bool, optional
+            Whether to return as a dictionary. Default is False.
+
+        Returns
+        -------
+        list or dict
+            The magnitudes.
+        """
         return self.call_down("get_mag", area=area, which=which, as_dict=as_dict)
 
     def get_spectrum(self, area=None, apply_mag=True, which="*", as_dict=False):
-        """ """
+        """
+        Get spectrum for specified scene elements.
+
+        Parameters
+        ----------
+        area : float or Quantity, optional
+            The area for surface brightness normalization. Default is None.
+        apply_mag : bool, optional
+            Whether to normalize the spectrum. Default is True.
+        which : str or list, optional
+            Which elements to get spectra for. Default is "*".
+        as_dict : bool, optional
+            Whether to return as a dictionary. Default is False.
+
+        Returns
+        -------
+        list or dict
+            The spectra.
+        """
         return self.call_down("get_spectrum", area=area, apply_mag=apply_mag, 
                               which=which, as_dict=as_dict)
     
     def get_observation(self, band=None, area=None, which="*", as_dict=False):
-        """ """
+        """
+        Get observation for specified scene elements.
+
+        Parameters
+        ----------
+        band : SpectralElement, optional
+            The bandpass filter. Default is None.
+        area : float or Quantity, optional
+            The area for surface brightness normalization. Default is None.
+        which : str or list, optional
+            Which elements to get observations for. Default is "*".
+        as_dict : bool, optional
+            Whether to return as a dictionary. Default is False.
+
+        Returns
+        -------
+        list or dict
+            The observations.
+        """
         return self.call_down("get_observation", band=band, area=area, which=which, as_dict=as_dict)
         
     def has_source(self):
-        """ """
+        """
+        Check if the scene has a source element.
+
+        Returns
+        -------
+        bool
+        """
         return self._source is not None
 
     def has_host(self):
-        """ """
+        """
+        Check if the scene has a host element.
+
+        Returns
+        -------
+        bool
+        """
         return self._host is not None
 
     def has_background(self):
-        """ """
+        """
+        Check if the scene has a background element.
+
+        Returns
+        -------
+        bool
+        """
         return self._background is not None
     
     # -------- #
@@ -405,7 +707,29 @@ class Scene(_MetaHolder_):
     #  Internal   #
     # ----------- #
     def call_down(self, what, mapargs=None, allow_call=True, which="*", as_dict=False, **kwargs):
-        """ Call a method on each target in the collection. """
+        """
+        Call a method on each target element in the collection.
+
+        Parameters
+        ----------
+        what : str
+            The name of the attribute or method to access on each element.
+        mapargs : array_like, optional
+            Positional arguments to be mapped to each element call. Default is None.
+        allow_call : bool, optional
+            If True and the attribute is callable, call it. Default is True.
+        which : str or list, optional
+            Which elements to include. Default is "*".
+        as_dict : bool, optional
+            Whether to return results as a dictionary. Default is False.
+        **kwargs
+            Keyword arguments passed to the method call.
+
+        Returns
+        -------
+        list or dict
+            The results from each element.
+        """
         # applied to target.simulation
         elements = self.get_elements(which=which, as_dict=as_dict)
         if as_dict:
@@ -431,36 +755,49 @@ class Scene(_MetaHolder_):
     # -------- #
     @property
     def source(self):
-        """ """
+        """
+        The source SceneElement.
+        """
         return self._source
 
     @property
     def host(self):
-        """ """
+        """
+        The host SceneElement.
+        """
         return self._host
 
     @property
     def background(self):
-        """ """
+        """
+        The background SceneElement.
+        """
         return self._background
 
     @property
     def element_names(self):
-        """ """
+        """
+        Names of the potential elements in a scene.
+        """
         return ["source", "host", "background"]
 
     @property
     def meta(self):
-        """ generic parameters """
+        """
+        Combined metadata for the scene and its elements.
+        """
         return self._meta | {element_name: element.meta
                                  for element_name in self.element_names
                                  if (element := getattr(self,element_name)) is not None
                             }
     @property
     def mutable_parameters(self):
-        """ generic parameters """
+        """
+        List of parameters that can be updated.
+        """
         return self._mutable_parameters +  [f"{element_name}__{k}"
                                                 for element_name in self.element_names
                                                 if (element := getattr(self,element_name)) is not None
                                                 for k in element.mutable_parameters  
                                             ]
+

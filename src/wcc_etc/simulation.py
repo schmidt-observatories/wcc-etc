@@ -18,16 +18,41 @@ from .utils import list_of_quantity_to_array
 
 def calculate_bg_normalization_magnitude(bg_surface_brightness, psf_area):
     """
-    Convert the Background Surface Brightness into the total magnitude given the PSF area (in arcseconds squared)
-    The area needs to be in square arcseconds since this the typical definition of Surface Brightness is in units
-    of magnitudes per arcseconds^2
-    :return: None
+    Convert the Background Surface Brightness into the total magnitude given the PSF area.
+
+    The area needs to be in square arcseconds since the typical definition of
+    Surface Brightness is in units of magnitudes per arcseconds^2.
+
+    Parameters
+    ----------
+    bg_surface_brightness : float
+        The background surface brightness in mag/arcsec^2.
+    psf_area : float
+        The area of the PSF in arcsec^2.
+
+    Returns
+    -------
+    float
+        The total background magnitude.
     """
     bg_magnitude = bg_surface_brightness - 2.5 * np.log10(psf_area)
     return bg_magnitude
 
 class Simulation(_MetaHolder_):
-    """ """
+    """
+    A class to manage and run image exposure simulations.
+
+    Attributes
+    ----------
+    telescope : Telescope
+        The telescope used for the simulation.
+    sensor : Sensor
+        The sensor used for the simulation.
+    scene : Scene
+        The scene being observed.
+    psf_profile : dict
+        Calculated PSF profile parameters.
+    """
     _mutable_parameters = ["time", "r_aper_mas"]
     
     def __init__(self, 
@@ -39,33 +64,22 @@ class Simulation(_MetaHolder_):
                  meta={}
                  ):
         """ 
-        Simulation object
+        Initialize a Simulation object.
 
-        Parameters:
-        -----------
-        telescope: Telescope
-            telescope to be used for this simulation
-        sensor: Sensor
-            sensor to be used for this simulation
-        scene: Scene
-            scene to be used for this simulation. This could be set later.
-        mag: float, 
-            magnitude of the scene
-        bandpass: str, 
-            bandpass filter to use
-        skymag: float
-            sky background magnitude
-        skybandpass: str, 
-            sky background bandpass filter
-        time: float, array
-            exposure time(s) in seconds
-        r_aper_mas: float
-            radius of the aperture in milliarcseconds
-        meta: dict
-            additional parameters to store in the meta dictionary (optional)
-
-        Returns
-        -------
+        Parameters
+        ----------
+        telescope : Telescope
+            Telescope to be used for this simulation.
+        sensor : Sensor
+            Sensor to be used for this simulation.
+        scene : Scene, optional
+            Scene to be used for this simulation. Default is None.
+        time : float or array_like, optional
+            Exposure time(s) in seconds. Default is 90.
+        r_aper_mas : float, optional
+            Radius of the aperture in milliarcseconds. Default is 70.
+        meta : dict, optional
+            Additional parameters to store in the meta dictionary. Default is {}.
         """
         self._telescope = telescope
         self._sensor = sensor
@@ -85,7 +99,17 @@ class Simulation(_MetaHolder_):
     @classmethod
     def from_config(cls, config):
         """
-        Initialize from a configuration directory.
+        Initialize a Simulation from a configuration dictionary.
+
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary containing 'telescope', 'sensor', and 'scene' keys.
+
+        Returns
+        -------
+        Simulation
+            The initialized Simulation object.
         """
         # Telescope
         config_telescope = config.get("telescope", None)
@@ -112,12 +136,38 @@ class Simulation(_MetaHolder_):
 
     @classmethod
     def from_sensor(cls, sensor, scene=None):
-        """ naming simplification of from_sensor_and_scene() """
+        """
+        Naming simplification of from_sensor_and_scene().
+
+        Parameters
+        ----------
+        sensor : str, list, tuple, or Sensor
+            Sensor specification.
+        scene : Scene, optional
+            Scene object.
+
+        Returns
+        -------
+        Simulation
+        """
         return cls.from_sensor_and_scene(sensor, scene=scene)
     
     @classmethod
     def from_sensor_and_scene(cls, sensor, scene):
-        """ """
+        """
+        Create a Simulation from a sensor specification and a scene.
+
+        Parameters
+        ----------
+        sensor : str, list, tuple, or Sensor
+            Sensor specification. If str, format 'kind:band'.
+        scene : Scene
+            The scene to observe.
+
+        Returns
+        -------
+        Simulation
+        """
         if type(sensor) is str or type(sensor) in [list, tuple]:
             if type(sensor) is str:
                 kind, band = sensor.split(":", 1)
@@ -140,7 +190,14 @@ class Simulation(_MetaHolder_):
     #   methods        #
     # ================ #
     def set_scene(self, scene_or_config):
-        """ """
+        """
+        Set the scene for the simulation.
+
+        Parameters
+        ----------
+        scene_or_config : Scene or dict
+            The Scene object or its configuration.
+        """
         if isinstance(scene_or_config, dict):
             scene = Scene.from_config(scene_or_config)
         else:
@@ -153,7 +210,14 @@ class Simulation(_MetaHolder_):
         self._h_bkgd_observation = None
 
     def set_sensor(self, sensor_or_config):
-        """ """
+        """
+        Set the sensor for the simulation.
+
+        Parameters
+        ----------
+        sensor_or_config : Sensor or dict
+            The Sensor object or its configuration.
+        """
         if isinstance(sensor_or_config, dict):
             sensor = Sensor.from_config(sensor_or_config)
         else:
@@ -166,7 +230,14 @@ class Simulation(_MetaHolder_):
         self._h_bkgd_observation = None
 
     def set_telescope(self, telescope_or_config):
-        """ """
+        """
+        Set the telescope for the simulation.
+
+        Parameters
+        ----------
+        telescope_or_config : Telescope or dict
+            The Telescope object or its configuration.
+        """
         if isinstance(telescope_or_config, dict):
             telescope = Telescope.from_config(telescope_or_config)
         else:
@@ -180,7 +251,19 @@ class Simulation(_MetaHolder_):
     # ------- #
     @staticmethod
     def _fullkey_to_element_and_key(fullkey):
-        """ """
+        """
+        Split a double-underscore key into element and attribute key.
+
+        Parameters
+        ----------
+        fullkey : str
+            Key like 'sensor__gain'.
+
+        Returns
+        -------
+        tuple
+            (element, key)
+        """
         element, *keys = fullkey.split("__")
         if len(keys) == 0:
             key = element
@@ -191,7 +274,19 @@ class Simulation(_MetaHolder_):
         return element, key
 
     def _fullkey_to_value(self, fullkey):
-        """ """
+        """
+        Get value from a double-underscore key.
+
+        Parameters
+        ----------
+        fullkey : str
+            Key like 'sensor__gain'.
+
+        Returns
+        -------
+        object
+            The value of the parameter.
+        """
         *origin, baseparam = fullkey.split("__")
         origin = "__".join(origin)
         if len(origin)==0:
@@ -200,7 +295,9 @@ class Simulation(_MetaHolder_):
             return eval(f"self.{origin.replace('__', '.')}").meta.get(baseparam)     
     
     def reset(self):
-        """ """
+        """
+        Reset the simulation and its components.
+        """
         super().reset() # this resets the meta
         for element in [self.telescope, self.sensor, self.scene]:
             if element is not None:
@@ -208,7 +305,27 @@ class Simulation(_MetaHolder_):
             
                 
     def update(self, **kwargs):
-        """ """        
+        """
+        Update simulation parameters.
+
+        The keyword should in principle have the following structure
+        `scene__source__mag = 21` to change the `self.scene.source.mag` 
+        parameter to 21.
+
+        To simplify the use, if the name has no ambiguity, you 
+        can skip the first structure elements. 
+        For instance, only `scene__` has a `source__mag`. So `source__mag=21`
+        will automatically be associated with `scene__source__mag=21`. 
+        Same would work, for instance for `dark_current`: only `detector__` 
+        has a `dark_current` mutable_parameter.
+        However `mag=21` is not clear enough, as `scene__source__mag`, 
+        `scene__background__mag` or `scene__host__mag` exist. 
+
+        Parameters
+        ----------
+        **kwargs
+            Parameters to update. Can use double-underscore for sub-elements.
+        """        
         update_this = {}
         to_update = {"telescope": {},
                      "sensor": {},
@@ -255,22 +372,57 @@ class Simulation(_MetaHolder_):
                     
     
     def update_telescope(self, **kwargs):
-        """ """
+        """
+        Update telescope parameters.
+
+        Parameters
+        ----------
+        **kwargs
+            Telescope parameters.
+        """
         shortcuts = {"jitter": "jitter_sigma", 
                     "diameter": "diameter_primary"}
         to_update = {shortcuts.get(key, key): value for key, value in kwargs.items()}
         self.telescope.update(**to_update)
     
     def update_scene(self, **kwargs):
-        """ """
+        """
+        Update scene parameters.
+
+        Parameters
+        ----------
+        **kwargs
+            Scene parameters.
+        """
         self.scene.update(**kwargs)
     
     def update_sensor(self, **kwargs):
-        """ """
+        """
+        Update sensor parameters.
+
+        Parameters
+        ----------
+        **kwargs
+            Sensor parameters.
+        """
         self.sensor.update(**kwargs)
 
     def get_parameter(self, name, as_dict=False):
-        """ """
+        """
+        Get simulation or sub-element parameters.
+
+        Parameters
+        ----------
+        name : str or list of str
+            Parameter name(s).
+        as_dict : bool, optional
+            Whether to return as a dictionary. Default is False.
+
+        Returns
+        -------
+        list or dict
+            The requested parameters.
+        """
         values = []
         names = np.atleast_1d(name)
         for name_ in names:
@@ -298,12 +450,45 @@ class Simulation(_MetaHolder_):
     # ------- #
     @staticmethod
     def _get_spectrum_observation(spectrum, abmag, bandpass):
-        """ """
+        """
+        Normalize a spectrum and return an observation.
+
+        Parameters
+        ----------
+        spectrum : SourceSpectrum
+            The spectrum to normalize.
+        abmag : float
+            The AB magnitude to normalize to.
+        bandpass : SpectralElement
+            The bandpass filter.
+
+        Returns
+        -------
+        Observation
+        """
         spec_at_mag = spectrum.normalize(abmag * u.ABmag, bandpass, force='extrap')
         return Observation(spec_at_mag, bandpass, force='extrap')
 
     def get_countrates(self, scene=None, band=None, units="adu/s", as_dict=True):
-        """ get the countrates in """
+        """
+        Get the countrates for each element in the scene.
+
+        Parameters
+        ----------
+        scene : Scene, optional
+            The scene to use. Defaults to self.scene.
+        band : SpectralElement, optional
+            The bandpass to use. Defaults to sensor bandpass.
+        units : str, optional
+            Units of the countrate ('adu/s', 'e/s', 'e-/s'). Default is "adu/s".
+        as_dict : bool, optional
+            Whether to return as a dictionary. Default is True.
+
+        Returns
+        -------
+        dict or ndarray
+            The countrates.
+        """
         if units not in ["adu/s", "e/s", "e-/s"]:
             raise ValueError(f"unknown countrate units. Should be 'adu/s' or 'e/s'. {units=} given")
 
@@ -343,7 +528,21 @@ class Simulation(_MetaHolder_):
 
 
     def get_signal_and_variance(self, time=None, units="e-"):
-        """ """
+        """
+        Get the signal and total variance for a given exposure time.
+
+        Parameters
+        ----------
+        time : float or Quantity, optional
+            Exposure time. Defaults to self.meta['time'].
+        units : str, optional
+            Units of the signal ('e-', 'adu'). Default is "e-".
+
+        Returns
+        -------
+        tuple
+            (source_signal, total_variance)
+        """
         if time is None:
             time = self._meta.get("time", None)
         if time is None:
@@ -389,7 +588,19 @@ class Simulation(_MetaHolder_):
         return source_signal, total_variance
     
     def get_snr(self, time=None):
-        """ Get the signal to noise ration for a given exposure """
+        """
+        Get the signal to noise ratio for a given exposure time.
+
+        Parameters
+        ----------
+        time : float or Quantity, optional
+            Exposure time.
+
+        Returns
+        -------
+        Quantity
+            The SNR.
+        """
         # scenes of noise
         signal, variance = self.get_signal_and_variance(time) # units doesn't matter
         return signal / np.sqrt(variance)
@@ -398,14 +609,33 @@ class Simulation(_MetaHolder_):
     #  Internal      #
     # -------------- #
     def _parse_bandpass(self, bandpass):
-        """ """
+        """
+        Parse a bandpass name or object.
+
+        Parameters
+        ----------
+        bandpass : str or SpectralElement
+            The bandpass. If 'sensor', returns the sensor's bandpass.
+
+        Returns
+        -------
+        SpectralElement
+        """
         if bandpass == "sensor":
             return self.sensor.bandpass
         
         return SpectralElement.from_filter(bandpass)
         
     def compute_psf_profile(self):
-        """ """
+        """
+        Compute the PSF profile and associated metrics.
+
+        Returns
+        -------
+        dict
+            Dictionary containing 'wavelength', 'r_psf_mas', 'psf1d', 'ee',
+            'ee_at_aper', 'num_psf_pixels', and 'psf_area'.
+        """
         from .airy import get_airy_and_ee_curve
         
         wavelength = self.sensor.wavelength.to("m")
@@ -441,7 +671,18 @@ class Simulation(_MetaHolder_):
                 }
 
     def has_element(self, which):
-        """ """
+        """
+        Check if the simulation has a specific component.
+
+        Parameters
+        ----------
+        which : str
+            Component name ('telescope', 'sensor', 'scene').
+
+        Returns
+        -------
+        bool
+        """
         return getattr(self, which) is not None
         
     # ================= #
@@ -449,22 +690,30 @@ class Simulation(_MetaHolder_):
     # ================= #
     @property
     def scene(self):
-        """ """
+        """
+        The Scene object.
+        """
         return self._scene
 
     @property
     def telescope(self):
-        """ """
+        """
+        The Telescope object.
+        """
         return self._telescope
     
     @property
     def sensor(self):
-        """ """
+        """
+        The Sensor object.
+        """
         return self._sensor
 
     @property
     def meta(self):
-        """ generic parameters """
+        """
+        Combined metadata from simulation and components.
+        """
         return self._meta | {element: element.meta
                                  for element_name in ["telescope", "sensor", "scene"]
                                  if (element := getattr(self, element_name)) is not None
@@ -472,7 +721,9 @@ class Simulation(_MetaHolder_):
 
     @property
     def mutable_parameters(self):
-        """ generic parameters """
+        """
+        List of all mutable parameters (including sub-elements).
+        """
         return self._mutable_parameters +  [f"{element_name}__{k}"
                                                 for element_name in ["telescope", "sensor", "scene"]
                                                 if (element := getattr(self, element_name)) is not None
@@ -483,8 +734,11 @@ class Simulation(_MetaHolder_):
     # ---------- #
     @property
     def psf_profile(self):
-        """ """
+        """
+        The calculated PSF profile.
+        """
         if not hasattr(self,"_psf_profile") or self._psf_profile is None or len(self._psf_profile) == 0 : # like {}
             self._psf_profile = self.compute_psf_profile()
             
         return self._psf_profile
+
