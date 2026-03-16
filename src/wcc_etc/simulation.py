@@ -88,7 +88,6 @@ class Simulation(_MetaHolder_):
         input_parameters = {key:value for key,value in locals().items()
                              if key not in ["self", "telescope", "sensor", "scene", "meta"]
                                 and value is not None and not key.startswith("__")}
-        print(input_parameters)
         non_attr_meta  = {key: value for key, value in meta.items() if key not in ["telescope", "sensor", "scene"]}
 
         super().__init__(non_attr_meta | input_parameters)
