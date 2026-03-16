@@ -713,7 +713,7 @@ class Simulation(_MetaHolder_):
         """
         Combined metadata from simulation and components.
         """
-        return self._meta | {element: element.meta
+        return self._meta | {element_name: element.meta
                                  for element_name in ["telescope", "sensor", "scene"]
                                  if (element := getattr(self, element_name)) is not None
                                  }
