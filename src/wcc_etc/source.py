@@ -1,7 +1,13 @@
-
+from astropy import units as u
 from synphot import units, SourceSpectrum
-import logging
 
+from .meta import _MetaHolder_
+
+import warnings
+warnings.warn("DEPRECATION: source.py is deprecated.")
+
+# => Loggin not used.
+import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -9,172 +15,85 @@ logger = logging.getLogger(__name__)
 #   Source      #
 # ============= # 
 
-class Source():
+class Source(_MetaHolder_):
     """ """
-    # ZODI TO BE IMPLEMENTED
-    # self.bg_surface_brightness = self.config['zodi']['zodi_mag_r']
-
-    def __init__(self, spectrum, background=None, bg_surface_brightness=22.5):
-        """
-        Source object
-
-        INPUT:
-            spectrum: SourceSpectrum object
-            background: SourceSpectrum object (optional)
-            bg_surface_brightness: float, background surface brightness (optional)
-        """
-        self.set_spectrum(spectrum)
-        self.set_background(background)
-        self.set_bg_surface_brightness(bg_surface_brightness)
-
-        self._meta = {}
-        
-    @classmethod
-    def from_file(cls, filepath, bkgd_file=None, bg_surface_brightness_file=None):
-        """
-        Create a Source object from a file.
-
-        INPUT:
-            filepath: path to the source spectrum file
-            bkgd_file: path to the background spectrum file (optional)
-        """
-        spectrum = SourceSpectrum.from_file(filepath)
-        if bkgd_file is not None:
-            background = SourceSpectrum.from_file(bkgd_file)
-        else:
-            background = None
-        if bg_surface_brightness_file is not None:
-            from .io import read_config
-            print('read background surface brightness from config')
-            config = read_config("astro")
-            bg_surface_brightness = config.get("bg_surface_brightness", None)
-            logging.info(f"Background surface brightness: {bg_surface_brightness}")
-        else:
-            bg_surface_brightness = None
-
-        return cls(spectrum=spectrum, background=background, bg_surface_brightness=bg_surface_brightness)
-
-    @classmethod
-    def from_config(cls, config):
+    _mutable_parameters = ["origin", "mag", "magsys", "bandpass"]
+    _accepted_specific_origins = ["surface_brightness"]
+    
+    def __init__(self, origin, mag, magsys="ABmag", bandpass="johnson_v", meta={}):
         """ """
-        spec_or_file = config.get("spectrum")
-        background_or_file = config.get("background", None)
-        bg_surface_brightness_or_file = config.get("bg_surface_brightness", None)
-        return cls(spectrum=spec_or_file, background=background_or_file, bg_surface_brightness=bg_surface_brightness_or_file)
+        input_parameters = {key:value for key,value in locals().items()
+                             if key not in ["self", "meta"]
+                                and value is not None}
+        super().__init__(meta | input_parameters)
 
-    # ============= #
-    #   methods     #
-    # ============= #
-    def set_spectrum(self, spectrum_or_file):
-        """
-        Set the spectrum of the source.
+    # =========== #
+    #  methods    #
+    # =========== #
+    def set_spectrum(self, spec_or_file, apply_normalization=True):
+        """ generic setter for any source component """
+        
+        # make sure you have a spectrum.
+        if type(spec_or_file) in [str]:
+            if spec_or_file in self._accepted_specific_origins:
+                spectrum = spec_or_file
+            else:
+                spectrum = SourceSpectrum.from_file(spec_or_file)
 
-        INPUT:
-            spectrum: SourceSpectrum object or path to a spectrum file
-        """
-        if type(spectrum_or_file) in [str]:
-            spectrum = SourceSpectrum.from_file(spectrum_or_file)
+        # the or None enables to switch of the host by setting it to None            
+        elif isinstance(spec_or_file, SourceSpectrum) or None:
+            spectrum = spec_or_file
+
+        # normalized given meta info (if any)
+        # -> this enters if this_prop is not {} nor None
+        if apply_normalization:
+            if mag is not None:
+                spectrum = spectrum.normalize(self.mag, band=self.band)
+            else:
+                warnings.warn(f"apply_normalization requested during setting but no mag given for {which=}")
             
-        # the or None enables to switch of the background by setting it to None            
-        elif isinstance(spectrum_or_file, SourceSpectrum) or None:
-            spectrum = spectrum_or_file
-
         self._spectrum = spectrum
 
-    def set_background(self, spectrum_or_file):
-        """
-        Set the background spectrum of the source.
-
-        INPUT:
-            spectrum: SourceSpectrum object or path to a spectrum file
-        """
-        if type(spectrum_or_file) in [str]:
-            spectrum = SourceSpectrum.from_file(spectrum_or_file)
+    def _parse_mag_(self):
+        """ """
+         # magnitude
+        mag = self.meta.get("mag", None)
+        if mag is None:
+            warnings.warn("not mag in self.meta")
             
-        # the or None enables to switch of the background by setting it to None
-        elif isinstance(spectrum_or_file, SourceSpectrum) or None:
-            spectrum = spectrum_or_file
-
-        self._background = spectrum
-
-    def set_bg_surface_brightness(self, bg_surface_brightness):
-        """
-        Set the background surface brightness of the source.
-
-        INPUT:
-            bg_surface_brightness: float, background surface brightness
-        """
-        #if type(bg_surface_brightness_or_file) in [str]:
-        #    from .io import read_config
-        #    config = read_config("astro")
-        #    bg_surface_brightness = config.get("bg_surface_brightness", None)
-
-        #elif isinstance(bg_surface_brightness_or_file, (int, float)) or None:
-        self._bg_surface_brightness = bg_surface_brightness
-
-    def has_background(self):
-        """ """
-        return self._background is not None
-
-    def has_bg_surface_brightness(self):
-        """ """
-        return self._bg_surface_brightness is not None
-
-    # -------- #
-    #  GETTER  #
-    # -------- #
-    def get_flux(self, which="source"):
-        """ """
-        if which in ["source", "spectrum"]:
-            return self.spectrum._get_arrays(None)
-        
-        elif which == "background":
-            return self.background._get_arrays(None)
-        
         else:
-            raise ValueError(f"only source and background known. {which=} given")
+            # make sure mag has the correct units.
+            magsys = self.meta.get("magsys", "ABmag")
+            # make sure it is an astropy units.
+            if not hasattr(magsys, "is_equivalent"):
+                magsys = getattr(u, magsys)
+            #         
+            mag = mag * magsys
+            
+        return mag
 
-    # -------- #
-    # PLOTTER  #
-    # -------- #
-    def show(self, which="source",  ax=None, **kwargs):
-        """
-        Show the spectrum or background flux.
-        """
-        if ax is None:
-            import matplotlib.pyplot as plt
-            fig, ax = plt.subplots(figsize=(7,3))
-        else:
-            fig = ax.figure
-
-        # data to show
-        lbda, flux = self.get_flux(which)
-
-        # plot
-        ax.plot(lbda, flux, **kwargs)
-        ax.set_xlabel('Wavelength [A]')
-        ax.set_ylabel('Flux')
-        return fig
-        
-    # ================ #
-    #  Properties      #
-    # ================ #
-    @property
-    def spectrum(self):
-        """ spectrum of the source """
-        return self._spectrum
-
-    @property
-    def background(self):
-        """ spectrum of the background """
-        return self._background
-
-    @property
-    def bg_surface_brightness(self):
-        """ background surface brightness of the source """
-        return self._bg_surface_brightness
-
-    @property
-    def meta(self):
+    def _parse_band_(self):
         """ """
-        return self._meta
+        # band
+        band = self.meta.get("band")
+        if type(band) is str:
+            band = SpectralElement.from_filter(bandpass)
+        elif not isinstance(band, SpectralElement):
+            raise ValueError(f"{band=} from {which=} meta is neither a str nor a SpectralElement.")
+        
+        return band
+
+    # ============= #
+    #  Properties   #
+    # ============= # 
+    @property
+    def mag(self):
+        """ """
+        return self._parse_mag_()
+    
+    @property
+    def band(self):
+        """ """
+        return self._parse_band_()
+    
+    

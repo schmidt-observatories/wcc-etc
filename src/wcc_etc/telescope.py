@@ -1,60 +1,95 @@
-
 import numpy as np
 from synphot.models import Box1D
 from synphot import SpectralElement
 from astropy import units as u
-from copy import deepcopy
 
+from .meta import _MetaHolder_
 
-class Telescope():
-    """ """
+class Telescope(_MetaHolder_):
+    """
+    A class representing the telescope properties.
+
+    Attributes
+    ----------
+    f_num : float
+        The focal ratio of the telescope.
+    diameter_primary : Quantity
+        The diameter of the primary mirror.
+    jitter_sigma : Quantity
+        The pointing jitter (sigma) in milliarcseconds.
+    surface : Quantity
+        The collecting area of the telescope.
+    focal_len : Quantity
+        The focal length of the telescope.
+    """
+    # list of mutable parameter. This is handled by _MetaHolder_
     _mutable_parameters = ["f_num", "diameter_primary", "jitter_sigma"]
     
     def __init__(self, f_num, diameter_primary,
                  jitter_sigma=0, 
                  meta={}):
         """ 
+        Initialize a Telescope object.
+
+        Parameters
+        ----------
+        f_num : float
+            The focal ratio of the telescope.
+        diameter_primary : float or Quantity
+            The diameter of the primary mirror (meters if float).
+        jitter_sigma : float or Quantity, optional
+            The pointing jitter (sigma) (mas if float). Default is 0.
+        meta : dict, optional
+            Additional metadata. Default is {}.
         """
         # default hard coded. code implemented such that sensor hold the full throughput.
         self._bandpass = SpectralElement(Box1D, amplitude=1, x_0=7000, width=12000)
         meta["f_num"] = f_num
         meta["diameter_primary"] = diameter_primary
+        meta["jitter_sigma"] = jitter_sigma
 
         # meta
-        self._meta = deepcopy(meta)
-        self._meta_in = deepcopy(self._meta)
+        super().__init__(meta=meta)
 
     @classmethod
     def from_config(cls, config):
-        """ """
+        """
+        Create a Telescope instance from a configuration dictionary.
+
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary containing 'f_num', 'diameter_primary', etc.
+
+        Returns
+        -------
+        Telescope
+        """
         # make sure these key exist
-        config_in = {key: config.get(key) for key in ["f_num", "diameter_primary"]}
+        _ = [config.get(key) for key in ["f_num", "diameter_primary"]]
 
         # read the throughput of the system.
-        return cls(**config_in, meta=config)
+        return cls(**config, meta=config)
         
     # ================ #
     #  methods         #
     # ================ #
-
-    def describe(self):
-        """
-        List parameters
-        """
-        for key, value in self.meta.items():
-            print("  {}: {}".format(key, value))
-
+    
     # ================ #
     #  Properties      #
     # ================ #
     @property
     def f_num(self):
-        """ """
+        """
+        The focal ratio (f-number).
+        """
         return self.meta.get("f_num")
         
     @property
     def diameter_primary(self):
-        """ """
+        """
+        The primary mirror diameter as an astropy Quantity.
+        """
         diameter_primary = self.meta.get("diameter_primary") 
         if not isinstance(diameter_primary, u.Quantity):
             diameter_primary *= u.m
@@ -63,7 +98,9 @@ class Telescope():
 
     @property
     def jitter_sigma(self):
-        """ """
+        """
+        The pointing jitter (sigma) as an astropy Quantity.
+        """
         jitter_sigma = self.meta.get("jitter_sigma", 0)
         if not isinstance(jitter_sigma, u.Quantity):
             jitter_sigma *= u.mas
@@ -72,15 +109,15 @@ class Telescope():
         
     @property
     def surface(self):
-        """ """
+        """
+        The collecting area (surface) of the primary mirror.
+        """
         return np.pi * (0.5 * self.diameter_primary) ** 2
         
     @property
     def focal_len(self):
-        """ """
+        """
+        The focal length of the telescope.
+        """
         return self.diameter_primary * self.f_num
 
-    @property
-    def meta(self):
-        """ """
-        return self._meta

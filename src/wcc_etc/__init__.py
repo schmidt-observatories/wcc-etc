@@ -4,11 +4,12 @@ __version__ = importlib.metadata.version(__package__ or "wcc_etc")
 
 __all__ = [ "__version__"]
 
-from .wcc_etc import WCCETC
+# from .wcc_etc import WCCETC
+
 from .io import read_config, get_sensor_config
 from .simulation import Simulation
 from .sensor import Sensor
-from .source import Source
+from .scene import *
 #from .airy import *
 #from .psfsim import *
 #from .radial_data import *

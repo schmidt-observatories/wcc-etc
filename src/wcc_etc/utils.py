@@ -4,7 +4,26 @@ from .io import expand_path
 
 
 def parse_element(path_or_element, wave_unit='nm'):
-    """ """
+    """
+    Parse a path to a bandpass file or a SpectralElement object.
+
+    Parameters
+    ----------
+    path_or_element : str or SpectralElement or None
+        The path to the file or the SpectralElement object.
+    wave_unit : str, optional
+        Wavelength unit for the bandpass file. Default is 'nm'.
+
+    Returns
+    -------
+    SpectralElement or None
+        The parsed SpectralElement object.
+
+    Raises
+    ------
+    NotImplementedError
+        If the input type is not supported.
+    """
     from synphot import SpectralElement
     if path_or_element is None:
         element = None
@@ -24,26 +43,51 @@ def parse_element(path_or_element, wave_unit='nm'):
 
 def parse_and_interpolate(input_file, xval):
     """
-    Interpolate the given file columns to get the value at interpolation_xval
+    Interpolate values from a CSV file at a given input x-value.
 
-    INPUT:
-        :param input_file: File to use x columns and y columns on
-        :param interpolation_xval: Value that the interpolation function takes as argument
-        :param col_headers: Names of column headers as a list
+    Parameters
+    ----------
+    input_file : str
+        Path to the CSV file. The first column is assumed to be the index (x),
+        and the second column is the value (y).
+    xval : float or array_like
+        The x-value(s) at which to interpolate.
 
-    OUTPUT:
-        :return: The value of the interpolated function at interpolation_xval
+    Returns
+    -------
+    float or ndarray
+        The interpolated y-value(s).
     """
     input_file = expand_path(input_file)
     data = pandas.read_csv(input_file, index_col=0).iloc[:, 0]
     return np.interp(xval, data.index, data.values)
 
-def calculate_bg_normalization_magnitude(bg_surface_brightness, psf_area):
+def list_of_quantity_to_array(quantities):
     """
-    Convert the Background Surface Brightness into the total magnitude given the PSF area (in arcseconds squared)
-    The area needs to be in square arcseconds since this the typical definition of Surface Brightness is in units
-    of magnitudes per arcseconds^2
-    :return: None
+    Convert a list of astropy Quantities to a numpy array, assuming they have the same unit.
+
+    Parameters
+    ----------
+    quantities : list of Quantity
+        The list of astropy Quantities.
+
+    Returns
+    -------
+    Quantity
+        A single Quantity object containing an array of values.
+
+    Raises
+    ------
+    Warning
+        If the input quantities do not have the same unit.
     """
-    bg_magnitude = bg_surface_brightness - 2.5 * np.log10(psf_area)
-    return bg_magnitude
+    units = [q.unit for q in quantities]
+    if len(np.unique(units)) == 1:
+        unit = units[0]
+    else:
+        warnings.warn("input quantities are not all of the same unit. Nothing can be done.")
+        return quantities
+
+    values = [q.value for q in quantities]
+    return np.asarray(values, dtype="float") * unit
+
