@@ -5,6 +5,7 @@ from wcc_etc import io as wcc_io
 import numpy as np
 
 
+
 def test_snrs_25p4_mag_60s():
     """
     Verify SNR for a few ZWO and qCMOS sensors around a 25.4 AB-mag star in 60s.
@@ -12,6 +13,17 @@ def test_snrs_25p4_mag_60s():
     Allow a small tolerance.
     """
     SPT = 'G5V'
+    ####
+    # New
+    ###
+
+    scene = wcc_etc.get_scene(SPT, mag=25.4, host=None, background="zodi")
+    simu = wcc_etc.Simulation.from_sensor_and_scene("zwo:r", scene)
+    snr_val = simu.get_snr(60) 
+
+    assert pytest.approx(5.5, abs=0.2) == snr_val
+
+    #####
 
     # build source using repository bundled files (same as notebook)
     source_config = {

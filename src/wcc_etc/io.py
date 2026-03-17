@@ -129,7 +129,6 @@ def get_pickles_spectrum_filename(spectral_type, fullpath=True):
         
     return filename
 
-
 def read_config(filename, source="config"):
     """
     Read a single configuration file.

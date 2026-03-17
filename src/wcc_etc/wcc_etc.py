@@ -14,8 +14,11 @@ import matplotlib.pyplot as plt
 
 from . import airy
 from . import psfsim
+from .scene import get_scene
 from .io import read_config, PACKAGE_PATH
-
+from .source import Source
+from .simulation import Simulation
+from . import io
 
 
 import warnings
@@ -882,6 +885,99 @@ def get_interpolated_value(input_file, interpolation_xval, col_headers):
     return interp(interpolation_xval)
 
 
+def get_wcc_snr_and_simulation(mag,
+                               texp,
+                               source_type='pickles',
+                               spt='',
+                               teff=None,
+                               source_bandpass='johnson_r',
+                               source_mag_type='Vega',
+                               sensor_and_filter='zwo:r',
+                               bg_surface_brightness=22.5,
+                               bg_bandpass='johnson_r',
+                               jitter_sigma=10,
+                               r_aper_mas=70):
+    """
+    Get the SNR for a given set of parameters.
+
+    INPUT:
+        source_type: Type of the source (e.g. 'pickles', 'blackbody')
+        spt: spectral type, only used for source_type == 'pickles'
+        teff: Effective temperature in K, only used if source_type=='blackbody'
+
+    EXAMPLE:
+        get_wcc_snr(25.4,60)
+    """
+    if source_type=='pickles':
+        scene = get_scene(spt,
+                          mag=mag,
+                          host=None,
+                          background="zodi",
+                          bandpass=source_bandpass,
+                          background_prop={"bandpass": bg_bandpass,
+                                           'mag': bg_surface_brightness})
+    elif source_type=='blackbody':
+        raise ValueError("Blackbody not implemented yet")
+    else:
+        raise ValueError("Unknown source type")
+    simu = Simulation.from_sensor_and_scene(sensor_and_filter, scene)
+    simu.update(r_aper_mas=r_aper_mas)
+    simu.update(jitter_sigma=jitter_sigma)
+
+    snr = simu.get_snr(texp)
+    return snr, simu
+
+def get_blackbody_flux(w,teff,mag,unit='FLAM',filter='johnson_v',plot=False,ax=None):
+    """
+    Get a blackbody spectrum normalized to a given magnitude in the V band.
+
+    INPUT:
+        w in A
+        teff in K
+        mag in V band magnitude
+
+    OUTPUT:
+        f in erg/s/cm^2/Å if unit=='FLAM', else W/m^2/μm
+
+    EXAMPLE:
+        # Sun
+        w = np.linspace(3000,10000,10000)
+        Teff = 5777
+        teff in K
+        mag in V band magnitude
+
+    OUTPUT:
+        f in erg/s/cm^2/Å if unit=='FLAM', else W/m^2/μm
+
+    EXAMPLE:
+        # Sun
+        w = np.linspace(3000,10000,10000)
+        Teff = 5777
+        mag = -26.8
+        f = get_blackbody_spectrum(w,Teff, mag,filter='johnson_v',plot=True)
+    """
+    sp = SourceSpectrum(BlackBodyNorm1D, temperature=teff)
+    bp = SpectralElement.from_filter(filter)
+    vega = SourceSpectrum.from_vega()  # For unit conversion
+    sp_norm = sp.normalize(mag * units.VEGAMAG, bp, vegaspec=vega)
+
+    if unit=='FLAM':
+        unit = 'erg/s/cm2/A'
+        f = synphot.units.convert_flux(w,sp_norm(w),'FLAM')
+    elif unit=='W/m2/micron':
+        unit = 'W/m2/micron'
+        f = synphot.units.convert_flux(w,sp_norm(w),'FLAM').value*10
+    else:
+        print("Unknown unit")
+        return None
+    if plot:
+        if ax is None:
+            fig, ax = plt.subplots(dpi=200)
+        ax.plot(w, f, label=unit)
+        ax.set_xlabel('Wavelength (Angstrom)')
+        ax.set_ylabel(f'Flux [{unit}]')
+        ax.legend()
+    return f
 
 if __name__ == '__main__':
     print('Main')
