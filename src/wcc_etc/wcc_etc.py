@@ -16,7 +16,6 @@ from . import airy
 from . import psfsim
 from .scene import get_scene
 from .io import read_config, PACKAGE_PATH
-from .source import Source
 from .simulation import Simulation
 from . import io
 
