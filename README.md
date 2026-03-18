@@ -1,9 +1,8 @@
 
 # wcc-etc
-ETC for the WCC
+Exposure Time Calculator (ETC) for the Widefield Context Camera on Lazuli.
 
-![WCC ETC Web Applet](docs/applet.png)
-*Screenshot of the WCC ETC web applet interface.*
+A web-based ETC is available here: https://lazulisimulators-0b82f82d960f.herokuapp.com/wcc/
 
 # Installation
 
@@ -12,7 +11,6 @@ ETC for the WCC
 git clone git@github.com:schmidt-observatories/wcc-etc.git
 cd wcc-etc
 ```
-
 
 ## **2. Install the Package**
 Install the package itself:
@@ -48,23 +46,8 @@ snr = simu.get_snr(10) # could be an array. It broadcasts
 See notebooks/ directory for example tutorials.
 
 
-# Running the Flask Applet
-
-To run the web-based SNR calculator applet:
-
-```bash
-cd flask_app
-python app.py
-```
-
-Then open your browser and go to:
-
-    http://127.0.0.1:5000
-
-You can select a config file, enter parameters, and view SNR and plots interactively.
-
 # Notes
-Configuration files (.toml) are in the config/ directory.
+Configuration files (.toml) are in the sr/wcc_etc/data/config/ directory. Notebooks show that it is easy to change default configuration parameters on the fly.
 
 ## Viewing Documentation Locally
 
