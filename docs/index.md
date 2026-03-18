@@ -1,5 +1,5 @@
 
-![Logo](logo_schmidt_observatory_system.png)
+![Logo](docs/logo_schmidt_observatory_system.png)
 
 # WCC-ETC Documentation
 
