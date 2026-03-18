@@ -922,6 +922,7 @@ def get_wcc_snr_and_simulation(mag,
         raise ValueError("Unknown source type")
     simu = Simulation.from_sensor_and_scene(sensor_and_filter, scene)
     simu.update(r_aper_mas=r_aper_mas)
+    simu.update(read_noise=1.5)
     simu.update(jitter_sigma=jitter_sigma)
 
     snr = simu.get_snr(texp)
