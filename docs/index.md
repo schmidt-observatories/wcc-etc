@@ -5,7 +5,7 @@
 
 Welcome to the documentation for the WCC-ETC package!
 
-Web-based version is available here: <a href='https://lazulisimulators-0b82f82d960f.herokuapp.com/'>https://lazulisimulators-0b82f82d960f.herokuapp.com/</a>
+Web-based version is available here: <a href='https://lazulisimulators-0b82f82d960f.herokuapp.com/'>http://simulators.schmidtobservatorysystem.org</a>
 
 
 ## Installation
@@ -30,6 +30,5 @@ snr = sim.get_snr(60)
 ## Features
 - SNR calculations
 - Choose different filters
-- Fast exposure time calculator
 - Background and source spectrum support
 
