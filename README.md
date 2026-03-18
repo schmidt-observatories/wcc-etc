@@ -26,20 +26,22 @@ pip install -r requirements.txt
 # Quick Start
 
 ```python
-import wcc_etc
+from wcc_etc import get_scene, Simulation
 
-# generate the scene and its associated simulation for a given sensor
-scene = wcc_etc.get_scene("K3IV", mag=20, host=None, background="zodi")
-simu = wcc_etc.Simulation.from_sensor_and_scene("sony:bb", scene)
+# Create a simple scene (stellar source only)
+scene = get_scene("K3IV", mag=20, host=None, background="zodi")
 
-# compute the signal to noise ratio for (a) given exposure time(s)
-snr = simu.get_snr(10) # could be an array. It broadcasts
+# Create a simulation for a sensor (kind:band format) and the scene
+sim = Simulation.from_sensor_and_scene("sony:bb", scene)
 
-# change whatever property (see self.mutable_parameters)
-_ = simu.update(source__mag=22, dark_current=20)
+# Compute SNR for a single exposure time (seconds)
+snr = sim.get_snr(10)
 
-# and re-compute the signal to noise ratio
-snr = simu.get_snr(10) # could be an array. It broadcasts
+# Update scene or instrument parameters (example: change source magnitude)
+sim.update(source__mag=22)
+
+# Recompute SNR after the change
+snr_new = sim.get_snr(10)
 ```
 
 # Tutorial
