@@ -1,3 +1,4 @@
+![Logo](logo_schmidt_observatory_system.png)
 
 # wcc-etc
 Exposure Time Calculator (ETC) for the Widefield Context Camera on Lazuli.
@@ -70,3 +71,6 @@ This will start a local web server. Open your browser and go to:
     http://127.0.0.1:8000
 
 to view the documentation.
+
+Notes
+- The documentation site uses the markdown files in the `docs/` folder.

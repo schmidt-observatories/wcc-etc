@@ -8,12 +8,11 @@ site_author: Gudmundur Stefansson
 repo_url: https://github.com/schmidt-observatories/wcc-etc
 nav:
   - Home: index.md
-  - Usage: usage.md
   - API Reference: api.md
   - Tutorials: tutorials.md
   - Changelog: changelog.md
 theme:
-  name: material
+  name: readthedocs
 plugins:
   - search
 markdown_extensions:

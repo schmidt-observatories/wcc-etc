@@ -10,5 +10,8 @@
 - Added background spectrum support
 - Improved documentation
 
----
-Update with new changes as you release versions.
+## v0.3.0
+- Substantial refactoring into sensor and telescope
+
+## v0.4.0
+- Further refactoring into scene to manage different scenes.
