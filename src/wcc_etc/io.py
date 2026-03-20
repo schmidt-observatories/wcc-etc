@@ -11,7 +11,7 @@ from glob import glob
 
 PACKAGE_PATH = str(files("wcc_etc.data")._paths[0])    #: Path to data & config files.
 _PICKLES_DIR = os.path.join(PACKAGE_PATH, "astr_obj_models", "stars","pickles_models")
-PICKLES_MAPPING = pd.read_csv( os.path.join(_PICKLES_DIR, "pickles_mapping.csv") , sep='\s+')
+PICKLES_MAPPING = pd.read_csv( os.path.join(_PICKLES_DIR, "pickles_mapping.csv") , sep=r'\s+')
 
 # Generate the name database
 _list_of_astropath = glob(PACKAGE_PATH + "*/astrophysics/**", recursive=True) + \
