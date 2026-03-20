@@ -1,5 +1,7 @@
 ![Logo](docs/logo_schmidt_observatory_system.png)
 
+[![Tests](https://github.com/schmidt-observatories/wcc-etc/actions/workflows/tests.yml/badge.svg)](https://github.com/schmidt-observatories/wcc-etc/actions/workflows/tests.yml)
+
 # wcc-etc
 Exposure Time Calculator (ETC) for the Widefield Context Camera on Lazuli.
 
