@@ -445,7 +445,7 @@ class FitsImgList(object):
         if axes is None:
             fig, axes = plt.subplots(dpi=200,nrows=3,sharex=True)
         ax, bx, cx = axes
-        label = '$\sigma$={:0.0f}ppm, MedErr={:0.0f}ppm'.format(1e6*np.std(self.df_phot.flux_norm),1e6*np.median(self.df_phot.flux_err_norm))
+        label = r'$\sigma$={:0.0f}ppm, MedErr={:0.0f}ppm'.format(1e6*np.std(self.df_phot.flux_norm),1e6*np.median(self.df_phot.flux_err_norm))
         ax.errorbar(np.arange(len(self.df_phot)),self.df_phot.flux_norm,yerr=self.df_phot.flux_err_norm,marker='o',lw=0,mew=0.5,capsize=4,elinewidth=0.5, label=label)
         bx.plot(np.arange(len(self.df_phot)),self.df_phot['xcen'],marker='o',lw=0.5,mew=0.5)
         cx.plot(np.arange(len(self.df_phot)),self.df_phot['ycen'],marker='o',lw=0.5,mew=0.5)
