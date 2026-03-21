@@ -894,7 +894,7 @@ def get_wcc_snr_and_simulation(mag,
                                sensor_and_filter='zwo:r',
                                bg_surface_brightness=22.5,
                                bg_bandpass='johnson_r',
-                               read_noise=1.5,
+                               read_noise=None,
                                jitter_sigma=10,
                                r_aper_mas=70):
     """
@@ -922,7 +922,8 @@ def get_wcc_snr_and_simulation(mag,
         raise ValueError("Unknown source type")
     simu = Simulation.from_sensor_and_scene(sensor_and_filter, scene)
     simu.update(r_aper_mas=r_aper_mas)
-    simu.update(read_noise=read_noise)
+    if read_noise is not None:
+        simu.update(read_noise=read_noise)
     simu.update(jitter_sigma=jitter_sigma)
 
     snr = simu.get_snr(texp)
