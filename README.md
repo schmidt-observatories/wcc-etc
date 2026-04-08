@@ -5,7 +5,7 @@
 # wcc-etc
 Exposure Time Calculator (ETC) for the Widefield Context Camera on Lazuli.
 
-A web-based ETC is available here: https://lazulisimulators-0b82f82d960f.herokuapp.com/wcc/
+A web-based ETC is available here: https://simulators.schmidtobservatorysystem.org/wcc/
 
 # Installation
 
