@@ -8,6 +8,8 @@ version = "0.4.1"
 authors = [
   {name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org"},
   {name = "Mickael Rigault", email = "m.rigault@ip2i.in2p3.fr"},
+  {name = "Sanchit Sabhlok", email = "ssabhlok@arizona.edu"},
+  {name = "Aaron Goldtooth", email = "gold1992@arizona.edu"},
 ]
 maintainers = [
   {name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org"}
