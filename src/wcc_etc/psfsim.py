@@ -270,7 +270,7 @@ class PSFSimulator(object):
             print('Applying jitter {}mas'.format(jitter_mas))
         return apply_jitter(data,jitter_mas=jitter_mas,pixel_scale=self.pixel_scale*1000)
 
-    def simulate_psf(self,center=None,jitter_mas=0,apply_nonlinearity=True,verbose=True,nl_scale=10,filename=None,src_micron_per_pixel=4,addnoise=True,skiprows=22):
+    def simulate_psf(self,center=None,jitter_mas=0,apply_nonlinearity=True,verbose=True,nl_scale=10,filename=None,src_micron_per_pixel=4,addnoise=True,skiprows=22,calculate_radial=False):
         """
         Generate the ideal PSF based on the current parameters.
         """
@@ -318,12 +318,15 @@ class PSFSimulator(object):
             print(f"Warning: {self.psf_num_saturated} pixels exceed the well depth of {self.well_depth} electrons.")
         self.psf_max = np.max(self.data)
         self.psf_95th = np.percentile(self.data,95)
-        self.psf_radial_r, self.psf_radial_y, self.psf_hwhm = FitsImg(data=self.data).get_radial_profile(rmax=self.npix/2-1,plot=False,z=2.,return_hwzm=True,annulus_width=1,subtract_min=True)
-        if np.size(self.psf_hwhm) > 1:
-            print('WARNING psf_hwhm has multiple values, taking first one')
-            self.psf_hwhm = self.psf_hwhm[0]
+        if calculate_radial:
+            self.psf_radial_r, self.psf_radial_y, self.psf_hwhm = FitsImg(data=self.data).get_radial_profile(rmax=self.npix/2-1,plot=False,z=2.,return_hwzm=True,annulus_width=1,subtract_min=True)
+            if np.size(self.psf_hwhm) > 1:
+                print('WARNING psf_hwhm has multiple values, taking first one')
+                self.psf_hwhm = self.psf_hwhm[0]
+            else:
+                self.psf_hwhm = float(self.psf_hwhm)
         else:
-            self.psf_hwhm = float(self.psf_hwhm)
+            self.psf_radial_r, self.psf_radial_y, self.psf_hwhm = -999, -999, -999
         self.psf_fwhm = self.psf_hwhm * 2
         self.psf_fwhm_mas = self.psf_fwhm * self.pixel_scale * 1000
 
