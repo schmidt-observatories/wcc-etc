@@ -54,6 +54,7 @@ def test_has_element_and_setting_attribute():
 
 
 import wcc_etc
+import astropy.units as u
 
 
 def _bright_sim(mag=20, sensor="sony:r"):
@@ -69,3 +70,31 @@ def test_psf_profile_has_peak_pixel_fraction():
     profile = sim.psf_profile
     assert "peak_pixel_fraction" in profile
     assert 0.0 < profile["peak_pixel_fraction"] <= 1.0
+
+
+def test_get_peak_pixel_increases_with_time():
+    sim = _bright_sim(mag=15)
+    p10 = sim.get_peak_pixel(10, units="adu")
+    p100 = sim.get_peak_pixel(100, units="adu")
+    assert p100 > p10
+
+
+def test_get_peak_pixel_adu_units_are_ct():
+    sim = _bright_sim(mag=15)
+    p = sim.get_peak_pixel(10, units="adu")
+    assert p.unit == u.ct
+
+
+def test_get_peak_pixel_includes_bias():
+    sim = _bright_sim(mag=15)
+    base = sim.get_peak_pixel(10, units="adu")
+    sim.update(sensor__bias_level=100)
+    biased = sim.get_peak_pixel(10, units="adu")
+    assert biased.value == pytest.approx(base.value + 100, rel=1e-6)
+
+
+def test_get_peak_pixel_electrons_excludes_bias():
+    sim = _bright_sim(mag=15)
+    e = sim.get_peak_pixel(10, units="e-")
+    assert e.unit == u.electron
+    assert e.value > 0
