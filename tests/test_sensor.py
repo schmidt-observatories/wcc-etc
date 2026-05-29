@@ -52,3 +52,43 @@ def test_from_config_minimal():
     assert s.area == 50 * u.mm**2
     assert s.pixel_size == 4 * u.um / u.pix
     assert s.gain == 1.5 * (u.electron / u.ct)
+
+
+def test_sensor_bit_depth_and_adc_max():
+    s = Sensor(bandpass=None, pixel_size=5, read_noise=3, dark_current=0.1,
+               gain=2.0, area=100 * u.mm**2, bit_depth=16)
+    assert s.bit_depth == 16
+    assert s.adc_max == 65535 * u.ct
+
+
+def test_sensor_bias_level_defaults_to_zero():
+    s = Sensor(bandpass=None, pixel_size=5, read_noise=3, dark_current=0.1,
+               gain=2.0, area=100 * u.mm**2, bit_depth=12)
+    assert s.bias_level == 0 * u.ct
+    assert s.adc_max == 4095 * u.ct
+
+
+def test_sensor_bias_level_from_value():
+    s = Sensor(bandpass=None, pixel_size=5, read_noise=3, dark_current=0.1,
+               gain=2.0, area=100 * u.mm**2, bit_depth=16, bias_level=100)
+    assert s.bias_level == 100 * u.ct
+
+
+def test_bit_depth_and_bias_level_are_updatable():
+    s = Sensor(bandpass=None, pixel_size=5, read_noise=3, dark_current=0.1,
+               gain=2.0, area=100 * u.mm**2, bit_depth=16)
+    s.update(bit_depth=12, bias_level=50)
+    assert s.adc_max == 4095 * u.ct
+    assert s.bias_level == 50 * u.ct
+
+
+def test_from_config_reads_bit_depth_and_bias_level():
+    cfg = {
+        "throughput": None, "pixel_size": 4, "sensor_area": 50,
+        "gain": 1.5, "read_noise": 2.5, "dark_current": 0.01,
+        "well_depth": 30000, "bit_depth": 16, "bias_level": 5,
+    }
+    s = Sensor.from_config(cfg)
+    assert s.bit_depth == 16
+    assert s.bias_level == 5 * u.ct
+    assert s.adc_max == 65535 * u.ct
