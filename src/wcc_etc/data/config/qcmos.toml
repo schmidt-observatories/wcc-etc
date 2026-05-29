@@ -6,4 +6,6 @@ gain = 0.112   		  	   	# ADU/e # NOTE: Gabor's note suggest gain is ADU/e rathe
 sensor_temp = 0.0 	   	   	# C, NOTE: Gabor's note suggest temp is -20C. Now assuming 0.05 e/pix/s at 0C
 sensor_area = 199.69081344 		# mm2: (18.8416 mm * 10.5984 mm = mm2)
 well_depth = 7000 			# e/pix
+bias_level = 0 				# ADU, additive offset
+bit_depth = 12 				# ADC bit depth (hwk/qcmos), adc_max = 2^bit_depth - 1
 path_qe = ""  				# already included in total throughput

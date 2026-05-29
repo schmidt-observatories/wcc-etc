@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from scipy.special import j1
 from scipy.signal import fftconvolve
@@ -148,6 +149,92 @@ def load_custom_psf(custom_psf_path, custom_psf_hdu=0):
     px_scale_x = (2.0 * custom_psf_extent_mas) / nx
     px_scale_y = (2.0 * custom_psf_extent_mas) / ny
     return data, px_scale_x, px_scale_y
+
+def render_detector_psf(wavelength, fnum, D, pixel_size,
+                        jitter_sigma_mas=0, n_pixels=21, oversample=11,
+                        verbose=False):
+    """
+    Render the (optionally jittered) Airy PSF onto the detector pixel grid.
+
+    The PSF is computed on a grid oversampled by ``oversample`` per detector
+    pixel, optionally convolved with a Gaussian jitter kernel, then binned down
+    to detector pixels. The grid uses an odd number of detector pixels so the
+    PSF peak sits on the central pixel (worst case), making the brightest-pixel
+    fraction conservative for a saturation check. The result is normalized so
+    the rendered window sums to 1.
+
+    Defocus extension: a defocus kernel can be convolved alongside the jitter
+    kernel at the oversampled stage without changing this function's interface.
+
+    INPUT:
+        wavelength       - wavelength in m
+        fnum             - f-number (focal ratio)
+        D                - primary diameter in m
+        pixel_size       - detector pixel size in microns
+        jitter_sigma_mas - jitter sigma in mas (0 = none)
+        n_pixels         - detector pixels per side (forced odd)
+        oversample       - Sub-pixel sampling factor per detector pixel. Any value works (centering is by symmetry); odd values place a sample exactly on the PSF peak.
+        verbose          - print diagnostics
+
+    OUTPUT:
+        psf_detector     - (n_pixels, n_pixels) array summing to 1; its max
+                           is the brightest-pixel energy fraction
+        pscale_mas       - detector plate scale in mas/pixel
+    """
+    # Strip units to plain floats
+    wavelength = float(wavelength.value) if hasattr(wavelength, 'unit') else float(wavelength)
+    fnum = float(fnum.value) if hasattr(fnum, 'unit') else float(fnum)
+    D = float(D.value) if hasattr(D, 'unit') else float(D)
+    pixel_size = float(pixel_size.value) if hasattr(pixel_size, 'unit') else float(pixel_size)
+    jitter_sigma_mas = float(jitter_sigma_mas.value) if hasattr(jitter_sigma_mas, 'unit') else float(jitter_sigma_mas)
+    n_pixels = int(n_pixels)
+    oversample = int(oversample)
+
+    # Force odd pixel count so a pixel is centered on the PSF peak
+    if n_pixels % 2 == 0:
+        warnings.warn(f"n_pixels must be odd to center the PSF peak; "
+                      f"using {n_pixels + 1} instead of {n_pixels}.")
+        n_pixels += 1
+
+    # Detector and oversampled plate scales (mas/pix)
+    pscale_mas = calc_plate_scale_from_flength(fnum * D, pixel_size) * 1000.0
+    fine_pscale_mas = pscale_mas / oversample
+
+    fine_n = n_pixels * oversample  # oversampled grid; centering is by symmetry (peak in the central block)
+    half = (fine_n - 1) / 2.0
+    coord_mas = (np.arange(fine_n) - half) * fine_pscale_mas
+
+    arcsec_per_radian = 206265.0
+    mas_per_radian = arcsec_per_radian * 1000.0
+    coord_rad = coord_mas / mas_per_radian
+    xx, yy = np.meshgrid(coord_rad, coord_rad, indexing='xy')
+    rr = np.sqrt(xx**2 + yy**2)
+
+    # Raw Airy intensity (do not normalize on the truncated grid)
+    psf_fine = get_airy_psf(D, rr, wavelength, normalize=False)
+
+    # Jitter broadening at the oversampled scale
+    if jitter_sigma_mas != 0:
+        sigma_pix_fine = jitter_sigma_mas / fine_pscale_mas
+        ker = gaussian_kernel_2d(sigma_pix_fine)
+        psf_fine = fftconvolve(psf_fine, ker, mode='same')
+
+    # Bin oversample x oversample blocks into detector pixels
+    psf_detector = psf_fine.reshape(n_pixels, oversample,
+                                    n_pixels, oversample).sum(axis=(1, 3))
+
+    # Normalize the rendered window to 1 (conservative: window truncates wings)
+    total = psf_detector.sum()
+    if total > 0:
+        psf_detector = psf_detector / total
+
+    if verbose:
+        print(f"render_detector_psf: pscale={pscale_mas:.3f} mas/pix, "
+              f"n_pixels={n_pixels}, oversample={oversample}, "
+              f"peak_fraction={psf_detector.max():.4f}")
+
+    return psf_detector, pscale_mas
+
 
 def calc_plate_scale_from_flength(focal_length,pix_size):
     """

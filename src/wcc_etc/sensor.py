@@ -25,11 +25,18 @@ class Sensor(_MetaHolder_):
         The read noise (e-/pix).
     pixel_size : Quantity
         The pixel size (microns/pix).
+    bit_depth : int or None
+        The ADC bit depth. None if not configured.
+    bias_level : Quantity
+        The additive bias/offset level in ADU.
+    adc_max : Quantity
+        The ADC full-scale clip ceiling in ADU.
     """
 
     _mutable_parameters = ["bandpass", "bandpass_name",
                             "pixel_size", "read_noise", "dark_current",
-                            "gain", "area", "temperature"]
+                            "gain", "area", "temperature",
+                            "bit_depth", "bias_level"]
     
     def __init__(self, bandpass, 
                  pixel_size,                  
@@ -40,6 +47,8 @@ class Sensor(_MetaHolder_):
                  temperature=None,
                  qe= 1, # part of the total throughput for now.
                  well_depth=None,
+                 bit_depth=None,
+                 bias_level=None,
                 meta={}):
         """
         Initialize the sensor.
@@ -64,6 +73,10 @@ class Sensor(_MetaHolder_):
             Quantum Efficiency (usually included in bandpass). Default is 1.
         well_depth : float or Quantity, optional
             The full well depth. Default is None.
+        bit_depth : int, optional
+            The ADC bit depth. Used to compute adc_max = 2**bit_depth - 1. Default is None.
+        bias_level : float, optional
+            The additive bias/offset level in ADU. Default is None (treated as 0).
         meta : dict, optional
             Additional metadata. Default is {}.
         """
@@ -141,14 +154,20 @@ class Sensor(_MetaHolder_):
             well_depth = config.get("well_depth")        
 
         
-        return cls(bandpass=bandpass, 
-                     pixel_size=pixel_size,                  
+        # ADC properties
+        bit_depth = config.get("bit_depth")
+        bias_level = config.get("bias_level")
+
+        return cls(bandpass=bandpass,
+                     pixel_size=pixel_size,
                      read_noise=read_noise,
-                     dark_current=dark_current, 
+                     dark_current=dark_current,
                      gain=gain,
                      area=sensor_area,
                      temperature=sensor_temp,
                      well_depth=well_depth,
+                     bit_depth=bit_depth,
+                     bias_level=bias_level,
                      qe=1, # forced qe=1 as included in total throughput
                     meta=config)
     
@@ -260,4 +279,28 @@ class Sensor(_MetaHolder_):
         The pixel size (um/pix).
         """
         return self.meta["pixel_size"] * u.um/u.pix
+
+    @property
+    def bit_depth(self):
+        """
+        The ADC bit depth (int), or None if not configured.
+        """
+        return self.meta.get("bit_depth")
+
+    @property
+    def bias_level(self):
+        """
+        The additive bias/offset level in ADU (u.ct). Defaults to 0.
+        """
+        return self.meta.get("bias_level", 0) * u.ct
+
+    @property
+    def adc_max(self):
+        """
+        The ADC full-scale (clip ceiling) in ADU (u.ct): 2**bit_depth - 1.
+        """
+        bit_depth = self.bit_depth
+        if bit_depth is None:
+            raise ValueError("bit_depth is not set; cannot compute adc_max")
+        return (2**bit_depth - 1) * u.ct
 

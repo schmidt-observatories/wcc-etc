@@ -585,7 +585,87 @@ class Simulation(_MetaHolder_):
             raise ValueError(f"unknown units {units=}. adu or electron/e- expected.")
             
         return source_signal, total_variance
-    
+
+    def get_peak_pixel(self, time=None, units="adu"):
+        """
+        Get the brightest-pixel value for a given exposure time.
+
+        The peak pixel combines the source PSF peak, the per-pixel sky
+        background, the per-pixel dark current, and (for ADU) the additive bias
+        level. Used to test ADC-clip saturation against ``sensor.adc_max``.
+
+        Parameters
+        ----------
+        time : float or Quantity or array_like, optional
+            Exposure time(s) in seconds. Defaults to self.meta['time'].
+        units : str, optional
+            'adu' (default, includes bias) or 'e-'/'e'/'electron' (excludes bias).
+
+        Returns
+        -------
+        Quantity
+            The peak-pixel value, in ADU (u.ct) or electrons.
+        """
+        if time is None:
+            time = self._meta.get("time", None)
+        if time is None:
+            raise ValueError("no time given, none set to meta")
+        if not isinstance(time, u.Quantity):
+            time = time * u.second
+
+        profile = self.psf_profile
+        peak_fraction = profile["peak_pixel_fraction"]
+        ee_at_aper = profile["ee_at_aper"]
+        num_psf_pixels = profile["num_psf_pixels"]
+        n_pix = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
+
+        if ee_at_aper == 0:
+            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
+
+        # count rates within the aperture, in electron/s
+        count_rates = self.get_countrates(units="e/s", as_dict=True)
+
+        # source: recover total flux (divide out aperture EE), take peak fraction
+        source_peak = (count_rates["source"] / ee_at_aper * peak_fraction * time).to(u.electron)
+
+        # sky background per pixel (uniform across the aperture); 0 if absent.
+        # Only the background contributes here; host elements are excluded by
+        # design (the approved saturation budget is source + background + dark).
+        if "background" in count_rates:
+            bkg_peak = (count_rates["background"] * time / n_pix).to(u.electron)
+        else:
+            bkg_peak = 0 * u.electron
+
+        # dark current per pixel (dark_current is electron/(s*pix))
+        dark_peak = (self.sensor.dark_current * time).to(u.electron / u.pix).value * u.electron
+
+        peak_e = source_peak + bkg_peak + dark_peak  # electrons in the brightest pixel
+
+        if units in ["e", "e-", "electron"]:
+            return peak_e
+
+        if units.lower() == "adu":
+            return (peak_e / self.sensor.gain).to(u.ct) + self.sensor.bias_level
+
+        raise ValueError(f"unknown units {units=}. 'adu' or electron/'e-' expected.")
+
+    def is_saturated(self, time=None):
+        """
+        Whether the brightest pixel reaches the ADC full scale (ADU clip).
+
+        Parameters
+        ----------
+        time : float or Quantity or array_like, optional
+            Exposure time(s) in seconds. Defaults to self.meta['time'].
+
+        Returns
+        -------
+        bool or ndarray of bool
+            True where the peak pixel (in ADU) >= sensor.adc_max.
+        """
+        peak_adu = self.get_peak_pixel(time, units="adu")
+        return peak_adu >= self.sensor.adc_max
+
     def get_snr(self, time=None):
         """
         Get the signal to noise ratio for a given exposure time.
@@ -633,9 +713,10 @@ class Simulation(_MetaHolder_):
         -------
         dict
             Dictionary containing 'wavelength', 'r_psf_mas', 'psf1d', 'ee',
-            'ee_at_aper', 'num_psf_pixels', and 'psf_area'.
+            'ee_at_aper', 'num_psf_pixels', 'psf_area', and
+            'peak_pixel_fraction'.
         """
-        from .airy import get_airy_and_ee_curve
+        from .airy import get_airy_and_ee_curve, render_detector_psf
         
         wavelength = self.sensor.wavelength.to("m")
         r_psf_mas, psf1d, ee, ee_at_aper = get_airy_and_ee_curve(wavelength, 
@@ -660,13 +741,24 @@ class Simulation(_MetaHolder_):
         #logging.info(f"num_psf_pixels={num_psf_pixels:.1f} pixels")
         #logging.info(f"PSF area={psf_area:.2f} arcsec^2")
 
+        # brightest-pixel energy fraction on the detector grid
+        psf_detector, _ = render_detector_psf(
+            wavelength=wavelength,
+            fnum=self.telescope.f_num,
+            D=self.telescope.diameter_primary.value,
+            pixel_size=self.sensor.pixel_size.value,
+            jitter_sigma_mas=self.telescope.jitter_sigma.to("mas").value,
+            verbose=False)
+        peak_pixel_fraction = float(psf_detector.max())
+
         return {"wavelength": wavelength,
                 "r_psf_mas": r_psf_mas,
                 "psf1d": psf1d,
                 "ee": ee,
                 "ee_at_aper": ee_at_aper,
                 "num_psf_pixels": num_psf_pixels,
-                "psf_area": psf_area
+                "psf_area": psf_area,
+                "peak_pixel_fraction": peak_pixel_fraction
                 }
 
     def has_element(self, which):
