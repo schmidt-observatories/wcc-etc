@@ -92,7 +92,7 @@ class AiryPSF(PSFSource):
             wavelength=ctx.wavelength_m, fnum=ctx.fnum, D=ctx.diameter_m,
             pixel_size=ctx.pixel_size_um, jitter_sigma_mas=ctx.jitter_sigma_mas,
             n_pixels=ctx.npix, oversample=ctx.oversample)
-        if psf.shape[0] != ctx.npix:  # render_detector_psf forces odd n_pixels
+        if psf.shape != (ctx.npix, ctx.npix):  # render_detector_psf forces odd n_pixels
             psf = center_crop_or_pad(psf, ctx.npix)
         if ctx.center is not None:
             psf = recenter(psf, ctx.center)

@@ -4,6 +4,7 @@ import pytest
 from wcc_etc.psfsim import (
     DetectorPSFContext, center_crop_or_pad, normalize_psf, recenter,
     load_huygens_psf, DEFOCUS_1WAVE_PATH, DEFOCUS_2WAVE_PATH,
+    PSFSource, AiryPSF,
 )
 
 
@@ -68,9 +69,6 @@ def test_load_huygens_psf_second_file():
     assert data.shape == (256, 256)
     assert np.all(np.isfinite(data))
     assert data.sum() > 0
-
-
-from wcc_etc.psfsim import PSFSource, AiryPSF
 
 
 def _airy_ctx(npix=64, pixel_size_um=3.76):
