@@ -775,6 +775,76 @@ class FitsImg(object):
 
 
 
+def aperture_snr_radial(psf_norm, plate_scale_mas, source_e_total,
+                        diffuse_per_pix, dark_per_pix, read_noise):
+    """
+    SNR as a function of circular-aperture radius for a rendered PSF.
+
+    The PSF (sum=1) sets how much source light falls inside each radius; the
+    per-pixel diffuse (sky+host), dark, and read-noise terms set the background
+    noise that grows with the number of aperture pixels.
+
+    Parameters
+    ----------
+    psf_norm : ndarray
+        Normalized (sum=1) PSF on the detector grid.
+    plate_scale_mas : float
+        Detector plate scale, mas/pixel (to report radii in mas).
+    source_e_total : float
+        Total source electrons (all of the PSF, before aperture clipping).
+    diffuse_per_pix, dark_per_pix : float
+        Per-pixel sky+host and dark-current electrons.
+    read_noise : float
+        Read noise (electrons rms per pixel).
+
+    Returns
+    -------
+    dict of ndarrays, sorted by ascending radius:
+        'r_mas', 'enclosed_fraction', 'n_pix', 'signal_e', 'noise_e', 'snr'.
+    """
+    npix = psf_norm.shape[0]
+    c = (npix - 1) / 2.0
+    yy, xx = np.mgrid[0:npix, 0:npix]
+    r_pix = np.sqrt((xx - c) ** 2 + (yy - c) ** 2).ravel()
+    order = np.argsort(r_pix, kind="stable")
+
+    r_sorted = r_pix[order]
+    enclosed = np.cumsum(psf_norm.ravel()[order])           # fraction (psf sums to 1)
+    n_pix = np.arange(1, r_sorted.size + 1)
+
+    signal = source_e_total * enclosed
+    per_pix_var = diffuse_per_pix + dark_per_pix + read_noise ** 2
+    noise = np.sqrt(signal + per_pix_var * n_pix)
+    snr = np.divide(signal, noise, out=np.zeros_like(signal), where=noise > 0)
+
+    return {"r_mas": r_sorted * plate_scale_mas,
+            "enclosed_fraction": enclosed,
+            "n_pix": n_pix,
+            "signal_e": signal,
+            "noise_e": noise,
+            "snr": snr}
+
+
+def select_aperture(profile, r_aper_mas=None, ee_frac=None, optimize=False):
+    """
+    Index into an `aperture_snr_radial` profile for the chosen aperture mode.
+
+    Precedence: optimize (max SNR) > explicit r_aper_mas > ee_frac.
+    Raises ValueError if no mode is given.
+    """
+    if optimize:
+        return int(np.argmax(profile["snr"]))
+    if r_aper_mas is not None:
+        r_mas = profile["r_mas"]
+        idx = int(np.searchsorted(r_mas, r_aper_mas, side="right") - 1)
+        return int(np.clip(idx, 0, r_mas.size - 1))
+    if ee_frac is not None:
+        enc = profile["enclosed_fraction"]
+        idx = int(np.searchsorted(enc, ee_frac))
+        return int(np.clip(idx, 0, enc.size - 1))
+    raise ValueError("select_aperture: specify optimize, r_aper_mas, or ee_frac.")
+
+
 def calc_hwzm(x,y,z=20):
     """
     Calculates the HWHM at the Z-th maximum for a given dataset, by finding the roots of splines.
