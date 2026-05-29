@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import astropy.units as u
 import wcc_etc
-from wcc_etc.psfsim import SimulatedImage, AiryPSF, FitsImg, ImageSimulator, DefocusPSF, DEFOCUS_2WAVE_PATH
+from wcc_etc.psfsim import SimulatedImage, AiryPSF, FitsImg, ImageSimulator, DefocusPSF, DEFOCUS_2WAVE_PATH, aperture_snr_radial, select_aperture
 
 
 def _make_simimg():
@@ -111,9 +111,6 @@ def test_public_exports_available():
         assert hasattr(wcc_etc, name), f"{name} not exported from wcc_etc"
 
 
-from wcc_etc.psfsim import aperture_snr_radial, select_aperture
-
-
 def _point_psf(npix=21):
     a = np.zeros((npix, npix)); a[npix // 2, npix // 2] = 1.0
     return a
@@ -188,3 +185,9 @@ def test_select_aperture_requires_a_mode():
                                dark_per_pix=0.0, read_noise=0.0)
     with pytest.raises(ValueError):
         select_aperture(prof)
+
+
+def test_aperture_snr_radial_rejects_non_square():
+    with pytest.raises(ValueError):
+        aperture_snr_radial(np.zeros((4, 6)), plate_scale_mas=10.0, source_e_total=1.0,
+                            diffuse_per_pix=0.0, dark_per_pix=0.0, read_noise=0.0)

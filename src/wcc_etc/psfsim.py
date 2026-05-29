@@ -802,6 +802,9 @@ def aperture_snr_radial(psf_norm, plate_scale_mas, source_e_total,
     dict of ndarrays, sorted by ascending radius:
         'r_mas', 'enclosed_fraction', 'n_pix', 'signal_e', 'noise_e', 'snr'.
     """
+    psf_norm = np.asarray(psf_norm, dtype=float)
+    if psf_norm.ndim != 2 or psf_norm.shape[0] != psf_norm.shape[1]:
+        raise ValueError(f"psf_norm must be a square 2D array, got shape {psf_norm.shape}")
     npix = psf_norm.shape[0]
     c = (npix - 1) / 2.0
     yy, xx = np.mgrid[0:npix, 0:npix]
