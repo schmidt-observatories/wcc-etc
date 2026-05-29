@@ -633,7 +633,8 @@ class Simulation(_MetaHolder_):
         -------
         dict
             Dictionary containing 'wavelength', 'r_psf_mas', 'psf1d', 'ee',
-            'ee_at_aper', 'num_psf_pixels', and 'psf_area'.
+            'ee_at_aper', 'num_psf_pixels', 'psf_area', and
+            'peak_pixel_fraction'.
         """
         from .airy import get_airy_and_ee_curve, render_detector_psf
         
