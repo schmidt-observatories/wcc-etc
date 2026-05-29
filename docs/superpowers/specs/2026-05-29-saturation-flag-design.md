@@ -32,10 +32,10 @@ These were settled during brainstorming:
 
 ### Config fields (`src/wcc_etc/data/config/*.toml`)
 
-- `bit_depth` — integer. `zwo.toml` → `16`, `qcmos.toml` → `12`.
-  (Assumption: the sensor referred to as "hwk" during brainstorming is the
-  `qcmos` config. **Confirm during spec review.**)
-- `bias_level` — additive offset in ADU. Default `0` when absent from config.
+- `bit_depth` — integer. `zwo.toml` (Sony/IMX) → `16`, `qcmos.toml` (hwk) →
+  `12`. (Confirmed: "hwk" is the `qcmos` config, 12-bit; Sony/IMX is 16-bit.)
+- `bias_level` — additive offset in ADU. Set to `0` explicitly in both configs;
+  `from_config` still defaults it to `0` when absent.
 
 ### `Sensor` class (`src/wcc_etc/sensor.py`)
 
@@ -138,5 +138,8 @@ array `time` (returns a boolean array).
 
 ## Open items to confirm during spec review
 
-1. "hwk" sensor maps to the `qcmos` config (bit_depth 12)?
-2. Include the optional `saturation_time()` helper, or leave it out?
+1. ~~"hwk" sensor maps to the `qcmos` config (bit_depth 12)?~~ **Confirmed:**
+   hwk = qcmos = 12-bit; Sony/IMX (zwo) = 16-bit. Both `bit_depth` and
+   `bias_level` are now set explicitly in the config files.
+2. ~~Include the optional `saturation_time()` helper, or leave it out?~~
+   **Confirmed:** left out of this work (remains in Out of scope above).
