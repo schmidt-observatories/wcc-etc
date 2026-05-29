@@ -628,18 +628,18 @@ class Simulation(_MetaHolder_):
         # source: recover total flux (divide out aperture EE), take peak fraction
         source_peak = (count_rates["source"] / ee_at_aper * peak_fraction * time).to(u.electron)
 
-        # non-source elements (sky background, host) treated as uniform across
-        # the aperture -> per-pixel contribution = aperture countrate / n_pix
-        other_peak = 0 * u.electron
-        for element_name, count_rate in count_rates.items():
-            if element_name == "source":
-                continue
-            other_peak = other_peak + (count_rate * time / n_pix).to(u.electron)
+        # sky background per pixel (uniform across the aperture); 0 if absent.
+        # Only the background contributes here; host elements are excluded by
+        # design (the approved saturation budget is source + background + dark).
+        if "background" in count_rates:
+            bkg_peak = (count_rates["background"] * time / n_pix).to(u.electron)
+        else:
+            bkg_peak = 0 * u.electron
 
         # dark current per pixel (dark_current is electron/(s*pix))
         dark_peak = (self.sensor.dark_current * time).to(u.electron / u.pix).value * u.electron
 
-        peak_e = source_peak + other_peak + dark_peak  # electrons in the brightest pixel
+        peak_e = source_peak + bkg_peak + dark_peak  # electrons in the brightest pixel
 
         if units in ["e", "e-", "electron"]:
             return peak_e

@@ -123,8 +123,9 @@ def test_get_peak_pixel_accepts_array_time():
     assert vals[1] > vals[0]
 
 
-def test_get_peak_pixel_host_increases_value():
-    # a scene with a host element should yield a larger peak pixel than without
+def test_get_peak_pixel_excludes_host():
+    # host elements are intentionally excluded from the saturation budget,
+    # so adding a host must not change the peak-pixel value.
     scene_no_host = wcc_etc.get_scene(
         name='G5V', mag=15, host=None, background="zodi",
         bandpass='johnson_r',
@@ -137,7 +138,9 @@ def test_get_peak_pixel_host_increases_value():
         background_prop={"bandpass": 'johnson_r', "mag": 22.5})
     sim_host = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene_host)
 
-    assert sim_host.get_peak_pixel(100, units="e-").value > sim_no_host.get_peak_pixel(100, units="e-").value
+    no_host = sim_no_host.get_peak_pixel(100, units="e-").value
+    with_host = sim_host.get_peak_pixel(100, units="e-").value
+    assert with_host == pytest.approx(no_host, rel=1e-9)
 
 
 def test_is_saturated_flips_with_time():
