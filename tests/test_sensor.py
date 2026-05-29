@@ -92,3 +92,10 @@ def test_from_config_reads_bit_depth_and_bias_level():
     assert s.bit_depth == 16
     assert s.bias_level == 5 * u.ct
     assert s.adc_max == 65535 * u.ct
+
+
+def test_adc_max_raises_without_bit_depth():
+    s = Sensor(bandpass=None, pixel_size=5, read_noise=3, dark_current=0.1,
+               gain=2.0, area=100 * u.mm**2)
+    with pytest.raises(ValueError):
+        s.adc_max
