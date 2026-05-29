@@ -68,3 +68,34 @@ def test_load_huygens_psf_second_file():
     assert data.shape == (256, 256)
     assert np.all(np.isfinite(data))
     assert data.sum() > 0
+
+
+from wcc_etc.psfsim import PSFSource, AiryPSF
+
+
+def _airy_ctx(npix=64, pixel_size_um=3.76):
+    return DetectorPSFContext(
+        npix=npix, pixel_size_um=pixel_size_um, plate_scale_mas=20.0,
+        wavelength_m=0.6e-6, diameter_m=3.0, fnum=15.0,
+        jitter_sigma_mas=0.0, oversample=11)
+
+
+def test_psfsource_base_is_abstract():
+    with pytest.raises(NotImplementedError):
+        PSFSource().render(_airy_ctx())
+
+
+def test_airy_render_shape_normalized_centered():
+    psf = AiryPSF().render(_airy_ctx(npix=64))
+    assert psf.shape == (64, 64)
+    assert psf.sum() == pytest.approx(1.0, abs=1e-6)
+    cy, cx = np.unravel_index(np.argmax(psf), psf.shape)
+    assert abs(cy - 31.5) <= 1 and abs(cx - 31.5) <= 1  # peak near center
+
+
+def test_airy_recenter_shifts_peak():
+    ctx = _airy_ctx(npix=65)
+    ctx.center = (40.0, 32.0)  # (cx, cy)
+    psf = AiryPSF().render(ctx)
+    cy, cx = np.unravel_index(np.argmax(psf), psf.shape)
+    assert abs(cx - 40) <= 1 and abs(cy - 32) <= 1

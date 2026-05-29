@@ -77,6 +77,28 @@ def recenter(psf, center):
                  order=3, mode="constant", cval=0.0)
 
 
+class PSFSource:
+    """Base class: render a normalized (sum=1) PSF onto a DetectorPSFContext."""
+
+    def render(self, ctx):
+        raise NotImplementedError("Subclasses must implement render(ctx).")
+
+
+class AiryPSF(PSFSource):
+    """Diffraction-limited Airy PSF rendered on the detector grid (default)."""
+
+    def render(self, ctx):
+        psf, _ = airy.render_detector_psf(
+            wavelength=ctx.wavelength_m, fnum=ctx.fnum, D=ctx.diameter_m,
+            pixel_size=ctx.pixel_size_um, jitter_sigma_mas=ctx.jitter_sigma_mas,
+            n_pixels=ctx.npix, oversample=ctx.oversample)
+        if psf.shape[0] != ctx.npix:  # render_detector_psf forces odd n_pixels
+            psf = center_crop_or_pad(psf, ctx.npix)
+        if ctx.center is not None:
+            psf = recenter(psf, ctx.center)
+        return normalize_psf(psf)
+
+
 def load_huygens_psf(path, encoding="utf-16"):
     """Load a Zemax Huygens PSF text file into a 2D float array of intensities."""
     with open(path, encoding=encoding) as fh:
