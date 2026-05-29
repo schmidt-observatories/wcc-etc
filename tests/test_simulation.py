@@ -138,3 +138,17 @@ def test_get_peak_pixel_host_increases_value():
     sim_host = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene_host)
 
     assert sim_host.get_peak_pixel(100, units="e-").value > sim_no_host.get_peak_pixel(100, units="e-").value
+
+
+def test_is_saturated_flips_with_time():
+    sim = _bright_sim(mag=8)  # bright star on a 16-bit sensor (adc_max=65535)
+    assert sim.is_saturated(0.001) == False
+    assert sim.is_saturated(1000) == True
+
+
+def test_is_saturated_accepts_array_time():
+    sim = _bright_sim(mag=8)
+    result = sim.is_saturated(np.array([0.001, 1000.0]))
+    assert np.shape(result) == (2,)
+    assert bool(result[0]) is False
+    assert bool(result[1]) is True

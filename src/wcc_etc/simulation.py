@@ -649,6 +649,23 @@ class Simulation(_MetaHolder_):
 
         raise ValueError(f"unknown units {units=}. 'adu' or electron/'e-' expected.")
 
+    def is_saturated(self, time=None):
+        """
+        Whether the brightest pixel reaches the ADC full scale (ADU clip).
+
+        Parameters
+        ----------
+        time : float or Quantity or array_like, optional
+            Exposure time(s) in seconds. Defaults to self.meta['time'].
+
+        Returns
+        -------
+        bool or ndarray of bool
+            True where the peak pixel (in ADU) >= sensor.adc_max.
+        """
+        peak_adu = self.get_peak_pixel(time, units="adu")
+        return peak_adu >= self.sensor.adc_max
+
     def get_snr(self, time=None):
         """
         Get the signal to noise ratio for a given exposure time.
