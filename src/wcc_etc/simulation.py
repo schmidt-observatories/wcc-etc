@@ -666,6 +666,91 @@ class Simulation(_MetaHolder_):
         peak_adu = self.get_peak_pixel(time, units="adu")
         return peak_adu >= self.sensor.adc_max
 
+    def get_image_snr(self, time=None, psf=None, r_aper_mas=None, ee_frac=None,
+                      optimize=False, jitter_sigma_mas=None, npix=128, oversample=11):
+        """
+        PSF-aware aperture signal-to-noise ratio.
+
+        Unlike get_snr (which assumes the analytic Airy disk), this renders the
+        given PSF (default AiryPSF) on the detector grid and computes the SNR for
+        a circular aperture. The in-focus default-aperture case reproduces
+        get_snr. Aperture precedence: optimize > r_aper_mas > ee_frac; if none is
+        given, the Simulation's r_aper_mas is used.
+
+        Parameters
+        ----------
+        time : float or Quantity, optional
+            Exposure time (seconds if a bare float). Defaults to meta['time'].
+        psf : PSFSource, optional
+            PSF model; defaults to AiryPSF().
+        r_aper_mas : float, optional
+            Fixed aperture radius (mas).
+        ee_frac : float, optional
+            Aperture enclosing this fraction of the PSF.
+        optimize : bool, optional
+            If True, use the radius that maximizes SNR.
+        jitter_sigma_mas : float, optional
+            Override the telescope jitter (mas).
+        npix, oversample : int, optional
+            Render grid size and oversampling.
+
+        Returns
+        -------
+        dict
+            'snr', 'signal_e', 'noise_e', 'enclosed_fraction', 'r_aper_mas', 'n_pix'.
+        """
+        from .psfsim import ImageSimulator, AiryPSF, aperture_snr_radial, select_aperture
+
+        if time is None:
+            time = self._meta.get("time", None)
+        if time is None:
+            raise ValueError("no time given, none set to meta")
+        if not isinstance(time, u.Quantity):
+            time = time * u.second
+
+        if psf is None:
+            psf = AiryPSF()
+
+        imsim = ImageSimulator(self, npix=npix, oversample=oversample)
+        ctx = imsim._context(jitter_sigma_mas=jitter_sigma_mas)
+        psf_norm = psf.render(ctx)
+
+        profile = self.psf_profile
+        ee_at_aper = profile["ee_at_aper"]
+        if ee_at_aper == 0:
+            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
+        num_psf_pixels = profile["num_psf_pixels"]
+        n_psf = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
+
+        count_rates = self.get_countrates(units="e/s", as_dict=True)
+        source_e_total = (count_rates["source"] / ee_at_aper * time).to(u.electron).value
+
+        # per-pixel diffuse electrons from all non-source elements (sky, host)
+        diffuse_per_pix = 0.0
+        for element_name, rate in count_rates.items():
+            if element_name == "source":
+                continue
+            diffuse_per_pix += (rate * time / n_psf).to(u.electron).value
+
+        dark_per_pix = (self.sensor.dark_current * time).to(u.electron / u.pix).value
+        read_noise = self.sensor.read_noise.to(u.electron / u.pix).value
+
+        prof = aperture_snr_radial(psf_norm, ctx.plate_scale_mas, source_e_total,
+                                   diffuse_per_pix, dark_per_pix, read_noise)
+
+        # default to the ETC aperture if no mode was requested
+        if not optimize and r_aper_mas is None and ee_frac is None:
+            r_aper_mas = self._meta.get("r_aper_mas")
+
+        idx = select_aperture(prof, r_aper_mas=r_aper_mas, ee_frac=ee_frac, optimize=optimize)
+
+        return {"snr": float(prof["snr"][idx]),
+                "signal_e": float(prof["signal_e"][idx]),
+                "noise_e": float(prof["noise_e"][idx]),
+                "enclosed_fraction": float(prof["enclosed_fraction"][idx]),
+                "r_aper_mas": float(prof["r_mas"][idx]),
+                "n_pix": int(prof["n_pix"][idx])}
+
     def get_snr(self, time=None):
         """
         Get the signal to noise ratio for a given exposure time.
