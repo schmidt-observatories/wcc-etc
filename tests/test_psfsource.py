@@ -1,10 +1,11 @@
 import os
 import numpy as np
 import pytest
+from scipy.ndimage import zoom as _zoom
 from wcc_etc.psfsim import (
     DetectorPSFContext, center_crop_or_pad, normalize_psf, recenter,
     load_huygens_psf, DEFOCUS_1WAVE_PATH, DEFOCUS_2WAVE_PATH,
-    PSFSource, AiryPSF,
+    PSFSource, AiryPSF, DefocusPSF, CustomPSF,
 )
 
 
@@ -97,3 +98,42 @@ def test_airy_recenter_shifts_peak():
     psf = AiryPSF().render(ctx)
     cy, cx = np.unravel_index(np.argmax(psf), psf.shape)
     assert abs(cx - 40) <= 1 and abs(cy - 32) <= 1
+
+
+def _grid_ctx(pixel_size_um, npix=300):
+    return DetectorPSFContext(
+        npix=npix, pixel_size_um=pixel_size_um, plate_scale_mas=20.0,
+        wavelength_m=0.6e-6, diameter_m=3.0, fnum=15.0,
+        jitter_sigma_mas=0.0, oversample=11)
+
+
+def test_defocus_render_normalized_shape():
+    psf = DefocusPSF(DEFOCUS_1WAVE_PATH).render(_grid_ctx(3.76))
+    assert psf.shape == (300, 300)
+    assert psf.sum() == pytest.approx(1.0, abs=1e-6)
+
+
+def test_two_wave_is_broader_than_one_wave():
+    p1 = DefocusPSF(DEFOCUS_1WAVE_PATH).render(_grid_ctx(3.76))
+    p2 = DefocusPSF(DEFOCUS_2WAVE_PATH).render(_grid_ctx(3.76))
+    assert p2.max() < p1.max()  # more defocus -> more spread -> lower peak
+
+
+def test_same_psf_spreads_over_more_sony_pixels_than_hwk():
+    sony = DefocusPSF(DEFOCUS_2WAVE_PATH).render(_grid_ctx(3.76))   # smaller pixels
+    hwk = DefocusPSF(DEFOCUS_2WAVE_PATH).render(_grid_ctx(4.6))     # larger pixels
+    assert sony.max() < hwk.max()
+
+
+def test_defocus_99pct_contained_in_default_grid_sony():
+    data = DefocusPSF(DEFOCUS_2WAVE_PATH)._data
+    z = np.clip(_zoom(data, 4.0 / 3.76, order=1), 0.0, None)
+    crop = center_crop_or_pad(z, 300)
+    assert crop.sum() / z.sum() >= 0.99
+
+
+def test_custom_psf_from_array():
+    arr = np.zeros((51, 51)); arr[25, 25] = 1.0
+    psf = CustomPSF(arr, src_um_per_pix=3.76).render(_grid_ctx(3.76, npix=64))
+    assert psf.shape == (64, 64)
+    assert psf.sum() == pytest.approx(1.0, abs=1e-6)

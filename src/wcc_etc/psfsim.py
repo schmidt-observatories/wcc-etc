@@ -109,6 +109,44 @@ def load_huygens_psf(path, encoding="utf-16"):
         raise ValueError(f"Huygens PSF file did not parse to a 2D array: {path}")
     return data
 
+
+class _ResampledPSF(PSFSource):
+    """A PSF defined as a sampled image at a known source pixel scale (microns)."""
+
+    def __init__(self, data, src_um_per_pix):
+        self._data = np.asarray(data, dtype=float)
+        if self._data.ndim != 2:
+            raise ValueError(f"PSF data must be 2D, got shape {self._data.shape}")
+        self.src_um_per_pix = float(src_um_per_pix)
+
+    def render(self, ctx):
+        zoom_factor = self.src_um_per_pix / ctx.pixel_size_um
+        if zoom_factor <= 0:
+            raise ValueError("zoom_factor must be positive (check pixel sizes).")
+        zoomed = zoom(self._data, zoom_factor, order=1, mode="constant", cval=0.0)
+        psf = normalize_psf(center_crop_or_pad(zoomed, ctx.npix))
+        if ctx.jitter_sigma_mas and ctx.jitter_sigma_mas > 0:
+            psf = normalize_psf(apply_jitter(psf, ctx.jitter_sigma_mas, ctx.plate_scale_mas))
+        if ctx.center is not None:
+            psf = normalize_psf(recenter(psf, ctx.center))
+        return psf
+
+
+class DefocusPSF(_ResampledPSF):
+    """A defocused PSF loaded from a Zemax Huygens text file."""
+
+    def __init__(self, path, src_um_per_pix=4.0, encoding="utf-16"):
+        super().__init__(load_huygens_psf(path, encoding), src_um_per_pix)
+        self.path = path
+
+
+class CustomPSF(_ResampledPSF):
+    """A custom PSF from an ndarray or a Huygens-format text file (future hook)."""
+
+    def __init__(self, source, src_um_per_pix, encoding="utf-16"):
+        data = source if isinstance(source, np.ndarray) else load_huygens_psf(source, encoding)
+        super().__init__(data, src_um_per_pix)
+
 def howell_center(postage_stamp):
     """
     Howell centroiding, from Howell's Handbook of CCD astronomy
