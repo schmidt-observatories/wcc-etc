@@ -51,3 +51,21 @@ def test_has_element_and_setting_attribute():
     # set a dummy attribute and test
     sim._telescope = object()
     assert sim.has_element("telescope") is True
+
+
+import wcc_etc
+
+
+def _bright_sim(mag=20, sensor="sony:r"):
+    scene = wcc_etc.get_scene(
+        name='G5V', mag=mag, host=None, background="zodi",
+        bandpass='johnson_r',
+        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+    return wcc_etc.Simulation.from_sensor_and_scene(sensor, scene)
+
+
+def test_psf_profile_has_peak_pixel_fraction():
+    sim = _bright_sim()
+    profile = sim.psf_profile
+    assert "peak_pixel_fraction" in profile
+    assert 0.0 < profile["peak_pixel_fraction"] <= 1.0

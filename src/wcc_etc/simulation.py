@@ -635,7 +635,7 @@ class Simulation(_MetaHolder_):
             Dictionary containing 'wavelength', 'r_psf_mas', 'psf1d', 'ee',
             'ee_at_aper', 'num_psf_pixels', and 'psf_area'.
         """
-        from .airy import get_airy_and_ee_curve
+        from .airy import get_airy_and_ee_curve, render_detector_psf
         
         wavelength = self.sensor.wavelength.to("m")
         r_psf_mas, psf1d, ee, ee_at_aper = get_airy_and_ee_curve(wavelength, 
@@ -660,13 +660,24 @@ class Simulation(_MetaHolder_):
         #logging.info(f"num_psf_pixels={num_psf_pixels:.1f} pixels")
         #logging.info(f"PSF area={psf_area:.2f} arcsec^2")
 
+        # brightest-pixel energy fraction on the detector grid
+        psf_detector, _ = render_detector_psf(
+            wavelength=wavelength,
+            fnum=self.telescope.f_num,
+            D=self.telescope.diameter_primary.value,
+            pixel_size=self.sensor.pixel_size.value,
+            jitter_sigma_mas=self.telescope.jitter_sigma.to("mas").value,
+            verbose=False)
+        peak_pixel_fraction = float(psf_detector.max())
+
         return {"wavelength": wavelength,
                 "r_psf_mas": r_psf_mas,
                 "psf1d": psf1d,
                 "ee": ee,
                 "ee_at_aper": ee_at_aper,
                 "num_psf_pixels": num_psf_pixels,
-                "psf_area": psf_area
+                "psf_area": psf_area,
+                "peak_pixel_fraction": peak_pixel_fraction
                 }
 
     def has_element(self, which):
