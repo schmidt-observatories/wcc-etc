@@ -149,6 +149,8 @@ Returns a small result object (`SimulatedImage`) with:
 - `image_clean` — noiseless electrons,
 - `saturation_mask` — boolean array,
 - `to_adu()` — electrons → ADU via `gain` (+ `bias_level`),
+- `to_fitsimg()` — wrap `image_e` in a `FitsImg` to reuse its photometry,
+  plotting, and radial-profile methods,
 - `npix`, `pixel_scale_mas`, and the `psf` used (for provenance).
 
 ### 3. Reuse / cleanup
@@ -220,6 +222,7 @@ sensor name + Scene
 
 ## Open items to confirm during spec review
 
-1. `SimulatedImage` as a lightweight result object — acceptable, or would you
-   prefer `simulate()` return a `FitsImg` (to reuse its photometry/plotting)
-   directly?
+1. ~~`SimulatedImage` as a lightweight result object vs returning a `FitsImg`?~~
+   **Resolved:** `simulate()` returns a `SimulatedImage` (carries clean + noisy
+   electrons, saturation mask, ADU conversion) with a `.to_fitsimg()` bridge for
+   photometry/plotting/radial profiles.
