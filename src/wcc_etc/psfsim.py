@@ -1,5 +1,4 @@
 
-import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy import units as u
@@ -246,6 +245,9 @@ class ImageSimulator:
         ee_at_aper = profile["ee_at_aper"]
         num_psf_pixels = profile["num_psf_pixels"]
         n_pix = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
+
+        if ee_at_aper == 0:
+            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
 
         count_rates = sim.get_countrates(units="e/s", as_dict=True)
         # total source electrons (recover total flux from the aperture EE), spread by the PSF
