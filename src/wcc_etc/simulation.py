@@ -619,22 +619,27 @@ class Simulation(_MetaHolder_):
         num_psf_pixels = profile["num_psf_pixels"]
         n_pix = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
 
+        if ee_at_aper == 0:
+            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
+
         # count rates within the aperture, in electron/s
         count_rates = self.get_countrates(units="e/s", as_dict=True)
 
         # source: recover total flux (divide out aperture EE), take peak fraction
         source_peak = (count_rates["source"] / ee_at_aper * peak_fraction * time).to(u.electron)
 
-        # background per pixel (uniform across the aperture); 0 if no background
-        if "background" in count_rates:
-            bkg_peak = (count_rates["background"] * time / n_pix).to(u.electron)
-        else:
-            bkg_peak = 0 * u.electron
+        # non-source elements (sky background, host) treated as uniform across
+        # the aperture -> per-pixel contribution = aperture countrate / n_pix
+        other_peak = 0 * u.electron
+        for element_name, count_rate in count_rates.items():
+            if element_name == "source":
+                continue
+            other_peak = other_peak + (count_rate * time / n_pix).to(u.electron)
 
         # dark current per pixel (dark_current is electron/(s*pix))
-        dark_peak = (self.sensor.dark_current * time).value * u.electron
+        dark_peak = (self.sensor.dark_current * time).to(u.electron / u.pix).value * u.electron
 
-        peak_e = source_peak + bkg_peak + dark_peak  # electrons in the brightest pixel
+        peak_e = source_peak + other_peak + dark_peak  # electrons in the brightest pixel
 
         if units in ["e", "e-", "electron"]:
             return peak_e

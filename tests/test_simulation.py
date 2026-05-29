@@ -98,3 +98,43 @@ def test_get_peak_pixel_electrons_excludes_bias():
     e = sim.get_peak_pixel(10, units="e-")
     assert e.unit == u.electron
     assert e.value > 0
+
+
+def test_get_peak_pixel_adu_matches_electron_conversion():
+    sim = _bright_sim(mag=15)
+    e = sim.get_peak_pixel(10, units="e-")
+    adu = sim.get_peak_pixel(10, units="adu")
+    expected = (e / sim.sensor.gain).to(u.ct) + sim.sensor.bias_level
+    assert adu.value == pytest.approx(expected.value, rel=1e-9)
+
+
+def test_get_peak_pixel_brighter_background_increases_value():
+    sim = _bright_sim(mag=15)
+    base = sim.get_peak_pixel(100, units="e-")
+    sim.update(background__mag=18)  # lower mag = brighter background
+    brighter = sim.get_peak_pixel(100, units="e-")
+    assert brighter.value > base.value
+
+
+def test_get_peak_pixel_accepts_array_time():
+    sim = _bright_sim(mag=15)
+    vals = sim.get_peak_pixel(np.array([10.0, 100.0]), units="adu")
+    assert np.shape(vals) == (2,)
+    assert vals[1] > vals[0]
+
+
+def test_get_peak_pixel_host_increases_value():
+    # a scene with a host element should yield a larger peak pixel than without
+    scene_no_host = wcc_etc.get_scene(
+        name='G5V', mag=15, host=None, background="zodi",
+        bandpass='johnson_r',
+        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+    sim_no_host = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene_no_host)
+
+    scene_host = wcc_etc.get_scene(
+        name='G5V', mag=15, host='G5V', host_prop={"mag": 16, "bandpass": 'johnson_r'},
+        background="zodi", bandpass='johnson_r',
+        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+    sim_host = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene_host)
+
+    assert sim_host.get_peak_pixel(100, units="e-").value > sim_no_host.get_peak_pixel(100, units="e-").value
