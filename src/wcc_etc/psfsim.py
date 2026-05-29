@@ -174,12 +174,14 @@ class ImageSimulator:
     """Render a point source onto a detector grid with noise, driven by an ETC Simulation."""
 
     def __init__(self, simulation, npix=300, oversample=11):
+        """Build from a prebuilt Simulation; npix is the (square) detector grid size."""
         self.sim = simulation
         self.npix = int(npix)
         self.oversample = int(oversample)
 
     @classmethod
     def from_sensor_and_scene(cls, sensor, scene, npix=300, oversample=11):
+        """Build an ImageSimulator from a sensor name (e.g. 'sony:r') and a Scene."""
         sim = Simulation.from_sensor_and_scene(sensor, scene)
         return cls(sim, npix=npix, oversample=oversample)
 
@@ -201,10 +203,35 @@ class ImageSimulator:
 
     def simulate(self, time=None, psf=None, jitter_sigma_mas=None, center=None,
                  add_noise=True, seed=None):
-        """Simulate a detector image for the given exposure time and PSF."""
+        """
+        Simulate a detector image for the given exposure time and PSF.
+
+        Parameters
+        ----------
+        time : float or Quantity, optional
+            Exposure time (seconds if a bare float). Defaults to the
+            Simulation's meta['time'].
+        psf : PSFSource, optional
+            PSF model to render. Defaults to AiryPSF() (diffraction limited).
+        jitter_sigma_mas : float, optional
+            Override the telescope jitter (mas). Defaults to the telescope value.
+        center : tuple, optional
+            Sub-pixel (cx, cy) center for the PSF. Defaults to the grid center.
+        add_noise : bool, optional
+            If True, apply Poisson shot + dark noise and Gaussian read noise.
+            If False, return the noiseless electron image. Default True.
+        seed : int, optional
+            Seed for the random generator, for reproducible noise.
+
+        Returns
+        -------
+        SimulatedImage
+            Holds the electron image, the noiseless image, and a saturation
+            mask (computed from the returned image_e against adc_max / well).
+        """
         sim = self.sim
         if time is None:
-            time = sim._meta.get("time", None)
+            time = sim.meta.get("time", None)
         if time is None:
             raise ValueError("no time given, none set to meta")
         if not isinstance(time, u.Quantity):
@@ -225,7 +252,9 @@ class ImageSimulator:
         source_e_total = (count_rates["source"] / ee_at_aper * time).to(u.electron).value
         source_image = source_e_total * psf_norm
 
-        # sky background per pixel (uniform across the grid); 0 if no background element
+        # Sky background per pixel: count_rates["background"] is the aperture-integrated
+        # sky rate, so dividing by the aperture pixel count gives the per-pixel sky level,
+        # which is uniform across the whole detector grid. 0 if no background element.
         if "background" in count_rates:
             bkg_per_pix = (count_rates["background"] * time / n_pix).to(u.electron).value
         else:

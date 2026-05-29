@@ -72,7 +72,7 @@ def test_image_simulator_read_noise_in_blank_corner():
     res = imsim.simulate(time=1, add_noise=True, seed=0)
     corner = res.image_e[:16, :16]
     rn = imsim.sim.sensor.read_noise.to(u.electron / u.pix).value
-    assert np.std(corner) == pytest.approx(rn, rel=0.5)
+    assert np.std(corner) == pytest.approx(rn, rel=0.2)
 
 
 def test_image_simulator_saturation_flips_with_brightness():
@@ -95,3 +95,11 @@ def test_image_simulator_runs_with_defocus_psf():
     res = imsim.simulate(time=10, psf=DefocusPSF(DEFOCUS_2WAVE_PATH), add_noise=False)
     assert res.image_clean.shape == (300, 300)
     assert np.isfinite(res.image_clean).all()
+
+
+def test_image_simulator_saturation_mask_with_noise_is_bool_array():
+    bright = ImageSimulator.from_sensor_and_scene('sony:r', _scene(6), npix=64)
+    res = bright.simulate(time=100, add_noise=True, seed=0)
+    assert res.saturation_mask.dtype == bool
+    assert res.saturation_mask.shape == (64, 64)
+    assert res.saturation_mask.any()
