@@ -11,6 +11,7 @@ import astropy.io.fits
 import tifffile
 from astropy.io import fits
 import os
+from dataclasses import dataclass
 from astropy.visualization import LogStretch, SqrtStretch, AsinhStretch, HistEqStretch,ZScaleInterval
 from astropy.visualization.mpl_normalize import ImageNormalize
 import astropy.units as u
@@ -20,6 +21,70 @@ from scipy.interpolate import UnivariateSpline
 from . import airy
 from .radial_data import radial_data
 import warnings
+
+# Bundled Zemax Huygens defocus PSF data (monochromatic, 500 nm, 4 um spacing)
+_PSF_DATA_DIR = os.path.join(os.path.dirname(__file__), "data", "psfs")
+DEFOCUS_1WAVE_PATH = os.path.join(_PSF_DATA_DIR, "CAD_1-waves-defocus_500nm_Huygens-PSF-Data_Linear.txt")
+DEFOCUS_2WAVE_PATH = os.path.join(_PSF_DATA_DIR, "CAD_2-waves-defocus_500nm_Huygens-PSF-Data_Linear.txt")
+
+
+@dataclass
+class DetectorPSFContext:
+    """Detector + optics parameters a PSF source needs to render onto the grid."""
+    npix: int
+    pixel_size_um: float
+    plate_scale_mas: float
+    wavelength_m: float
+    diameter_m: float
+    fnum: float
+    jitter_sigma_mas: float = 0.0
+    center: tuple = None
+    oversample: int = 11
+
+
+def normalize_psf(psf):
+    """Clip negatives and normalize a 2D PSF so it sums to 1."""
+    psf = np.clip(np.asarray(psf, dtype=float), 0.0, None)
+    total = psf.sum()
+    if total <= 0:
+        raise ValueError("PSF total is non-positive; cannot normalize.")
+    return psf / total
+
+
+def center_crop_or_pad(img, npix, fill=0.0):
+    """Center-crop or zero-pad a 2D array to (npix, npix), preserving the center."""
+    img = np.asarray(img, dtype=float)
+    ny, nx = img.shape
+    out = np.full((npix, npix), fill, dtype=float)
+    cy, cx = (ny - 1) / 2.0, (nx - 1) / 2.0
+    y0 = int(round(cy - (npix - 1) / 2.0))
+    x0 = int(round(cx - (npix - 1) / 2.0))
+    y1, x1 = y0 + npix, x0 + npix
+    sy0, sx0 = max(0, y0), max(0, x0)
+    sy1, sx1 = min(ny, y1), min(nx, x1)
+    if sy1 > sy0 and sx1 > sx0:
+        out[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0] = img[sy0:sy1, sx0:sx1]
+    return out
+
+
+def recenter(psf, center):
+    """Sub-pixel shift a grid-centered PSF so its center lands at (cx, cy)."""
+    npix = psf.shape[0]
+    grid_center = (npix - 1) / 2.0
+    cx, cy = float(center[0]), float(center[1])
+    return shift(psf, shift=(cy - grid_center, cx - grid_center),
+                 order=3, mode="constant", cval=0.0)
+
+
+def load_huygens_psf(path, encoding="utf-16"):
+    """Load a Zemax Huygens PSF text file into a 2D float array of intensities."""
+    with open(path, encoding=encoding) as fh:
+        rows = [ln for ln in fh.read().splitlines()
+                if ln.strip() and not ln.lstrip().startswith("#")]
+    data = np.array([[float(x) for x in ln.split()] for ln in rows], dtype=float)
+    if data.ndim != 2 or data.size == 0:
+        raise ValueError(f"Huygens PSF file did not parse to a 2D array: {path}")
+    return data
 
 def howell_center(postage_stamp):
     """
