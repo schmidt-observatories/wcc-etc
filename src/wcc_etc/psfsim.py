@@ -20,6 +20,7 @@ from scipy.signal import fftconvolve
 from scipy.interpolate import UnivariateSpline
 from . import airy
 from .radial_data import radial_data
+from .simulation import Simulation
 import warnings
 from typing import Optional
 
@@ -167,6 +168,94 @@ class SimulatedImage:
     def to_fitsimg(self):
         """Wrap the electron image in a FitsImg for photometry/plotting."""
         return FitsImg(data=self.image_e)
+
+
+class ImageSimulator:
+    """Render a point source onto a detector grid with noise, driven by an ETC Simulation."""
+
+    def __init__(self, simulation, npix=300, oversample=11):
+        self.sim = simulation
+        self.npix = int(npix)
+        self.oversample = int(oversample)
+
+    @classmethod
+    def from_sensor_and_scene(cls, sensor, scene, npix=300, oversample=11):
+        sim = Simulation.from_sensor_and_scene(sensor, scene)
+        return cls(sim, npix=npix, oversample=oversample)
+
+    def _context(self, jitter_sigma_mas=None, center=None):
+        sim = self.sim
+        plate_scale_mas = sim.sensor.get_plate_scale(sim.telescope).to("arcsec/pix").value * 1000.0
+        if jitter_sigma_mas is None:
+            jitter_sigma_mas = sim.telescope.jitter_sigma.to("mas").value
+        return DetectorPSFContext(
+            npix=self.npix,
+            pixel_size_um=sim.sensor.pixel_size.value,
+            plate_scale_mas=plate_scale_mas,
+            wavelength_m=sim.sensor.wavelength.to("m").value,
+            diameter_m=sim.telescope.diameter_primary.to("m").value,
+            fnum=sim.telescope.f_num,
+            jitter_sigma_mas=jitter_sigma_mas,
+            center=center,
+            oversample=self.oversample)
+
+    def simulate(self, time=None, psf=None, jitter_sigma_mas=None, center=None,
+                 add_noise=True, seed=None):
+        """Simulate a detector image for the given exposure time and PSF."""
+        sim = self.sim
+        if time is None:
+            time = sim._meta.get("time", None)
+        if time is None:
+            raise ValueError("no time given, none set to meta")
+        if not isinstance(time, u.Quantity):
+            time = time * u.second
+
+        if psf is None:
+            psf = AiryPSF()
+        ctx = self._context(jitter_sigma_mas=jitter_sigma_mas, center=center)
+        psf_norm = psf.render(ctx)  # sum = 1
+
+        profile = sim.psf_profile
+        ee_at_aper = profile["ee_at_aper"]
+        num_psf_pixels = profile["num_psf_pixels"]
+        n_pix = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
+
+        count_rates = sim.get_countrates(units="e/s", as_dict=True)
+        # total source electrons (recover total flux from the aperture EE), spread by the PSF
+        source_e_total = (count_rates["source"] / ee_at_aper * time).to(u.electron).value
+        source_image = source_e_total * psf_norm
+
+        # sky background per pixel (uniform across the grid); 0 if no background element
+        if "background" in count_rates:
+            bkg_per_pix = (count_rates["background"] * time / n_pix).to(u.electron).value
+        else:
+            bkg_per_pix = 0.0
+        # dark current per pixel (uniform)
+        dark_per_pix = (sim.sensor.dark_current * time).to(u.electron / u.pix).value
+
+        image_clean = source_image + bkg_per_pix + dark_per_pix
+
+        if add_noise:
+            rng = np.random.default_rng(seed)
+            image_e = rng.poisson(np.clip(image_clean, 0.0, None)).astype(float)
+            read_noise = sim.sensor.read_noise.to(u.electron / u.pix).value
+            image_e = image_e + rng.normal(0.0, read_noise, size=image_e.shape)
+        else:
+            image_e = image_clean.copy()
+
+        gain = sim.sensor.gain.to(u.electron / u.ct).value
+        bias_level = sim.sensor.bias_level.to(u.ct).value
+        adc_max = sim.sensor.adc_max.to(u.ct).value
+        well_depth = sim.sensor.meta.get("well_depth")
+
+        saturation_mask = (image_e / gain) >= adc_max
+        if well_depth is not None:
+            saturation_mask = saturation_mask | (image_e >= well_depth)
+
+        return SimulatedImage(
+            image_e=image_e, image_clean=image_clean, saturation_mask=saturation_mask,
+            gain=gain, bias_level=bias_level, npix=self.npix,
+            pixel_scale_mas=ctx.plate_scale_mas, psf=psf)
 
 
 def howell_center(postage_stamp):
