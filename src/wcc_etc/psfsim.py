@@ -2,7 +2,6 @@
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
-from astropy.modeling.models import AiryDisk2D
 from astropy import units as u
 from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry
 from astropy.stats import sigma_clipped_stats
