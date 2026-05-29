@@ -35,3 +35,10 @@ def test_jitter_reduces_peak_fraction():
         wavelength=0.6e-6, fnum=15, D=3, pixel_size=3.76,
         jitter_sigma_mas=50, n_pixels=21, oversample=11)
     assert psf_j.max() < psf0.max()
+
+
+def test_render_detector_psf_peak_fraction_reference_value():
+    psf, _ = render_detector_psf(
+        wavelength=0.6e-6, fnum=15, D=3, pixel_size=3.76,
+        jitter_sigma_mas=0, n_pixels=21, oversample=11)
+    assert psf.max() == pytest.approx(0.1333, abs=0.001)

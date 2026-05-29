@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from scipy.special import j1
 from scipy.signal import fftconvolve
@@ -172,7 +173,7 @@ def render_detector_psf(wavelength, fnum, D, pixel_size,
         pixel_size       - detector pixel size in microns
         jitter_sigma_mas - jitter sigma in mas (0 = none)
         n_pixels         - detector pixels per side (forced odd)
-        oversample       - sub-pixel sampling factor per detector pixel
+        oversample       - Sub-pixel sampling factor per detector pixel. Any value works (centering is by symmetry); odd values place a sample exactly on the PSF peak.
         verbose          - print diagnostics
 
     OUTPUT:
@@ -191,17 +192,20 @@ def render_detector_psf(wavelength, fnum, D, pixel_size,
 
     # Force odd pixel count so a pixel is centered on the PSF peak
     if n_pixels % 2 == 0:
+        warnings.warn(f"n_pixels must be odd to center the PSF peak; "
+                      f"using {n_pixels + 1} instead of {n_pixels}.")
         n_pixels += 1
 
     # Detector and oversampled plate scales (mas/pix)
     pscale_mas = calc_plate_scale_from_flength(fnum * D, pixel_size) * 1000.0
     fine_pscale_mas = pscale_mas / oversample
 
-    fine_n = n_pixels * oversample  # odd * odd = odd -> a sample lands on r=0
+    fine_n = n_pixels * oversample  # oversampled grid; centering is by symmetry (peak in the central block)
     half = (fine_n - 1) / 2.0
     coord_mas = (np.arange(fine_n) - half) * fine_pscale_mas
 
-    mas_per_radian = 206265.0 * 1000.0
+    arcsec_per_radian = 206265.0
+    mas_per_radian = arcsec_per_radian * 1000.0
     coord_rad = coord_mas / mas_per_radian
     xx, yy = np.meshgrid(coord_rad, coord_rad, indexing='xy')
     rr = np.sqrt(xx**2 + yy**2)
