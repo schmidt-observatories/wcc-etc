@@ -147,6 +147,28 @@ class CustomPSF(_ResampledPSF):
         data = source if isinstance(source, np.ndarray) else load_huygens_psf(source, encoding)
         super().__init__(data, src_um_per_pix)
 
+
+@dataclass
+class SimulatedImage:
+    """Result of an ImageSimulator.simulate() call."""
+    image_e: np.ndarray          # detector image in electrons (noisy unless add_noise=False)
+    image_clean: np.ndarray      # noiseless electrons
+    saturation_mask: np.ndarray  # bool: pixels at/over adc_max or full well
+    gain: float                  # electron / ct
+    bias_level: float            # ct
+    npix: int
+    pixel_scale_mas: float
+    psf: "PSFSource"
+
+    def to_adu(self):
+        """Electrons -> ADU via gain, plus the bias level."""
+        return self.image_e / self.gain + self.bias_level
+
+    def to_fitsimg(self):
+        """Wrap the electron image in a FitsImg for photometry/plotting."""
+        return FitsImg(data=self.image_e)
+
+
 def howell_center(postage_stamp):
     """
     Howell centroiding, from Howell's Handbook of CCD astronomy
