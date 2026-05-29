@@ -103,3 +103,9 @@ def test_image_simulator_saturation_mask_with_noise_is_bool_array():
     assert res.saturation_mask.dtype == bool
     assert res.saturation_mask.shape == (64, 64)
     assert res.saturation_mask.any()
+
+
+def test_public_exports_available():
+    import wcc_etc
+    for name in ["ImageSimulator", "AiryPSF", "DefocusPSF", "CustomPSF", "SimulatedImage"]:
+        assert hasattr(wcc_etc, name), f"{name} not exported from wcc_etc"
