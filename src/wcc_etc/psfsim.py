@@ -21,6 +21,7 @@ from scipy.interpolate import UnivariateSpline
 from . import airy
 from .radial_data import radial_data
 import warnings
+from typing import Optional
 
 # Bundled Zemax Huygens defocus PSF data (monochromatic, 500 nm, 4 um spacing)
 _PSF_DATA_DIR = os.path.join(os.path.dirname(__file__), "data", "psfs")
@@ -38,7 +39,7 @@ class DetectorPSFContext:
     diameter_m: float
     fnum: float
     jitter_sigma_mas: float = 0.0
-    center: tuple = None
+    center: Optional[tuple] = None
     oversample: int = 11
 
 
@@ -57,8 +58,8 @@ def center_crop_or_pad(img, npix, fill=0.0):
     ny, nx = img.shape
     out = np.full((npix, npix), fill, dtype=float)
     cy, cx = (ny - 1) / 2.0, (nx - 1) / 2.0
-    y0 = int(round(cy - (npix - 1) / 2.0))
-    x0 = int(round(cx - (npix - 1) / 2.0))
+    y0 = int(np.floor(cy - (npix - 1) / 2.0 + 0.5))
+    x0 = int(np.floor(cx - (npix - 1) / 2.0 + 0.5))
     y1, x1 = y0 + npix, x0 + npix
     sy0, sx0 = max(0, y0), max(0, x0)
     sy1, sx1 = min(ny, y1), min(nx, x1)

@@ -53,3 +53,18 @@ def test_detector_context_defaults():
     assert ctx.jitter_sigma_mas == 0.0
     assert ctx.center is None
     assert ctx.oversample == 11
+
+
+def test_center_crop_or_pad_even_source_to_odd_output_centers():
+    a = np.zeros((6, 6)); a[3, 3] = 1.0  # one of the 4 central pixels of a 6x6
+    out = center_crop_or_pad(a, 5)
+    assert out.shape == (5, 5)
+    assert np.unravel_index(np.argmax(out), out.shape) == (2, 2)  # round-half-up centering
+
+
+def test_load_huygens_psf_second_file():
+    assert os.path.exists(DEFOCUS_2WAVE_PATH)
+    data = load_huygens_psf(DEFOCUS_2WAVE_PATH)
+    assert data.shape == (256, 256)
+    assert np.all(np.isfinite(data))
+    assert data.sum() > 0
