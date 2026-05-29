@@ -692,7 +692,10 @@ class Simulation(_MetaHolder_):
         jitter_sigma_mas : float, optional
             Override the telescope jitter (mas).
         npix, oversample : int, optional
-            Render grid size and oversampling.
+            Render grid size and oversampling. `npix` must be large enough to
+            contain the PSF; the default (128) contains the bundled defocus PSFs
+            for the current sensors, but very small pixels or stronger defocus
+            may need a larger value.
 
         Returns
         -------

@@ -174,7 +174,7 @@ def test_get_image_snr_matches_get_snr_in_focus():
             etc = sim.get_snr(t)
             etc = float(etc.value) if hasattr(etc, "value") else float(etc)
             img = sim.get_image_snr(time=t)["snr"]
-            assert img == pytest.approx(etc, rel=0.10)
+            assert img == pytest.approx(etc, rel=0.03)
 
 
 def test_get_image_snr_ee_frac_aperture():
@@ -209,3 +209,13 @@ def test_get_image_snr_optimize_defocus_uses_larger_radius():
 def test_get_image_snr_runs_on_qcmos():
     sim = _bright_sim(16, sensor="qcmos:r")
     assert sim.get_image_snr(time=60)["snr"] > 0
+
+
+def test_get_image_snr_no_background_runs():
+    # scene with no background exercises the diffuse_per_pix == 0 path
+    scene = wcc_etc.get_scene(name='G5V', mag=16, host=None, background=None,
+                              bandpass='johnson_r')
+    sim = wcc_etc.Simulation.from_sensor_and_scene('sony:r', scene)
+    out = sim.get_image_snr(time=60)
+    assert out['snr'] > 0
+    assert out['n_pix'] >= 1
