@@ -1007,7 +1007,7 @@ def calc_moon_scatter_countrate_per_pixel(mag,
         calc_moon_scatter_countrate_per_pixel(-12.8,1.8e-11*1e6)
     """
     def integrate_flux(ww,ff):
-        return np.trapz(ff, ww)
+        return trapezoid(ff, ww)
 
     pixel_size_m = pixel_size_micron * 1e-6
 
