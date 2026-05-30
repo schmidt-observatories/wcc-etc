@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.integrate import trapezoid
 
 def radial_data(data,annulus_width=1,working_mask=None,x=None,y=None,rmax=None):
     """
@@ -174,8 +175,8 @@ def calc_ee(df_data_r,hwhm,K,verbose=True,endpoint=3.):
 
     mask_tot = df_data_r["r"]<endpoint*hwhm 
     # Total
-    #total_EE = np.trapz(df_data_r["mean"],df_data_r["r"])
-    total_EE  = np.trapz(df_data_r["mean"][mask_tot],df_data_r["r"][mask_tot]) # To have a fair comparison
+    #total_EE = trapezoid(df_data_r["mean"],df_data_r["r"])
+    total_EE  = trapezoid(df_data_r["mean"][mask_tot],df_data_r["r"][mask_tot]) # To have a fair comparison
     
     # Masks
     if type(K)==np.ndarray:
@@ -184,12 +185,12 @@ def calc_ee(df_data_r,hwhm,K,verbose=True,endpoint=3.):
             mask = df_data_r["r"]<K[i]*hwhm 
             
             # Calc ee
-            ee_Kxfwhm[i] = np.trapz(df_data_r["mean"][mask],df_data_r["r"][mask])/total_EE
+            ee_Kxfwhm[i] = trapezoid(df_data_r["mean"][mask],df_data_r["r"][mask])/total_EE
 
     else:
         mask = df_data_r["r"]<K*hwhm 
         # Calc ee
-        ee_Kxfwhm = np.trapz(df_data_r["mean"][mask],df_data_r["r"][mask])/total_EE
+        ee_Kxfwhm = trapezoid(df_data_r["mean"][mask],df_data_r["r"][mask])/total_EE
         if verbose==True:
             print("EE @ "+str(K)+"xHWHM",ee_Kxfwhm)
     
