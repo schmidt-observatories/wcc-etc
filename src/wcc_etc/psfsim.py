@@ -1,8 +1,6 @@
 
-import sys
 import numpy as np
 import matplotlib.pyplot as plt
-from astropy.modeling.models import AiryDisk2D
 from astropy import units as u
 from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry
 from astropy.stats import sigma_clipped_stats
@@ -12,6 +10,7 @@ import astropy.io.fits
 import tifffile
 from astropy.io import fits
 import os
+from dataclasses import dataclass
 from astropy.visualization import LogStretch, SqrtStretch, AsinhStretch, HistEqStretch,ZScaleInterval
 from astropy.visualization.mpl_normalize import ImageNormalize
 import astropy.units as u
@@ -20,7 +19,275 @@ from scipy.signal import fftconvolve
 from scipy.interpolate import UnivariateSpline
 from . import airy
 from .radial_data import radial_data
+from .simulation import Simulation
 import warnings
+from typing import Optional
+
+# Bundled Zemax Huygens defocus PSF data (monochromatic, 500 nm, 4 um spacing)
+_PSF_DATA_DIR = os.path.join(os.path.dirname(__file__), "data", "psfs")
+DEFOCUS_1WAVE_PATH = os.path.join(_PSF_DATA_DIR, "CAD_1-waves-defocus_500nm_Huygens-PSF-Data_Linear.txt")
+DEFOCUS_2WAVE_PATH = os.path.join(_PSF_DATA_DIR, "CAD_2-waves-defocus_500nm_Huygens-PSF-Data_Linear.txt")
+
+
+@dataclass
+class DetectorPSFContext:
+    """Detector + optics parameters a PSF source needs to render onto the grid."""
+    npix: int
+    pixel_size_um: float
+    plate_scale_mas: float
+    wavelength_m: float
+    diameter_m: float
+    fnum: float
+    jitter_sigma_mas: float = 0.0
+    center: Optional[tuple] = None
+    oversample: int = 11
+
+
+def normalize_psf(psf):
+    """Clip negatives and normalize a 2D PSF so it sums to 1."""
+    psf = np.clip(np.asarray(psf, dtype=float), 0.0, None)
+    total = psf.sum()
+    if total <= 0:
+        raise ValueError("PSF total is non-positive; cannot normalize.")
+    return psf / total
+
+
+def center_crop_or_pad(img, npix, fill=0.0):
+    """Center-crop or zero-pad a 2D array to (npix, npix), preserving the center."""
+    img = np.asarray(img, dtype=float)
+    ny, nx = img.shape
+    out = np.full((npix, npix), fill, dtype=float)
+    cy, cx = (ny - 1) / 2.0, (nx - 1) / 2.0
+    y0 = int(np.floor(cy - (npix - 1) / 2.0 + 0.5))
+    x0 = int(np.floor(cx - (npix - 1) / 2.0 + 0.5))
+    y1, x1 = y0 + npix, x0 + npix
+    sy0, sx0 = max(0, y0), max(0, x0)
+    sy1, sx1 = min(ny, y1), min(nx, x1)
+    if sy1 > sy0 and sx1 > sx0:
+        out[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0] = img[sy0:sy1, sx0:sx1]
+    return out
+
+
+def recenter(psf, center):
+    """Sub-pixel shift a grid-centered PSF so its center lands at (cx, cy)."""
+    npix = psf.shape[0]
+    grid_center = (npix - 1) / 2.0
+    cx, cy = float(center[0]), float(center[1])
+    return shift(psf, shift=(cy - grid_center, cx - grid_center),
+                 order=3, mode="constant", cval=0.0)
+
+
+class PSFSource:
+    """Base class: render a normalized (sum=1) PSF onto a DetectorPSFContext."""
+
+    def render(self, ctx):
+        raise NotImplementedError("Subclasses must implement render(ctx).")
+
+
+class AiryPSF(PSFSource):
+    """Diffraction-limited Airy PSF rendered on the detector grid (default)."""
+
+    def render(self, ctx):
+        psf, _ = airy.render_detector_psf(
+            wavelength=ctx.wavelength_m, fnum=ctx.fnum, D=ctx.diameter_m,
+            pixel_size=ctx.pixel_size_um, jitter_sigma_mas=ctx.jitter_sigma_mas,
+            n_pixels=ctx.npix, oversample=ctx.oversample)
+        if psf.shape != (ctx.npix, ctx.npix):  # render_detector_psf forces odd n_pixels
+            psf = center_crop_or_pad(psf, ctx.npix)
+        if ctx.center is not None:
+            psf = recenter(psf, ctx.center)
+        return normalize_psf(psf)
+
+
+def load_huygens_psf(path, encoding="utf-16"):
+    """Load a Zemax Huygens PSF text file into a 2D float array of intensities."""
+    with open(path, encoding=encoding) as fh:
+        rows = [ln for ln in fh.read().splitlines()
+                if ln.strip() and not ln.lstrip().startswith("#")]
+    data = np.array([[float(x) for x in ln.split()] for ln in rows], dtype=float)
+    if data.ndim != 2 or data.size == 0:
+        raise ValueError(f"Huygens PSF file did not parse to a 2D array: {path}")
+    return data
+
+
+class _ResampledPSF(PSFSource):
+    """A PSF defined as a sampled image at a known source pixel scale (microns)."""
+
+    def __init__(self, data, src_um_per_pix):
+        self._data = np.asarray(data, dtype=float)
+        if self._data.ndim != 2:
+            raise ValueError(f"PSF data must be 2D, got shape {self._data.shape}")
+        self.src_um_per_pix = float(src_um_per_pix)
+
+    def render(self, ctx):
+        zoom_factor = self.src_um_per_pix / ctx.pixel_size_um
+        if zoom_factor <= 0:
+            raise ValueError("zoom_factor must be positive (check pixel sizes).")
+        zoomed = zoom(self._data, zoom_factor, order=1, mode="constant", cval=0.0)
+        psf = normalize_psf(center_crop_or_pad(zoomed, ctx.npix))
+        if ctx.jitter_sigma_mas and ctx.jitter_sigma_mas > 0:
+            psf = normalize_psf(apply_jitter(psf, ctx.jitter_sigma_mas, ctx.plate_scale_mas))
+        if ctx.center is not None:
+            psf = normalize_psf(recenter(psf, ctx.center))
+        return psf
+
+
+class DefocusPSF(_ResampledPSF):
+    """A defocused PSF loaded from a Zemax Huygens text file."""
+
+    def __init__(self, path, src_um_per_pix=4.0, encoding="utf-16"):
+        super().__init__(load_huygens_psf(path, encoding), src_um_per_pix)
+        self.path = path
+
+
+class CustomPSF(_ResampledPSF):
+    """A custom PSF from an ndarray or a Huygens-format text file (future hook)."""
+
+    def __init__(self, source, src_um_per_pix, encoding="utf-16"):
+        data = source if isinstance(source, np.ndarray) else load_huygens_psf(source, encoding)
+        super().__init__(data, src_um_per_pix)
+
+
+@dataclass
+class SimulatedImage:
+    """Result of an ImageSimulator.simulate() call."""
+    image_e: np.ndarray          # detector image in electrons (noisy unless add_noise=False)
+    image_clean: np.ndarray      # noiseless electrons
+    saturation_mask: np.ndarray  # bool: pixels at/over adc_max or full well
+    gain: float                  # electron / ct
+    bias_level: float            # ct
+    npix: int
+    pixel_scale_mas: float
+    psf: "PSFSource"
+
+    def to_adu(self):
+        """Electrons -> ADU via gain, plus the bias level."""
+        return self.image_e / self.gain + self.bias_level
+
+    def to_fitsimg(self):
+        """Wrap the electron image in a FitsImg for photometry/plotting."""
+        return FitsImg(data=self.image_e)
+
+
+class ImageSimulator:
+    """Render a point source onto a detector grid with noise, driven by an ETC Simulation."""
+
+    def __init__(self, simulation, npix=300, oversample=11):
+        """Build from a prebuilt Simulation; npix is the (square) detector grid size."""
+        self.sim = simulation
+        self.npix = int(npix)
+        self.oversample = int(oversample)
+
+    @classmethod
+    def from_sensor_and_scene(cls, sensor, scene, npix=300, oversample=11):
+        """Build an ImageSimulator from a sensor name (e.g. 'sony:r') and a Scene."""
+        sim = Simulation.from_sensor_and_scene(sensor, scene)
+        return cls(sim, npix=npix, oversample=oversample)
+
+    def _context(self, jitter_sigma_mas=None, center=None):
+        sim = self.sim
+        plate_scale_mas = sim.sensor.get_plate_scale(sim.telescope).to("arcsec/pix").value * 1000.0
+        if jitter_sigma_mas is None:
+            jitter_sigma_mas = sim.telescope.jitter_sigma.to("mas").value
+        return DetectorPSFContext(
+            npix=self.npix,
+            pixel_size_um=sim.sensor.pixel_size.value,
+            plate_scale_mas=plate_scale_mas,
+            wavelength_m=sim.sensor.wavelength.to("m").value,
+            diameter_m=sim.telescope.diameter_primary.to("m").value,
+            fnum=sim.telescope.f_num,
+            jitter_sigma_mas=jitter_sigma_mas,
+            center=center,
+            oversample=self.oversample)
+
+    def simulate(self, time=None, psf=None, jitter_sigma_mas=None, center=None,
+                 add_noise=True, seed=None):
+        """
+        Simulate a detector image for the given exposure time and PSF.
+
+        Parameters
+        ----------
+        time : float or Quantity, optional
+            Exposure time (seconds if a bare float). Defaults to the
+            Simulation's meta['time'].
+        psf : PSFSource, optional
+            PSF model to render. Defaults to AiryPSF() (diffraction limited).
+        jitter_sigma_mas : float, optional
+            Override the telescope jitter (mas). Defaults to the telescope value.
+        center : tuple, optional
+            Sub-pixel (cx, cy) center for the PSF. Defaults to the grid center.
+        add_noise : bool, optional
+            If True, apply Poisson shot + dark noise and Gaussian read noise.
+            If False, return the noiseless electron image. Default True.
+        seed : int, optional
+            Seed for the random generator, for reproducible noise.
+
+        Returns
+        -------
+        SimulatedImage
+            Holds the electron image, the noiseless image, and a saturation
+            mask (computed from the returned image_e against adc_max / well).
+        """
+        sim = self.sim
+        if time is None:
+            time = sim.meta.get("time", None)
+        if time is None:
+            raise ValueError("no time given, none set to meta")
+        if not isinstance(time, u.Quantity):
+            time = time * u.second
+
+        if psf is None:
+            psf = AiryPSF()
+        ctx = self._context(jitter_sigma_mas=jitter_sigma_mas, center=center)
+        psf_norm = psf.render(ctx)  # sum = 1
+
+        profile = sim.psf_profile
+        ee_at_aper = profile["ee_at_aper"]
+        num_psf_pixels = profile["num_psf_pixels"]
+        n_pix = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
+
+        if ee_at_aper == 0:
+            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
+
+        count_rates = sim.get_countrates(units="e/s", as_dict=True)
+        # total source electrons (recover total flux from the aperture EE), spread by the PSF
+        source_e_total = (count_rates["source"] / ee_at_aper * time).to(u.electron).value
+        source_image = source_e_total * psf_norm
+
+        # Sky background per pixel: count_rates["background"] is the aperture-integrated
+        # sky rate, so dividing by the aperture pixel count gives the per-pixel sky level,
+        # which is uniform across the whole detector grid. 0 if no background element.
+        if "background" in count_rates:
+            bkg_per_pix = (count_rates["background"] * time / n_pix).to(u.electron).value
+        else:
+            bkg_per_pix = 0.0
+        # dark current per pixel (uniform)
+        dark_per_pix = (sim.sensor.dark_current * time).to(u.electron / u.pix).value
+
+        image_clean = source_image + bkg_per_pix + dark_per_pix
+
+        if add_noise:
+            rng = np.random.default_rng(seed)
+            image_e = rng.poisson(np.clip(image_clean, 0.0, None)).astype(float)
+            read_noise = sim.sensor.read_noise.to(u.electron / u.pix).value
+            image_e = image_e + rng.normal(0.0, read_noise, size=image_e.shape)
+        else:
+            image_e = image_clean.copy()
+
+        gain = sim.sensor.gain.to(u.electron / u.ct).value
+        bias_level = sim.sensor.bias_level.to(u.ct).value
+        adc_max = sim.sensor.adc_max.to(u.ct).value
+        well_depth = sim.sensor.meta.get("well_depth")
+
+        saturation_mask = (image_e / gain) >= adc_max
+        if well_depth is not None:
+            saturation_mask = saturation_mask | (image_e >= well_depth)
+
+        return SimulatedImage(
+            image_e=image_e, image_clean=image_clean, saturation_mask=saturation_mask,
+            gain=gain, bias_level=bias_level, npix=self.npix,
+            pixel_scale_mas=ctx.plate_scale_mas, psf=psf)
+
 
 def howell_center(postage_stamp):
     """
@@ -144,264 +411,6 @@ def apply_nl_scaling(df_nl,data,how='makenonlinear',scale=1):
     #    data_flat_scaled = data_flat * f_nl(np.abs(data_flat))
     data_scaled = data_flat_scaled.reshape(data.shape)
     return data_scaled
-
-class PSFSimulator(object):
-    # Resolve support-data paths relative to this module so imports don't fail
-    _pkg_dir = os.path.dirname(__file__)
-    print(_pkg_dir)
-    _path_nonlinearity = os.path.join(_pkg_dir, 'data', 'sensors', 'qCMOS', 'qCMOS_nonlinearity_scaling.csv')
-    _path_gain_welldepth = os.path.join(_pkg_dir, 'data', 'sensors', 'ZWO_ASI6200MM', 'ZWO_ASI6200MM_Pro_Well_Depth_vs_Gain_Setting.csv')
-    _path_master_flat = os.path.join(_pkg_dir, 'data', 'flats', 'master_flat_1000nm.fits') # 'psfs', '20251029_qCMOSflats', 'flats_1000nm',
-    #FIMG.plot(colorbar=True)
-
-    # Try to read nonlinearity and gain/well-depth tables, but do not raise on import if missing.
-    df_nl = pd.read_csv(_path_nonlinearity, comment='#')
-
-    df_gain_welldepth = pd.read_csv(_path_gain_welldepth, names=['gain_setting', 'well_depth_electrons'], skiprows=1)
-
-    def __init__(self,
-                 wavelength,
-                 diameter,
-                 focal_ratio,
-                 pixel_size,
-                 total_flux,
-                 exp_time,
-                 dark_current_rate,
-                 read_noise_rms,
-                 npix,
-                 verbose=True,
-                 well_depth=16000,
-                 flat_scale=1):
-        """
-        Initialize the PSF Simulator with given parameters.
-        
-        EXAMPLE:
-            PSFSimulator(wavelength=600*u.nm,
-             diameter=0.5*u.m,
-             focal_ratio=8.0,
-             pixel_size=15*u.micron,
-             total_flux=1e6,
-             exp_time=10*u.s,
-             dark_current_rate=0.01*u.electron/u.s,
-             read_noise_rms=5.0*u.electron,
-             npix=101).generate_ideal_psf(plot=True)
-        """
-        self.wavelength = wavelength
-        self.diameter = diameter
-        self.focal_ratio = focal_ratio
-        self.pixel_size = pixel_size
-        self.total_flux = total_flux
-        self.exp_time = exp_time
-        self.dark_current_rate = dark_current_rate
-        self.read_noise_rms = read_noise_rms
-        self.well_depth = well_depth
-        self.npix = npix
-        self.data = np.zeros((self.npix, self.npix))
-        self.data_nonoise = np.zeros((self.npix, self.npix))
-        self._y, self._x = np.mgrid[0:self.npix, 0:self.npix]
-        self.FIMG_flat = FitsImg(filename=self._path_master_flat)
-        self.FIMG_flat.cropcenter(self.npix,self.npix)
-        self.data_master_flat = self.FIMG_flat.data
-        self.flag_noise = False
-        self.flag_jitter = False
-        # scale flat
-        if verbose:
-            print(f"Applying flat scale factor: {flat_scale}")
-        self.data_master_flat = self.data_master_flat * flat_scale - np.nanmedian(self.data_master_flat * flat_scale) + 1
-
-        # Calculate derived parameters
-        self.focal_length = self.diameter * self.focal_ratio
-        self.pixel_scale = airy.calc_plate_scale_from_flength(self.focal_length.value, self.pixel_size.value)
-        # Calculate Airy disk radius (first null) in arcseconds
-        theta_null = np.rad2deg((1.22 * self.wavelength.to(u.m).value / self.diameter.value))*3600 #.to(u.arcsec)
-        # Calculate Airy disk radius in pixels
-        self.radius_in_pixels = (theta_null / self.pixel_scale)
-        
-        if verbose:
-            print(f"Pixel Scale: {self.pixel_scale:.4f} arcseconds/pixel")
-            print(f"Focal Length: {self.focal_length:.4f} m")
-            print(f"Airy Radius (angular): {theta_null:.4f}")
-            print(f"Airy Radius (pixels): {self.radius_in_pixels:.4f}")
-
-    def _plot_nonlinearity_curve(self):
-        """
-        Plot the nonlinearity curve from the loaded DataFrame.
-        #PSF.df_nl['Mean Value (e-)'], PSF.df_nl['Scaling Factor']
-
-        """
-        fig, ax = plt.subplots(dpi=200)
-        ax.plot(self.df_nl['mean_value'], self.df_nl['scaling_factor'], marker='o')
-        ax.set_title("Sensor Nonlinearity Scaling Curve")
-        ax.set_xlabel("Input Signal (electrons)")
-        ax.set_ylabel("Scaling Factor")
-        ax.grid(lw=0.3,alpha=0.3)
-        ax.set_yscale('log')
-        ax.set_xscale('log')
-
-    def get_centroid(self,plot_cross=False,ax=None,plot_lines=False):
-        """
-        Find centroid using Howell centroiding.
-
-        See phothelp for the method
-        """
-        self.xcenter, self.ycenter = howell_center(self.data)
-        if plot_cross:
-            self.plot_data(ax=ax)
-            self.ax.scatter(self.xcenter,self.ycenter,marker="+",s=50,color="green")
-        if plot_lines:
-            self.plot(ax=ax)
-            self.ax.hlines(int(self.ycenter),0,self.data.shape[1],color='#1f77b4',lw=1)
-            self.ax.vlines(int(self.xcenter),0,self.data.shape[0],color='#1f77b4',lw=1)
-        return self.xcenter, self.ycenter
-
-    def apply_jitter(self,jitter_mas,data=None,verbose=True):
-        """
-        Apply jitter to the input data.
-
-        INPUT:
-        - jitter_mas: The amount of jitter to apply in milliarcseconds.
-        - data: The data to which jitter will be applied. If None, uses self.data.
-        - verbose: If True, prints information about the jitter application.
-        """
-        self.flag_jitter = True
-        if data is None:
-            data = self.data
-        if verbose:
-            print('Applying jitter {}mas'.format(jitter_mas))
-        return apply_jitter(data,jitter_mas=jitter_mas,pixel_scale=self.pixel_scale*1000)
-
-    def simulate_psf(self,center=None,jitter_mas=0,apply_nonlinearity=True,verbose=True,nl_scale=10,filename=None,src_micron_per_pixel=4,addnoise=True,skiprows=22,calculate_radial=False):
-        """
-        Generate the ideal PSF based on the current parameters.
-        """
-        # Center the PSF in the middle of the grid
-        if center is None:
-            c = (self.npix - 1) / 2.0
-            center = (c,c)
-
-        # Instantiate the model
-        # The 'radius' parameter is the radius to the first null, in pixels.
-        if filename is None:
-            if verbose:
-                print('Assuming AiryDisk2D PSF')
-            self.airy_psf_model = AiryDisk2D( amplitude=1.0,x_0=center[0],y_0=center[1],radius=self.radius_in_pixels)
-
-            # Evaluate the model on the grid
-            self.psf = self.airy_psf_model(self._x, self._y)
-
-            # Normalize the PSF so the sum of all pixels is 1
-            self.psf /= np.sum(self.psf)
-
-            # Step 6a: Create the mean signal image
-            # Scale the normalized PSF by the total flux
-            self.data_nonoise = self.psf * self.total_flux
-        else:
-            self.filename = filename
-            self.cpsf = CustomPSF(self.filename, src_micron_per_pix=src_micron_per_pixel, telescope_diameter_m=self.diameter.value, 
-                                  fnum=self.focal_ratio, target_pixel_size_micron=self.pixel_size.value,skiprows=skiprows)
-            self.data_nonoise = self.cpsf.resample_to_grid(npix=self.npix, total_flux=self.total_flux, center=center)
-
-        self.data = np.copy(self.data_nonoise)
-
-        # Apply jitter
-        if jitter_mas > 0:
-            self.data = self.apply_jitter(jitter_mas=jitter_mas,data=self.data_nonoise,verbose=verbose)
-            self.data_nonoise_wjitter = np.copy(self.data)
-
-        # add noise
-        if addnoise:
-            self.add_noise(verbose=verbose,nl_scale=nl_scale)
-
-        self.psf_m_saturated = self.data > self.well_depth
-        self.psf_num_saturated = np.sum(self.psf_m_saturated)
-        if self.psf_num_saturated > 0:
-            print(f"Warning: {self.psf_num_saturated} pixels exceed the well depth of {self.well_depth} electrons.")
-        self.psf_max = np.max(self.data)
-        self.psf_95th = np.percentile(self.data,95)
-        if calculate_radial:
-            self.psf_radial_r, self.psf_radial_y, self.psf_hwhm = FitsImg(data=self.data).get_radial_profile(rmax=self.npix/2-1,plot=False,z=2.,return_hwzm=True,annulus_width=1,subtract_min=True)
-            if np.size(self.psf_hwhm) > 1:
-                print('WARNING psf_hwhm has multiple values, taking first one')
-                self.psf_hwhm = self.psf_hwhm[0]
-            else:
-                self.psf_hwhm = float(self.psf_hwhm)
-        else:
-            self.psf_radial_r, self.psf_radial_y, self.psf_hwhm = -999, -999, -999
-        self.psf_fwhm = self.psf_hwhm * 2
-        self.psf_fwhm_mas = self.psf_fwhm * self.pixel_scale * 1000
-
-        if verbose:
-            print(f"PSF max: {self.psf_max:.2f} e-")
-            print(f"PSF 95th percentile: {self.psf_95th:.2f} e-")
-            print(f"PSF HWHM: {self.psf_hwhm:.2f} pixels")
-            print(f"PSF FWHM: {self.psf_fwhm:.2f} pixels")
-            print(f"PSF FWHM: {self.psf_fwhm_mas:.2f} mas")
-
-    def add_noise(self,verbose=True,nl_scale=10,):
-        """
-        NOTE: Assumes no noise has been added
-        """
-        if self.flag_noise is False:
-            self.flag_noise = True
-
-            if verbose:
-                print('Adding noise')
-            # Step 6b: Create the mean dark current image
-            dark_signal_e = self.dark_current_rate * self.exp_time
-
-            # Step 6c: Create the total mean signal (Star + Dark)
-            self.total_mean_signal = self.data + dark_signal_e.value
-            #self.total_mean_signal_nl = apply_nl_scaling(self.df_nl,self.total_mean_signal,how='makenonlinear')
-
-            #if apply_nonlinearity:
-            #    # Step 6c.1: Apply non-linearity scaling
-            #    total_mean_signal = apply_nl_scaling(self.df_nl,total_mean_signal,how='makenonlinear')
-            #    if verbose:
-            #        print("Applied non-linearity scaling to total mean signal.")
-
-            # Step 6d: Apply Poisson noise (Shot noise from star + Dark noise)
-            # np.random.poisson takes the mean (lambda) and returns a random variate.
-            # This correctly simulates noise from both the star and the dark current.
-            self.noisy_signal = np.random.poisson(self.total_mean_signal)
-            self.noisy_signal_nl = apply_nl_scaling(self.df_nl,self.noisy_signal,how='makenonlinear',scale=1)
-
-            # Step 6e: Apply Gaussian read noise
-            # Create a map of Gaussian noise (mean=0, stddev=READ_NOISE_RMS)
-            read_noise = np.random.normal(0.0, self.read_noise_rms.value, size=self.noisy_signal.shape)
-
-            # Step 6f: Add read noise to the image
-            # Convert noisy_signal to float to allow for negative values
-            self.data = self.noisy_signal.astype(float) + read_noise
-            self.data_nl = self.noisy_signal_nl.astype(float) + read_noise
-            self.data_nlcorr = apply_nl_scaling(self.df_nl,self.data_nl,how='correctnonlinear',scale=nl_scale)
-
-            # Flat
-            self.data_flat = self.data/self.data_master_flat
-            self.data_nl_flat = self.data_nl/self.data_master_flat
-            self.data_nlcorr_flat = self.data_nlcorr/self.data_master_flat
-
-        else:
-            print('Noise already applied, exiting')
-            sys.exit('Noise already applied')
-
-    def plot_data(self,data=None,ax=None,title=''):
-        """
-        Plot the current `self.data` image.
-        """
-        if ax is None:
-            fig, ax = plt.subplots(dpi=200)
-        # --- 4. Plot the Ideal PSF --
-        if data is None:
-            data = self.data
-        ax.imshow(data, origin='lower', interpolation='nearest', cmap='viridis')
-        ax.set_title(title)
-        ax.set_xlabel("Pixel")
-        ax.set_ylabel("Pixel")
-        ax.figure.colorbar(ax.images[0], ax=ax, label="Signal (electrons)")
-        ax.grid(lw=0)
-
-
-
 
 
 class FitsImgList(object):
@@ -766,168 +775,77 @@ class FitsImg(object):
 
 
 
-def get_micron_to_mas(D_m, F):
-    D = D_m * u.m
-    f_mm = (D * F).to(u.mm).value             # focal length in mm (float)
-    micron_to_mas = 206265.0 / f_mm          # mas per micron
-    return micron_to_mas
-
-class CustomPSF(object):
-    """Updated CustomPSF: center is in resampled (output) pixel coords.
-
-    Constructor inputs:
-      - filename: path to whitespace-delimited text file
-      - src_micron_per_pix: micron per source pixel
-      - telescope_diameter_m, fnum -> focal_length_m = D * fnum
-      - target_pixel_size_micron: desired output pixel size in microns
-
-    Use `resample_to_grid(target_npix, center=(cx_out, cy_out))` where
-    center is in output pixels. If center=None, source center maps to the
-    output center.
-
-    EXAMPLE:
-        # Example usage of updated class (use this cell instead of the old definition):
-        CPSF2 = CustomPSF(files[0], src_micron_per_pix=4.0, telescope_diameter_m=3.0, fnum=15.0, target_pixel_size_micron=3.76)
-        # Request the source center to appear at output pixel (10,10):
-        data_resampled = CPSF2.resample_to_grid(target_npix=100, center=None)
-        CPSF2.plot_resampled()
-        fimg = FitsImg(data=data_resampled)
-        fimg.plot()
-        fimg.get_radial_profile(plot=True)
+def aperture_snr_radial(psf_norm, plate_scale_mas, source_e_total,
+                        diffuse_per_pix, dark_per_pix, read_noise):
     """
-    def __init__(self, filename, src_micron_per_pix, telescope_diameter_m, fnum, target_pixel_size_micron, skiprows=22, encoding="utf-16", verbose=True):
-        self.filename = filename
-        self.src_micron_per_pix = float(src_micron_per_pix)
-        self.telescope_diameter_m = telescope_diameter_m
-        self.fnum = fnum
-        self.focal_length_m = telescope_diameter_m * fnum
-        self.micron_to_mas = get_micron_to_mas(self.telescope_diameter_m, self.fnum)
-        self.target_pixel_size_micron = target_pixel_size_micron
-        self.target_pixel_size_mas = float(target_pixel_size_micron) * self.micron_to_mas
-        if verbose:
-            print(f'CustomPSF_v2: micron_to_mas={self.micron_to_mas:.4f} mas/um; target_pixel_size_mas={self.target_pixel_size_mas:.4f} mas/pix')
-        # load data
-        try:
-            self.data = pd.read_csv(self.filename, sep=r'\s+', skiprows=skiprows, encoding=encoding).values.astype(float)
-        except Exception:
-            self.data = np.loadtxt(self.filename, skiprows=skiprows)
-        self.data = np.asarray(self.data, dtype=float)
-        if self.data.ndim != 2:
-            raise ValueError(f'CustomPSF_v2: loaded data must be 2D, got shape={self.data.shape}')
-        self.resampled = None
+    SNR as a function of circular-aperture radius for a rendered PSF.
 
-    def _center_crop_or_pad(self, img, out_shape, center=None, fill=0.0, interp_order=3):
-        """
-        Center crop or pad the input image to the desired output shape.
-        """
-        ny, nx = img.shape
-        oy, ox = out_shape
-        # center is (cx, cy)
-        # Allow sub-pixel centers by integer cropping/padding then
-        # applying a fractional shift to align the requested center.
-        # center is provided as (cx, cy) in image coordinates (x,y).
-        if center is None:
-            cy = (ny - 1) / 2.0; cx = (nx - 1) / 2.0
-        else:
-            cx, cy = float(center[0]), float(center[1])
+    The PSF (sum=1) sets how much source light falls inside each radius; the
+    per-pixel diffuse (sky+host), dark, and read-noise terms set the background
+    noise that grows with the number of aperture pixels.
 
-        # integer window start/stop
-        y0 = int(np.floor(cy - (oy - 1) / 2.0))
-        x0 = int(np.floor(cx - (ox - 1) / 2.0))
-        y1 = y0 + oy; x1 = x0 + ox
+    Parameters
+    ----------
+    psf_norm : ndarray
+        Normalized (sum=1) PSF on the detector grid.
+    plate_scale_mas : float
+        Detector plate scale, mas/pixel (to report radii in mas).
+    source_e_total : float
+        Total source electrons (all of the PSF, before aperture clipping).
+    diffuse_per_pix, dark_per_pix : float
+        Per-pixel sky+host and dark-current electrons.
+    read_noise : float
+        Read noise (electrons rms per pixel).
 
-        out = np.full((oy, ox), fill, dtype=img.dtype)
-        sy0 = max(0, y0); sx0 = max(0, x0)
-        sy1 = min(ny, y1); sx1 = min(nx, x1)
-        if (sy1 > sy0) and (sx1 > sx0):
-            oy0 = sy0 - y0; ox0 = sx0 - x0
-            out[oy0:oy0 + (sy1 - sy0), ox0:ox0 + (sx1 - sx0)] = img[sy0:sy1, sx0:sx1]
+    Returns
+    -------
+    dict of ndarrays, sorted by ascending radius:
+        'r_mas', 'enclosed_fraction', 'n_pix', 'signal_e', 'noise_e', 'snr'.
+    """
+    psf_norm = np.asarray(psf_norm, dtype=float)
+    if psf_norm.ndim != 2 or psf_norm.shape[0] != psf_norm.shape[1]:
+        raise ValueError(f"psf_norm must be a square 2D array, got shape {psf_norm.shape}")
+    npix = psf_norm.shape[0]
+    c = (npix - 1) / 2.0
+    yy, xx = np.mgrid[0:npix, 0:npix]
+    r_pix = np.sqrt((xx - c) ** 2 + (yy - c) ** 2).ravel()
+    order = np.argsort(r_pix, kind="stable")
 
-        # Compute fractional offset of the true center within the cropped window
-        center_in_out_y = cy - y0
-        center_in_out_x = cx - x0
-        desired_center_y = (oy - 1) / 2.0
-        desired_center_x = (ox - 1) / 2.0
+    r_sorted = r_pix[order]
+    enclosed = np.cumsum(psf_norm.ravel()[order])           # fraction (psf sums to 1)
+    n_pix = np.arange(1, r_sorted.size + 1)
 
-        shift_y = desired_center_y - center_in_out_y
-        shift_x = desired_center_x - center_in_out_x
+    signal = source_e_total * enclosed
+    per_pix_var = diffuse_per_pix + dark_per_pix + read_noise ** 2
+    noise = np.sqrt(signal + per_pix_var * n_pix)
+    snr = np.divide(signal, noise, out=np.zeros_like(signal), where=noise > 0)
 
-        # If there is a fractional component, apply a sub-pixel shift to align
-        # the requested center to the output center. Use order=3 spline by default.
-        if (abs(shift_y) > 1e-9) or (abs(shift_x) > 1e-9):
-            out = shift(out, shift=(shift_y, shift_x), order=interp_order, mode='constant', cval=fill)
+    return {"r_mas": r_sorted * plate_scale_mas,
+            "enclosed_fraction": enclosed,
+            "n_pix": n_pix,
+            "signal_e": signal,
+            "noise_e": noise,
+            "snr": snr}
 
-        return out
 
-    def resample_to_grid(self, npix, total_flux, center=None, interp_order=1):
-        """
-        Resample the PSF onto an output grid of size npix.
+def select_aperture(profile, r_aper_mas=None, ee_frac=None, optimize=False):
+    """
+    Index into an `aperture_snr_radial` profile for the chosen aperture mode.
 
-        `center` is in output (resampled) pixel coordinates (cx_out, cy_out).
-        The routine maps the source center to the requested output pixel.
-        """
-        src_pixel_scale_mas = float(self.src_micron_per_pix) * self.micron_to_mas
-        zoom_factor = float(src_pixel_scale_mas) / float(self.target_pixel_size_mas)
-        if zoom_factor <= 0:
-            raise ValueError('Computed zoom_factor <= 0')
-        img_zoomed = zoom(self.data, zoom_factor, order=interp_order, mode='constant', cval=0.0)
-
-        # source center in zoomed coords
-        cx_src = (self.data.shape[1] - 1) / 2.0
-        cy_src = (self.data.shape[0] - 1) / 2.0
-        cx_src_z = cx_src * zoom_factor
-        cy_src_z = cy_src * zoom_factor
-
-        # output center coords
-        out_center_x = (npix - 1) / 2.0
-        out_center_y = (npix - 1) / 2.0
-
-        if center is None:
-            cx_zoom = cx_src_z
-            cy_zoom = cy_src_z
-        else:
-            cx_out = float(center[0])
-            cy_out = float(center[1])
-            dx_out = cx_out - out_center_x
-            dy_out = cy_out - out_center_y
-            # place source center in zoomed coords so it appears at requested output pixel
-            cx_zoom = cx_src_z - dx_out
-            cy_zoom = cy_src_z - dy_out
-
-        out = self._center_crop_or_pad(img_zoomed, (npix, npix), center=(cx_zoom, cy_zoom), fill=0.0, interp_order=interp_order)
-
-        m = np.sum(out < 0)
-        print('Number of negative pixels after resampling: {}'.format(m))
-        # normalize:
-        s = out.sum()
-        if s > 0:
-            out = out / s
-        out = out * total_flux
-        self.data_resampled = np.abs(out)
-        return self.data_resampled
-
-    def plot_resampled(self, title='Resampled PSF', cmap='viridis'):
-        """
-        Plot the original and resampled PSF images.
-
-        INPUTS:
-            title - Title for the resampled PSF plot
-            cmap - Colormap to use for the plots
-        """
-        if self.data_resampled is None:
-            raise RuntimeError('No resampled image found. Call resample_to_grid(...) first')
-        fig, ax = plt.subplots()
-        ax.imshow(self.data, origin='lower', cmap=cmap, interpolation='nearest')
-        ax.set_title('Original PSF')
-        plt.colorbar(ax.images[0], ax=ax, label='Normalized flux')
-        plt.show()
-
-        fig, ax = plt.subplots()
-        ax.imshow(self.data_resampled, origin='lower', cmap=cmap, interpolation='nearest')
-        ax.set_title(title)
-        plt.colorbar(ax.images[0], ax=ax, label='Normalized flux')
-        plt.show()
-
+    Precedence: optimize (max SNR) > explicit r_aper_mas > ee_frac.
+    Raises ValueError if no mode is given.
+    """
+    if optimize:
+        return int(np.argmax(profile["snr"]))
+    if r_aper_mas is not None:
+        r_mas = profile["r_mas"]
+        idx = int(np.searchsorted(r_mas, r_aper_mas, side="right") - 1)
+        return int(np.clip(idx, 0, r_mas.size - 1))
+    if ee_frac is not None:
+        enc = profile["enclosed_fraction"]
+        idx = int(np.searchsorted(enc, ee_frac))
+        return int(np.clip(idx, 0, enc.size - 1))
+    raise ValueError("select_aperture: specify optimize, r_aper_mas, or ee_frac.")
 
 
 def calc_hwzm(x,y,z=20):

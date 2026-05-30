@@ -802,21 +802,10 @@ class WCCETC( object ):
             flat_scale - flat field scale
 
         """
-        self.PSF = psfsim.PSFSimulator(wavelength=wavelength*u.nm,
-                                       diameter=self.diameter_primary*u.m,
-                                       focal_ratio=self.f_num,
-                                       pixel_size= self.pixel_size.value*u.micron,
-                                       total_flux=self.count_rate_e_per_s_total.value*exptime,
-                                       exp_time=exptime*u.s,
-                                       dark_current_rate=self.dark_current.value*u.electron/u.s,
-                                       read_noise_rms=self.read_noise.value*u.electron,
-                                       npix=npix,
-                                       flat_scale=flat_scale)
-        self.PSF.simulate_psf(filename=filename_psf,
-                              jitter_mas=jitter_mas,
-                              center=center,
-                              src_micron_per_pixel=src_micron_per_pixel)
-        return self.PSF.data_flat
+        raise NotImplementedError(
+            "simulate_psf has been removed from the deprecated wcc_etc module. "
+            "Use wcc_etc.ImageSimulator.from_sensor_and_scene(...).simulate(...) instead."
+        )
 
     def aperture_photometry(self, r_ap, r_in, r_out, data=None, center=None, gain=1, plot=True,**kwargs):
         """

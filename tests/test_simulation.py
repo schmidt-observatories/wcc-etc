@@ -155,3 +155,67 @@ def test_is_saturated_accepts_array_time():
     assert np.shape(result) == (2,)
     assert bool(result[0]) is False
     assert bool(result[1]) is True
+
+
+def test_get_image_snr_returns_expected_keys():
+    sim = _bright_sim(16)
+    out = sim.get_image_snr(time=60)
+    assert set(out) >= {"snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas", "n_pix"}
+    assert 0 < out["enclosed_fraction"] <= 1
+    assert out["n_pix"] >= 1
+    assert out["snr"] > 0
+
+
+def test_get_image_snr_matches_get_snr_in_focus():
+    sim = _bright_sim(16)
+    for t in [30, 300]:
+        for m in [16, 20]:
+            sim.update(source__mag=m)
+            etc = sim.get_snr(t)
+            etc = float(etc.value) if hasattr(etc, "value") else float(etc)
+            img = sim.get_image_snr(time=t)["snr"]
+            assert img == pytest.approx(etc, rel=0.03)
+
+
+def test_get_image_snr_ee_frac_aperture():
+    sim = _bright_sim(16)
+    out = sim.get_image_snr(time=60, ee_frac=0.9)
+    assert out["enclosed_fraction"] >= 0.9
+
+
+def test_get_image_snr_optimize_at_least_default():
+    sim = _bright_sim(16)
+    base = sim.get_image_snr(time=60)["snr"]
+    opt = sim.get_image_snr(time=60, optimize=True)["snr"]
+    assert opt >= base - 1e-9
+
+
+def test_get_image_snr_defocus_lower_at_fixed_aperture():
+    sim = _bright_sim(16)
+    airy = sim.get_image_snr(time=60, r_aper_mas=70)["snr"]
+    defo = sim.get_image_snr(time=60, r_aper_mas=70,
+                             psf=wcc_etc.DefocusPSF(wcc_etc.DEFOCUS_2WAVE_PATH))["snr"]
+    assert defo < airy
+
+
+def test_get_image_snr_optimize_defocus_uses_larger_radius():
+    sim = _bright_sim(16)
+    r_airy = sim.get_image_snr(time=60, optimize=True)["r_aper_mas"]
+    r_defo = sim.get_image_snr(time=60, optimize=True,
+                               psf=wcc_etc.DefocusPSF(wcc_etc.DEFOCUS_2WAVE_PATH))["r_aper_mas"]
+    assert r_defo > r_airy
+
+
+def test_get_image_snr_runs_on_qcmos():
+    sim = _bright_sim(16, sensor="qcmos:r")
+    assert sim.get_image_snr(time=60)["snr"] > 0
+
+
+def test_get_image_snr_no_background_runs():
+    # scene with no background exercises the diffuse_per_pix == 0 path
+    scene = wcc_etc.get_scene(name='G5V', mag=16, host=None, background=None,
+                              bandpass='johnson_r')
+    sim = wcc_etc.Simulation.from_sensor_and_scene('sony:r', scene)
+    out = sim.get_image_snr(time=60)
+    assert out['snr'] > 0
+    assert out['n_pix'] >= 1

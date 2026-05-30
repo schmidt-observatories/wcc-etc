@@ -7,6 +7,11 @@ __all__ = [ "__version__"]
 from .wcc_etc import *
 from .io import read_config, get_sensor_config, get_pickles_spectrum_filename
 from .simulation import Simulation
+from .psfsim import (
+    ImageSimulator, SimulatedImage,
+    AiryPSF, DefocusPSF, CustomPSF,
+    DEFOCUS_1WAVE_PATH, DEFOCUS_2WAVE_PATH,
+)
 from .sensor import Sensor
 from .scene import *
 from .astro import *
