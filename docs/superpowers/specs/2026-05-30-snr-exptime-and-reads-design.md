@@ -21,15 +21,21 @@ which matters in the read-noise-dominated (short-exposure / faint) regime.
 
 ## Reads model (agreed)
 
-`n_reads = N` coadds N frames spanning the **total** integration time `t`.
-Signal, Poisson, and dark accumulate over the full `t`; read noise is incurred
-once per frame:
+`n_reads = N` coadds N frames spanning the **total** integration time `t`, i.e.
+each frame integrates `t/N`. Signal, Poisson, and dark accumulate over the full
+`t`; read noise is incurred once per frame:
 
 ```
 variance = R_scene·t  +  n_pix·(R_dark·t  +  N·RN²)
 ```
 
 (Equivalently, effective read noise `RN·√N`.)
+
+Saturation, by contrast, is a **per-frame** phenomenon: the ADC clips each
+individual readout at `adc_max` and the coadd sums the already-clipped frames,
+so only the charge in a single `t/N` frame matters. Consequently more reads →
+shorter frames → less saturation (the reason observers split a long integration
+into coadds to keep a bright star under full well).
 
 ## Shared math
 
@@ -83,6 +89,23 @@ positive root.
     radius that reaches the target fastest). Still closed-form — no iteration.
   - Returns `{'time_s', 'snr', 'r_aper_mas', 'enclosed_fraction', 'n_pix'}`.
 
+### Saturation (per-frame)
+Saturation is evaluated on a single `t/N` frame, not the coadded total:
+
+```
+peak_e_per_frame   = (R_src_peak + R_bkg/pix + R_dark) · (t / N)
+peak_adu_per_frame = peak_e_per_frame / gain + bias       # bias is per readout
+is_saturated       = peak_adu_per_frame >= adc_max
+```
+
+- `get_peak_pixel(time=None, units="adu", n_reads=None)` — scale the source /
+  background / dark electron terms by `t/N`; bias and `adc_max` are per-frame
+  (unchanged). `N=1` is identical to today.
+- `is_saturated(time=None, n_reads=None)` — per-frame peak vs `adc_max`.
+
+Saturation stays a separate, explicit check; the SNR / exptime methods do **not**
+auto-flag saturation.
+
 ### Naming
 `get_exptime_for_snr` and `get_image_exptime_for_snr`.
 
@@ -99,10 +122,13 @@ positive root.
   `n_reads` appears in `Simulation.mutable_parameters`.
 - **Cross-check:** in-focus Airy, default aperture — analytic inverse ≈ PSF-aware
   inverse (~1%, consistent with the existing forward cross-check).
+- **Saturation per-frame:** a peak that saturates at `N=1` becomes unsaturated at
+  large `N` (per-frame charge drops ∝ 1/N); `get_peak_pixel` scales ∝ 1/N above
+  bias; `N=1` reproduces current `get_peak_pixel`/`is_saturated` exactly.
 - **Edge:** zero source rate → `inf`.
 
 ## Out of scope (YAGNI)
 
 Per-read time model (we adopted total-time coadds), Fowler/non-destructive
-read-noise reduction, saturation interaction with `n_reads`, and dithering
-between frames.
+read-noise reduction, auto-flagging saturation inside the SNR/exptime methods,
+and dithering between frames.
