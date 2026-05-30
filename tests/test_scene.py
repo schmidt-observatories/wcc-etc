@@ -122,6 +122,107 @@ def test_explicit_none_mag_does_not_warn(recwarn):
     assert not any("not mag in self.meta" in str(w.message) for w in recwarn.list)
 
 
+def _flam_ratio(spectrum, l1, l2):
+    f = spectrum(np.array([l1, l2]) * u.AA, flux_unit=su.FLAM).value
+    return f[0] / f[1]
+
+
+def _planck_ratio(l1, l2, teff):
+    from astropy.constants import h, c, k_B
+    def b(lam_AA):
+        lam = (lam_AA * u.AA).to(u.m).value
+        return 1.0 / lam ** 5 / np.expm1((h.value * c.value) / (lam * k_B.value * teff))
+    return b(l1) / b(l2)
+
+
+def test_mutable_parameters_are_type_specific_and_lock_the_type():
+    bb = SceneElement.from_config({"spectrum": "blackbody", "teff": 5777,
+                                   "mag": 15, "bandpass": "johnson_v"})
+    pl = SceneElement.from_config({"spectrum": "powerlaw", "alpha": -1.0,
+                                   "mag": 15, "bandpass": "johnson_v"})
+    assert "teff" in bb.mutable_parameters
+    assert "alpha" not in bb.mutable_parameters
+    assert {"alpha", "lambda_ref"} <= set(pl.mutable_parameters)
+    # the spectrum *type* is fixed at creation
+    assert "spectrum" not in bb.mutable_parameters
+    assert "spectrum" not in pl.mutable_parameters
+
+
+def test_cannot_update_spectrum_type(recwarn):
+    bb = SceneElement.from_config({"spectrum": "blackbody", "teff": 5777,
+                                   "mag": 15, "bandpass": "johnson_v"})
+    before = _flam_ratio(bb.get_spectrum(apply_mag=False), 4500, 7500)
+    bb.update(spectrum="powerlaw")
+    assert any("not a mutable parameter" in str(w.message) for w in recwarn.list)
+    # still a blackbody with the same shape
+    after = _flam_ratio(bb.get_spectrum(apply_mag=False), 4500, 7500)
+    assert np.isclose(after, before, rtol=1e-6)
+
+
+def test_update_blackbody_teff_rebuilds_spectrum():
+    bb = SceneElement.from_config({"spectrum": "blackbody", "teff": 5777,
+                                   "mag": 15, "bandpass": "johnson_v"})
+    assert np.isclose(_flam_ratio(bb.get_spectrum(apply_mag=False), 4500, 7500),
+                      _planck_ratio(4500, 7500, 5777), rtol=1e-3)
+    bb.update(teff=3000)
+    assert np.isclose(_flam_ratio(bb.get_spectrum(apply_mag=False), 4500, 7500),
+                      _planck_ratio(4500, 7500, 3000), rtol=1e-3)
+
+
+def test_update_powerlaw_alpha_rebuilds_spectrum():
+    pl = SceneElement.from_config({"spectrum": "powerlaw", "alpha": -1.0,
+                                   "mag": 15, "bandpass": "johnson_v"})
+    assert np.isclose(_flam_ratio(pl.get_spectrum(apply_mag=False), 4500, 7500),
+                      (4500 / 7500) ** -1.0, rtol=1e-3)
+    pl.update(alpha=2.0)
+    assert np.isclose(_flam_ratio(pl.get_spectrum(apply_mag=False), 4500, 7500),
+                      (4500 / 7500) ** 2.0, rtol=1e-3)
+
+
+def test_update_powerlaw_lambda_ref_rebuilds_spectrum():
+    pl = SceneElement.from_config({"spectrum": "powerlaw", "alpha": -1.0,
+                                   "lambda_ref": 5500, "mag": 15, "bandpass": "johnson_v"})
+    # unnormalized amplitude is 1 FLAM at the pivot wavelength
+    sp = pl.get_spectrum(apply_mag=False)
+    assert np.isclose(sp(5500 * u.AA, flux_unit=su.FLAM).value, 1.0, rtol=1e-6)
+    pl.update(lambda_ref=6000)
+    sp = pl.get_spectrum(apply_mag=False)
+    assert np.isclose(sp(6000 * u.AA, flux_unit=su.FLAM).value, 1.0, rtol=1e-6)
+
+
+def test_update_flat_unit_rebuilds_spectrum():
+    fl = SceneElement.from_config({"spectrum": "flat", "flat_unit": "fnu",
+                                   "mag": 15, "bandpass": "johnson_v"})
+    sp = fl.get_spectrum(apply_mag=False)
+    assert sp(4000 * u.AA, flux_unit=su.FLAM).value > sp(8000 * u.AA, flux_unit=su.FLAM).value
+    fl.update(flat_unit="flam")
+    sp = fl.get_spectrum(apply_mag=False)
+    flam = sp(np.array([4000.0, 6000.0, 8000.0]) * u.AA, flux_unit=su.FLAM).value
+    assert np.allclose(flam, flam[0], rtol=1e-3)
+
+
+def test_update_emission_lines_rebuilds_spectrum():
+    em = SceneElement.from_config({"spectrum": "emission",
+                                   "lines": [{"wave": 6563, "flux": 1e-15, "fwhm": 3}],
+                                   "mag": None})
+    p0 = em.get_spectrum()(6563 * u.AA, flux_unit=su.FLAM).value
+    em.update(lines=[{"wave": 6563, "flux": 5e-15, "fwhm": 3}])
+    p1 = em.get_spectrum()(6563 * u.AA, flux_unit=su.FLAM).value
+    assert np.isclose(p1 / p0, 5.0, rtol=1e-3)
+
+
+def test_scene_update_rebuilds_source_spectrum():
+    import wcc_etc
+    scene = wcc_etc.get_scene(name="blackbody", mag=15, teff=5777, bandpass="johnson_r",
+                              background="zodi",
+                              background_prop={"bandpass": "johnson_r", "mag": 22.5})
+    before = _flam_ratio(scene.source.get_spectrum(apply_mag=False), 4500, 7500)
+    scene.update(source__teff=3000)
+    after = _flam_ratio(scene.source.get_spectrum(apply_mag=False), 4500, 7500)
+    assert not np.isclose(after, before, rtol=1e-3)
+    assert np.isclose(after, _planck_ratio(4500, 7500, 3000), rtol=1e-3)
+
+
 def test_broadcast_mapping_scalar_and_array():
     # scalar to many
     v = 5

@@ -83,6 +83,15 @@ _SPECTRUM_BUILDERS = {"blackbody": _build_blackbody,
                       "powerlaw": _build_powerlaw,
                       "emission": _build_emission}
 
+# Shape-defining parameters each parametric spectrum accepts. These become
+# updatable for a source of that type (see SceneElement.mutable_parameters);
+# changing one rebuilds the spectrum. The spectrum *type* itself is not here,
+# so it cannot be changed after creation.
+_SPECTRUM_PARAMS = {"blackbody": ["teff"],
+                    "flat": ["flat_unit"],
+                    "powerlaw": ["alpha", "lambda_ref"],
+                    "emission": ["lines"]}
+
 # Top level
 
 def get_scene(name, mag, 
@@ -216,7 +225,9 @@ class SceneElement(_MetaHolder_):
     mag_is_surface_brightness : bool
         Whether the magnitude is defined per unit area.
     """
-    _mutable_parameters = ["spectrum", "mag", "magsys", "bandpass", "surface_brightness"]
+    # NOTE: "spectrum" is deliberately absent — the source *type* is fixed at
+    # creation. Type-specific shape parameters are added in mutable_parameters.
+    _mutable_parameters = ["mag", "magsys", "bandpass", "surface_brightness"]
     
     def __init__(self, spectrum, mag, 
                  magsys="ABmag", bandpass="johnson_v", 
@@ -308,9 +319,26 @@ class SceneElement(_MetaHolder_):
 
         self._spectrum = spectrum
 
+    def update(self, reset=False, **kwargs):
+        """
+        Update mutable parameters, rebuilding the spectrum if a shape parameter
+        changed.
+
+        The spectrum *type* is fixed at creation, so ``spectrum`` is not mutable.
+        Updating a type-specific shape parameter (e.g. ``teff``, ``alpha``,
+        ``lines``) rebuilds the underlying synphot spectrum; ``mag`` / ``bandpass``
+        / etc. take effect at ``get_spectrum`` time and need no rebuild.
+        """
+        updated = super().update(reset=reset, **kwargs)
+        name = self.meta.get("spectrum")
+        shape_params = _SPECTRUM_PARAMS.get(name.lower(), []) if isinstance(name, str) else []
+        if any(key in shape_params for key in updated):
+            self.set_spectrum(name)
+        return updated
+
     # ------- #
     # GETTER  #
-    # ------- # 
+    # ------- #
     def get_mag(self, area=None):
         """
         Return the actual magnitude, accounting for the area if mag is a surface brightness.
@@ -492,7 +520,21 @@ class SceneElement(_MetaHolder_):
 
     # ============= #
     #  Properties   #
-    # ============= # 
+    # ============= #
+    @property
+    def mutable_parameters(self):
+        """
+        Parameters that can be updated. Always the common normalization
+        parameters, plus the shape parameters specific to this source's
+        spectrum type (e.g. ``teff`` for a blackbody). The spectrum *type*
+        itself is fixed at creation and is not included.
+        """
+        params = list(self._mutable_parameters)
+        name = self.meta.get("spectrum")
+        if isinstance(name, str):
+            params += _SPECTRUM_PARAMS.get(name.lower(), [])
+        return params
+
     @property
     def spectrum(self):
         """
