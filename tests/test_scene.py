@@ -2,6 +2,7 @@ from wcc_etc.io import expand_path
 import numpy as np
 import numpy as np
 import astropy.units as u
+from scipy.integrate import trapezoid
 from synphot import SpectralElement, Observation, units as su
 from wcc_etc.scene import broadcast_mapping, SceneElement, Scene
 
@@ -85,10 +86,10 @@ def test_emission_line_recovers_absolute_flux():
     sp = se.get_spectrum()  # mag is None -> no normalization
     w = np.arange(6500, 6630, 0.05) * u.AA
     flam = sp(w, flux_unit=su.FLAM).value  # erg/s/cm^2/A
-    integral = np.trapz(flam, w.value)     # erg/s/cm^2
+    integral = trapezoid(flam, w.value)     # erg/s/cm^2
     assert np.isclose(integral, flux, rtol=1e-2)
     # line centroid sits at the requested wavelength
-    centroid = np.trapz(flam * w.value, w.value) / integral
+    centroid = trapezoid(flam * w.value, w.value) / integral
     assert abs(centroid - 6563) < 0.5
 
 
@@ -100,7 +101,7 @@ def test_emission_lines_sum():
     sp = se.get_spectrum()
     w = np.arange(6400, 6700, 0.05) * u.AA
     flam = sp(w, flux_unit=su.FLAM).value
-    integral = np.trapz(flam, w.value)
+    integral = trapezoid(flam, w.value)
     assert np.isclose(integral, 1.4e-15, rtol=1e-2)
 
 

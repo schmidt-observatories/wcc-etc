@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 import astropy.units as u
 from astropy.constants import h, c, k_B
+from scipy.integrate import trapezoid
 from synphot import units as su
 
 from wcc_etc.scene import SceneElement
@@ -142,8 +143,8 @@ def test_emission_two_line_flux_ratio_is_preserved():
     # integrate each well-separated line independently and compare the ratio
     w1 = np.arange(6545.0, 6573.0, 0.02)
     w2 = np.arange(6573.0, 6601.0, 0.02)
-    flux1 = np.trapz(_flam(sp, w1), w1)
-    flux2 = np.trapz(_flam(sp, w2), w2)
+    flux1 = trapezoid(_flam(sp, w1), w1)
+    flux2 = trapezoid(_flam(sp, w2), w2)
     assert np.isclose(flux1 / flux2, 1e-15 / 4e-16, rtol=1e-2)
 
 
