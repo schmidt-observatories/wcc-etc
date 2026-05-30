@@ -3,11 +3,85 @@ import os
 import numpy as np
 
 from astropy import units as u
-from synphot import SourceSpectrum, SpectralElement, Observation
+from synphot import SourceSpectrum, SpectralElement, Observation, units as su
+from synphot.models import (BlackBodyNorm1D, ConstFlux1D,
+                            PowerLawFlux1D, GaussianFlux1D)
 
 from .meta import _MetaHolder_
 
 __all__ = ["get_scene", "get_scene_element", "Scene"]
+
+
+# ===================== #
+#  Parametric spectra   #
+# ===================== #
+# Reserved spectrum names that build a synphot SourceSpectrum from parameters
+# carried in a SceneElement's meta (see SceneElement.set_spectrum).
+
+def _build_blackbody(meta):
+    """Blackbody spectrum. Requires meta['teff'] in K."""
+    teff = meta.get("teff")
+    if teff is None:
+        raise ValueError("blackbody source requires 'teff' (in K)")
+    return SourceSpectrum(BlackBodyNorm1D, temperature=teff)
+
+
+def _build_flat(meta):
+    """Flat spectrum. meta['flat_unit'] is 'fnu' (default, AB-flat) or 'flam'.
+
+    The absolute amplitude is arbitrary because the spectrum is normalized to
+    a magnitude downstream; only the flat-in-F_nu vs flat-in-F_lambda shape
+    matters here.
+    """
+    flat_unit = str(meta.get("flat_unit", "fnu")).lower()
+    if flat_unit == "fnu":
+        amplitude = 1 * u.Jy
+    elif flat_unit == "flam":
+        amplitude = 1 * su.FLAM
+    else:
+        raise ValueError(f"unknown flat_unit={flat_unit!r}; use 'fnu' or 'flam'")
+    return SourceSpectrum(ConstFlux1D, amplitude=amplitude)
+
+
+def _build_powerlaw(meta):
+    """Power-law spectrum: F_lambda proportional to (lambda/lambda_ref)**alpha.
+
+    Requires meta['alpha']; meta['lambda_ref'] defaults to 5500 A. Note synphot's
+    PowerLawFlux1D uses (x/x_0)**(-alpha), so the synphot alpha is negated to make
+    the public 'alpha' the F_lambda exponent.
+    """
+    alpha = meta.get("alpha")
+    if alpha is None:
+        raise ValueError("powerlaw source requires 'alpha'")
+    lambda_ref = meta.get("lambda_ref", 5500.0)
+    return SourceSpectrum(PowerLawFlux1D, amplitude=1 * su.FLAM,
+                          x_0=lambda_ref * u.AA, alpha=-alpha)
+
+
+def _build_emission(meta):
+    """Sum of Gaussian emission lines with absolute integrated flux.
+
+    Requires meta['lines'], a list of dicts with keys 'wave' (A), 'flux'
+    (integrated line flux in erg/s/cm^2) and optional 'fwhm' (A, default 2).
+    Intended to be used with mag=None so the absolute flux is preserved.
+    """
+    lines = meta.get("lines")
+    if not lines:
+        raise ValueError("emission source requires a non-empty 'lines' list")
+    spectrum = None
+    for line in lines:
+        gauss = SourceSpectrum(GaussianFlux1D,
+                               total_flux=line["flux"] * u.erg / u.s / u.cm ** 2,
+                               mean=line["wave"] * u.AA,
+                               fwhm=line.get("fwhm", 2.0) * u.AA)
+        spectrum = gauss if spectrum is None else spectrum + gauss
+    return spectrum
+
+
+_SPECTRUM_BUILDERS = {"blackbody": _build_blackbody,
+                      "flat": _build_flat,
+                      "powerlaw": _build_powerlaw,
+                      "emission": _build_emission}
 
 # Top level
 
@@ -216,13 +290,18 @@ class SceneElement(_MetaHolder_):
         
         # make sure you have a spectrum.
         if type(spec_or_file) in [str]:
-            if not os.path.isfile(spec_or_file):
-                # may that is a spectral type:
-                from .io import get_any_astro_name
-                spec_or_file = get_any_astro_name(spec_or_file)
-            
-            spectrum = SourceSpectrum.from_file(spec_or_file)
-            
+            if spec_or_file.lower() in _SPECTRUM_BUILDERS:
+                # parametric spectrum (blackbody, flat, powerlaw, emission)
+                # built from parameters carried in self.meta.
+                spectrum = _SPECTRUM_BUILDERS[spec_or_file.lower()](self.meta)
+            else:
+                if not os.path.isfile(spec_or_file):
+                    # may that is a spectral type:
+                    from .io import get_any_astro_name
+                    spec_or_file = get_any_astro_name(spec_or_file)
+
+                spectrum = SourceSpectrum.from_file(spec_or_file)
+
         # the or None enables to switch of the host by setting it to None            
         elif isinstance(spec_or_file, SourceSpectrum) or spec_or_file is None:
             spectrum = spec_or_file
@@ -283,10 +362,12 @@ class SceneElement(_MetaHolder_):
             The spectrum or (wavelength, flux) tuple if as_array is True.
         """
         if isinstance(self.spectrum, SourceSpectrum):
-            if apply_mag:
-                mag = self.get_mag(area=area)
+            mag = self.get_mag(area=area) if apply_mag else None
+            if apply_mag and mag is not None:
                 spectrum = self.spectrum.normalize(mag, band=self.band)
             else:
+                # mag is None -> spectrum already carries absolute flux
+                # (e.g. emission-line sources); pass it through unchanged.
                 spectrum = self.spectrum
         else:
             warnings.warn(f"cannot get the spectrum of the stored {self.spectrum=}")
@@ -370,8 +451,11 @@ class SceneElement(_MetaHolder_):
          # magnitude
         mag = self.meta.get("mag", None)
         if mag is None:
-            warnings.warn("not mag in self.meta")
-            
+            # explicit None is a valid "no normalization" sentinel (e.g.
+            # absolute-flux emission sources); only warn if it is truly missing.
+            if "mag" not in self.meta:
+                warnings.warn("not mag in self.meta")
+
         else:
             # make sure mag has the correct units.
             magsys = self.meta.get("magsys", "ABmag")
