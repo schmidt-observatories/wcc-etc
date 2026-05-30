@@ -908,7 +908,14 @@ def get_wcc_snr_and_simulation(mag,
                           background_prop={"bandpass": bg_bandpass,
                                            'mag': bg_surface_brightness})
     elif source_type=='blackbody':
-        raise ValueError("Blackbody not implemented yet")
+        scene = get_scene('blackbody',
+                          mag=mag,
+                          teff=teff,
+                          host=None,
+                          background="zodi",
+                          bandpass=source_bandpass,
+                          background_prop={"bandpass": bg_bandpass,
+                                           'mag': bg_surface_brightness})
     else:
         raise ValueError("Unknown source type")
     simu = Simulation.from_sensor_and_scene(sensor_and_filter, scene)
