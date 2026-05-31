@@ -137,3 +137,85 @@ def test_custom_psf_from_array():
     psf = CustomPSF(arr, src_um_per_pix=3.76).render(_grid_ctx(3.76, npix=64))
     assert psf.shape == (64, 64)
     assert psf.sum() == pytest.approx(1.0, abs=1e-6)
+
+
+def test_solve_time_for_snr_scalar_roundtrips():
+    from wcc_etc.psfsim import solve_time_for_snr
+    A, B, C, snr = 10.0, 5.0, 100.0, 25.0
+    t = solve_time_for_snr(snr, A, B, C)
+    # forward SNR at t must recover the target
+    assert abs(A * t / (B * t + C) ** 0.5 - snr) < 1e-9
+
+
+def test_solve_time_for_snr_array_and_zero_signal():
+    import numpy as np
+    from wcc_etc.psfsim import solve_time_for_snr
+    A = np.array([10.0, 0.0, 4.0])
+    B = np.array([5.0, 5.0, 2.0])
+    C = np.array([100.0, 100.0, 50.0])
+    t = solve_time_for_snr(30.0, A, B, C)
+    assert np.isinf(t[1])                       # zero source -> infinite time
+    assert np.allclose(A[[0, 2]] * t[[0, 2]] /
+                       np.sqrt(B[[0, 2]] * t[[0, 2]] + C[[0, 2]]), 30.0)
+
+
+def test_aperture_time_for_snr_matches_forward():
+    import numpy as np
+    from wcc_etc.psfsim import aperture_snr_radial, aperture_time_for_snr
+    # simple centered gaussian-ish PSF
+    n = 41
+    yy, xx = np.mgrid[0:n, 0:n]
+    r2 = (xx - n // 2) ** 2 + (yy - n // 2) ** 2
+    psf = np.exp(-r2 / (2 * 3.0 ** 2))
+    psf /= psf.sum()
+    plate, src_rate, diff_rate, dark_rate, rn = 50.0, 200.0, 0.5, 0.1, 3.0
+
+    # pick a fixed aperture radius, find the time for SNR=50, then check forward
+    res = aperture_time_for_snr(psf, plate, src_rate, diff_rate, dark_rate, rn,
+                                n_reads=1, snr=50.0, r_aper_mas=300.0)
+    t = res["time_s"]
+    prof = aperture_snr_radial(psf, plate, src_rate * t, diff_rate * t,
+                               dark_rate * t, rn)
+    # SNR at res's radius and that time reproduces the target
+    idx = np.searchsorted(prof["r_mas"], res["r_aper_mas"], side="right") - 1
+    assert abs(prof["snr"][idx] - 50.0) < 0.05
+
+
+def test_aperture_time_for_snr_optimize_is_minimum():
+    import numpy as np
+    from wcc_etc.psfsim import aperture_time_for_snr
+    n = 41
+    yy, xx = np.mgrid[0:n, 0:n]
+    r2 = (xx - n // 2) ** 2 + (yy - n // 2) ** 2
+    psf = np.exp(-r2 / (2 * 3.0 ** 2)); psf /= psf.sum()
+    fixed = aperture_time_for_snr(psf, 50.0, 200.0, 0.5, 0.1, 3.0,
+                                  n_reads=1, snr=50.0, r_aper_mas=300.0)
+    best = aperture_time_for_snr(psf, 50.0, 200.0, 0.5, 0.1, 3.0,
+                                 n_reads=1, snr=50.0, optimize=True)
+    assert best["time_s"] <= fixed["time_s"] + 1e-9
+
+
+def test_aperture_time_for_snr_n_reads_scaling():
+    import numpy as np
+    from wcc_etc.psfsim import aperture_time_for_snr, _radial_cumulative
+    n = 41
+    yy, xx = np.mgrid[0:n, 0:n]
+    r2 = (xx - n // 2) ** 2 + (yy - n // 2) ** 2
+    psf = np.exp(-r2 / (2 * 3.0 ** 2)); psf /= psf.sum()
+    plate, src_rate, diff_rate, dark_rate, rn = 50.0, 200.0, 0.5, 0.1, 3.0
+    N, S = 3, 40.0
+    res = aperture_time_for_snr(psf, plate, src_rate, diff_rate, dark_rate, rn,
+                                n_reads=N, snr=S, r_aper_mas=300.0)
+    t = res["time_s"]
+    # reconstruct per-radius coefficients at the selected aperture and verify the
+    # forward SNR with the n_reads-scaled read-noise term C = N*rn**2*n_pix
+    r_mas, enclosed, n_pix = _radial_cumulative(psf, plate)
+    idx = int(np.clip(np.searchsorted(r_mas, 300.0, side="right") - 1, 0, r_mas.size - 1))
+    A = src_rate * enclosed[idx]
+    B = A + (diff_rate + dark_rate) * n_pix[idx]
+    C = N * rn ** 2 * n_pix[idx]
+    assert np.isclose(A * t / np.sqrt(B * t + C), S, rtol=1e-9)
+    # more reads -> longer time for the same target/aperture
+    res1 = aperture_time_for_snr(psf, plate, src_rate, diff_rate, dark_rate, rn,
+                                 n_reads=1, snr=S, r_aper_mas=300.0)
+    assert res["time_s"] > res1["time_s"]

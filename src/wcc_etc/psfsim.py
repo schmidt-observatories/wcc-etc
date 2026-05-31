@@ -775,6 +775,47 @@ class FitsImg(object):
 
 
 
+def solve_time_for_snr(snr, A, B, C):
+    """
+    Solve SNR = A*t / sqrt(B*t + C) for the positive root t.
+
+    A, B, C may be scalars or broadcastable arrays (A = signal rate, B = variance
+    rate, C = constant read-noise variance). Returns t in the same shape (a float
+    if all inputs are scalar). Entries with A <= 0 return +inf.
+    """
+    A = np.asarray(A, dtype=float)
+    B = np.asarray(B, dtype=float)
+    C = np.asarray(C, dtype=float)
+    s2 = float(snr) ** 2
+    disc = s2 * s2 * B ** 2 + 4.0 * A ** 2 * s2 * C
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = (s2 * B + np.sqrt(disc)) / (2.0 * A ** 2)
+    t = np.where(A > 0, t, np.inf)
+    return t.item() if t.ndim == 0 else t
+
+
+def _radial_cumulative(psf_norm, plate_scale_mas):
+    """
+    Radius-sorted cumulative geometry of a normalized PSF.
+
+    Returns (r_mas, enclosed_fraction, n_pix) as ascending-radius arrays:
+    enclosed_fraction is the cumulative PSF sum (psf sums to 1) and n_pix is the
+    number of pixels enclosed (1..N).
+    """
+    psf_norm = np.asarray(psf_norm, dtype=float)
+    if psf_norm.ndim != 2 or psf_norm.shape[0] != psf_norm.shape[1]:
+        raise ValueError(f"psf_norm must be a square 2D array, got shape {psf_norm.shape}")
+    npix = psf_norm.shape[0]
+    c = (npix - 1) / 2.0
+    yy, xx = np.mgrid[0:npix, 0:npix]
+    r_pix = np.sqrt((xx - c) ** 2 + (yy - c) ** 2).ravel()
+    order = np.argsort(r_pix, kind="stable")
+    r_sorted = r_pix[order]
+    enclosed = np.cumsum(psf_norm.ravel()[order])
+    n_pix = np.arange(1, r_sorted.size + 1)
+    return r_sorted * plate_scale_mas, enclosed, n_pix
+
+
 def aperture_snr_radial(psf_norm, plate_scale_mas, source_e_total,
                         diffuse_per_pix, dark_per_pix, read_noise):
     """
@@ -802,25 +843,14 @@ def aperture_snr_radial(psf_norm, plate_scale_mas, source_e_total,
     dict of ndarrays, sorted by ascending radius:
         'r_mas', 'enclosed_fraction', 'n_pix', 'signal_e', 'noise_e', 'snr'.
     """
-    psf_norm = np.asarray(psf_norm, dtype=float)
-    if psf_norm.ndim != 2 or psf_norm.shape[0] != psf_norm.shape[1]:
-        raise ValueError(f"psf_norm must be a square 2D array, got shape {psf_norm.shape}")
-    npix = psf_norm.shape[0]
-    c = (npix - 1) / 2.0
-    yy, xx = np.mgrid[0:npix, 0:npix]
-    r_pix = np.sqrt((xx - c) ** 2 + (yy - c) ** 2).ravel()
-    order = np.argsort(r_pix, kind="stable")
-
-    r_sorted = r_pix[order]
-    enclosed = np.cumsum(psf_norm.ravel()[order])           # fraction (psf sums to 1)
-    n_pix = np.arange(1, r_sorted.size + 1)
+    r_mas, enclosed, n_pix = _radial_cumulative(psf_norm, plate_scale_mas)
 
     signal = source_e_total * enclosed
     per_pix_var = diffuse_per_pix + dark_per_pix + read_noise ** 2
     noise = np.sqrt(signal + per_pix_var * n_pix)
     snr = np.divide(signal, noise, out=np.zeros_like(signal), where=noise > 0)
 
-    return {"r_mas": r_sorted * plate_scale_mas,
+    return {"r_mas": r_mas,
             "enclosed_fraction": enclosed,
             "n_pix": n_pix,
             "signal_e": signal,
@@ -846,6 +876,45 @@ def select_aperture(profile, r_aper_mas=None, ee_frac=None, optimize=False):
         idx = int(np.searchsorted(enc, ee_frac))
         return int(np.clip(idx, 0, enc.size - 1))
     raise ValueError("select_aperture: specify optimize, r_aper_mas, or ee_frac.")
+
+
+def aperture_time_for_snr(psf_norm, plate_scale_mas, source_rate_total,
+                          diffuse_rate_per_pix, dark_rate_per_pix, read_noise,
+                          n_reads=1, snr=None, r_aper_mas=None, ee_frac=None,
+                          optimize=False):
+    """
+    Exposure time (s) to reach `snr` for a rendered PSF, per aperture mode.
+
+    Rates are per second (the time dependence is solved for analytically). The
+    read-noise variance is incurred n_reads times. Aperture precedence matches
+    select_aperture: optimize (fastest radius) > r_aper_mas > ee_frac.
+
+    Returns {'time_s', 'snr', 'r_aper_mas', 'enclosed_fraction', 'n_pix'}.
+    """
+    if snr is None:
+        raise ValueError("snr is required")
+    r_mas, enclosed, n_pix = _radial_cumulative(psf_norm, plate_scale_mas)
+
+    A = source_rate_total * enclosed
+    B = A + (diffuse_rate_per_pix + dark_rate_per_pix) * n_pix
+    C = n_reads * read_noise ** 2 * n_pix
+    t = solve_time_for_snr(snr, A, B, C)              # array over radii
+
+    if optimize:
+        idx = int(np.argmin(t))                       # radius reaching snr fastest
+    elif r_aper_mas is not None:
+        idx = int(np.clip(np.searchsorted(r_mas, r_aper_mas, side="right") - 1,
+                          0, r_mas.size - 1))
+    elif ee_frac is not None:
+        idx = int(np.clip(np.searchsorted(enclosed, ee_frac), 0, enclosed.size - 1))
+    else:
+        raise ValueError("specify optimize, r_aper_mas, or ee_frac.")
+
+    return {"time_s": float(t[idx]),
+            "snr": float(snr),
+            "r_aper_mas": float(r_mas[idx]),
+            "enclosed_fraction": float(enclosed[idx]),
+            "n_pix": int(n_pix[idx])}
 
 
 def calc_hwzm(x,y,z=20):

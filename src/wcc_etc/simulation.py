@@ -53,14 +53,15 @@ class Simulation(_MetaHolder_):
     psf_profile : dict
         Calculated PSF profile parameters.
     """
-    _mutable_parameters = ["time", "r_aper_mas"]
-    
-    def __init__(self, 
+    _mutable_parameters = ["time", "r_aper_mas", "n_reads"]
+
+    def __init__(self,
                  telescope,
-                 sensor, 
-                 scene=None, 
-                 time=90, 
-                 r_aper_mas=70, 
+                 sensor,
+                 scene=None,
+                 time=90,
+                 r_aper_mas=70,
+                 n_reads=1,
                  meta={}
                  ):
         """ 
@@ -78,6 +79,9 @@ class Simulation(_MetaHolder_):
             Exposure time(s) in seconds. Default is 90.
         r_aper_mas : float, optional
             Radius of the aperture in milliarcseconds. Default is 70.
+        n_reads : int, optional
+            Number of coadded frames (read noise is incurred per frame; saturation
+            is evaluated per-frame). Default is 1.
         meta : dict, optional
             Additional parameters to store in the meta dictionary. Default is {}.
         """
@@ -526,7 +530,7 @@ class Simulation(_MetaHolder_):
         return list_of_quantity_to_array(countrates.values())
 
 
-    def get_signal_and_variance(self, time=None, units="e-"):
+    def get_signal_and_variance(self, time=None, units="e-", n_reads=None):
         """
         Get the signal and total variance for a given exposure time.
 
@@ -536,6 +540,9 @@ class Simulation(_MetaHolder_):
             Exposure time. Defaults to self.meta['time'].
         units : str, optional
             Units of the signal ('e-', 'adu'). Default is "e-".
+        n_reads : int, optional
+            Number of coadded frames; the read-noise variance is incurred
+            n_reads times. Defaults to self.meta['n_reads'] (or 1).
 
         Returns
         -------
@@ -550,6 +557,8 @@ class Simulation(_MetaHolder_):
         # make sure the time is in the current units.
         elif not isinstance(time, u.Quantity):
            time = time*u.second
+
+        n_reads = self._resolve_n_reads(n_reads)
 
         # get the count rates in {adu,e-}/s
         count_rates = self.get_countrates(units="e/s", as_dict=True) # this is an array
@@ -567,7 +576,8 @@ class Simulation(_MetaHolder_):
         dark_signal = self.sensor.dark_current * time # e-/pix
         
         # u.electron/u.pixel as variance, so unit square
-        detector_variance = (dark_signal * u.electron/u.pixel + self.sensor.read_noise**2)  * self.psf_profile["num_psf_pixels"] # e-**2
+        detector_variance = (dark_signal * u.electron/u.pixel
+                             + n_reads * self.sensor.read_noise**2) * self.psf_profile["num_psf_pixels"] # e-**2
         #logging.info(f"signal: {scene_signal:.2f} e-")
 #        logging.info(f"sky signal: {sky_signal:.2f} e-") part of the scene signal?
         #logging.info(f"dark signal: {dark_signal:.2f} e-")
@@ -586,13 +596,15 @@ class Simulation(_MetaHolder_):
             
         return source_signal, total_variance
 
-    def get_peak_pixel(self, time=None, units="adu"):
+    def get_peak_pixel(self, time=None, units="adu", n_reads=None):
         """
         Get the brightest-pixel value for a given exposure time.
 
         The peak pixel combines the source PSF peak, the per-pixel sky
         background, the per-pixel dark current, and (for ADU) the additive bias
         level. Used to test ADC-clip saturation against ``sensor.adc_max``.
+        Saturation is per-frame: with ``n_reads`` coadded frames spanning the
+        total ``time``, the peak is evaluated for a single ``time / n_reads`` frame.
 
         Parameters
         ----------
@@ -600,6 +612,9 @@ class Simulation(_MetaHolder_):
             Exposure time(s) in seconds. Defaults to self.meta['time'].
         units : str, optional
             'adu' (default, includes bias) or 'e-'/'e'/'electron' (excludes bias).
+        n_reads : int, optional
+            Number of coadded frames; the per-frame integration is time/n_reads.
+            Defaults to self.meta['n_reads'] (or 1).
 
         Returns
         -------
@@ -612,6 +627,8 @@ class Simulation(_MetaHolder_):
             raise ValueError("no time given, none set to meta")
         if not isinstance(time, u.Quantity):
             time = time * u.second
+        n_reads = self._resolve_n_reads(n_reads)
+        time = time / n_reads          # per-frame integration; saturation is per-frame
 
         profile = self.psf_profile
         peak_fraction = profile["peak_pixel_fraction"]
@@ -649,7 +666,7 @@ class Simulation(_MetaHolder_):
 
         raise ValueError(f"unknown units {units=}. 'adu' or electron/'e-' expected.")
 
-    def is_saturated(self, time=None):
+    def is_saturated(self, time=None, n_reads=None):
         """
         Whether the brightest pixel reaches the ADC full scale (ADU clip).
 
@@ -657,17 +674,22 @@ class Simulation(_MetaHolder_):
         ----------
         time : float or Quantity or array_like, optional
             Exposure time(s) in seconds. Defaults to self.meta['time'].
+        n_reads : int, optional
+            Number of coadded reads. The total time is split into n_reads
+            frames; saturation is evaluated on the per-frame time t/n_reads.
+            Defaults to self.meta['n_reads'] or 1.
 
         Returns
         -------
         bool or ndarray of bool
             True where the peak pixel (in ADU) >= sensor.adc_max.
         """
-        peak_adu = self.get_peak_pixel(time, units="adu")
+        peak_adu = self.get_peak_pixel(time, units="adu", n_reads=n_reads)
         return peak_adu >= self.sensor.adc_max
 
     def get_image_snr(self, time=None, psf=None, r_aper_mas=None, ee_frac=None,
-                      optimize=False, jitter_sigma_mas=None, npix=128, oversample=11):
+                      optimize=False, jitter_sigma_mas=None, n_reads=None,
+                      npix=128, oversample=11):
         """
         PSF-aware aperture signal-to-noise ratio.
 
@@ -711,6 +733,8 @@ class Simulation(_MetaHolder_):
         if not isinstance(time, u.Quantity):
             time = time * u.second
 
+        n_reads = self._resolve_n_reads(n_reads)
+
         if psf is None:
             psf = AiryPSF()
 
@@ -736,7 +760,7 @@ class Simulation(_MetaHolder_):
             diffuse_per_pix += (rate * time / n_psf).to(u.electron).value
 
         dark_per_pix = (self.sensor.dark_current * time).to(u.electron / u.pix).value
-        read_noise = self.sensor.read_noise.to(u.electron / u.pix).value
+        read_noise = self.sensor.read_noise.to(u.electron / u.pix).value * np.sqrt(n_reads)
 
         prof = aperture_snr_radial(psf_norm, ctx.plate_scale_mas, source_e_total,
                                    diffuse_per_pix, dark_per_pix, read_noise)
@@ -754,7 +778,57 @@ class Simulation(_MetaHolder_):
                 "r_aper_mas": float(prof["r_mas"][idx]),
                 "n_pix": int(prof["n_pix"][idx])}
 
-    def get_snr(self, time=None):
+    def get_image_exptime_for_snr(self, snr, psf=None, r_aper_mas=None,
+                                  ee_frac=None, optimize=False,
+                                  jitter_sigma_mas=None, n_reads=None,
+                                  npix=128, oversample=11):
+        """
+        Exposure time (s) to reach a target SNR on the PSF-aware path.
+
+        Inverse of get_image_snr. Aperture precedence: optimize > r_aper_mas >
+        ee_frac; if none is given the Simulation's r_aper_mas is used. Note
+        optimize here picks the radius that reaches the target SNR *fastest*
+        (minimum time), the inverse of get_image_snr's max-SNR optimize. Returns
+        a dict {'time_s', 'snr', 'r_aper_mas', 'enclosed_fraction', 'n_pix'}.
+        """
+        from .psfsim import ImageSimulator, AiryPSF, aperture_time_for_snr
+
+        n_reads = self._resolve_n_reads(n_reads)
+        if psf is None:
+            psf = AiryPSF()
+
+        imsim = ImageSimulator(self, npix=npix, oversample=oversample)
+        ctx = imsim._context(jitter_sigma_mas=jitter_sigma_mas)
+        psf_norm = psf.render(ctx)
+
+        profile = self.psf_profile
+        ee_at_aper = profile["ee_at_aper"]
+        if ee_at_aper == 0:
+            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
+        num_psf_pixels = profile["num_psf_pixels"]
+        n_psf = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
+
+        count_rates = self.get_countrates(units="e/s", as_dict=True)
+        source_rate_total = (count_rates["source"] / ee_at_aper).to(u.electron / u.s).value
+        diffuse_rate_per_pix = 0.0
+        for name, rate in count_rates.items():
+            if name == "source":
+                continue
+            diffuse_rate_per_pix += (rate / n_psf).to(u.electron / u.s).value
+        dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
+        read_noise = self.sensor.read_noise.to(u.electron / u.pix).value
+
+        if not optimize and r_aper_mas is None and ee_frac is None:
+            r_aper_mas = self._meta.get("r_aper_mas")
+
+        return aperture_time_for_snr(psf_norm, ctx.plate_scale_mas,
+                                     source_rate_total, diffuse_rate_per_pix,
+                                     dark_rate_per_pix, read_noise,
+                                     n_reads=n_reads, snr=snr,
+                                     r_aper_mas=r_aper_mas, ee_frac=ee_frac,
+                                     optimize=optimize)
+
+    def get_snr(self, time=None, n_reads=None):
         """
         Get the signal to noise ratio for a given exposure time.
 
@@ -762,6 +836,8 @@ class Simulation(_MetaHolder_):
         ----------
         time : float or Quantity, optional
             Exposure time.
+        n_reads : int, optional
+            Number of reads. Defaults to meta['n_reads'] if set, else 1.
 
         Returns
         -------
@@ -769,12 +845,48 @@ class Simulation(_MetaHolder_):
             The SNR.
         """
         # scenes of noise
-        signal, variance = self.get_signal_and_variance(time) # units doesn't matter
+        signal, variance = self.get_signal_and_variance(time, n_reads=n_reads) # units doesn't matter
         return signal / np.sqrt(variance)
-    
+
+    def get_exptime_for_snr(self, snr, n_reads=None):
+        """
+        Exposure time (seconds, Quantity) to reach a target SNR on the analytic
+        (Airy) path. Inverse of get_snr. Returns inf*u.s if the source rate is 0.
+        """
+        from .psfsim import solve_time_for_snr
+        A, B, C = self._snr_coefficients(n_reads=n_reads)
+        return solve_time_for_snr(snr, A, B, C) * u.second
+
     # -------------- #
     #  Internal      #
     # -------------- #
+    def _resolve_n_reads(self, n_reads):
+        """n_reads from the argument, else meta['n_reads'], else 1. Must be >= 1."""
+        if n_reads is None:
+            n_reads = self._meta.get("n_reads", 1)
+        n_reads = int(n_reads)
+        if n_reads < 1:
+            raise ValueError(f"n_reads must be >= 1, got {n_reads}")
+        return n_reads
+
+    def _snr_coefficients(self, n_reads=None):
+        """
+        (A, B, C) floats for SNR(t) = A*t / sqrt(B*t + C), electrons & seconds.
+        A = source rate; B = total scene rate + n_pix*dark; C = n_pix*N*RN**2.
+        """
+        n_reads = self._resolve_n_reads(n_reads)
+        count_rates = self.get_countrates(units="e/s", as_dict=True)
+        A = count_rates["source"].to(u.electron / u.s).value
+        all_rates = float(np.nansum([r.to(u.electron / u.s).value
+                                     for r in count_rates.values()]))
+        n_pix = self.psf_profile["num_psf_pixels"]
+        n_pix = n_pix.value if isinstance(n_pix, u.Quantity) else float(n_pix)
+        dark = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
+        rn = self.sensor.read_noise.to(u.electron / u.pix).value
+        B = all_rates + n_pix * dark
+        C = n_pix * n_reads * rn ** 2
+        return A, B, C
+
     def _parse_bandpass(self, bandpass):
         """
         Parse a bandpass name or object.
