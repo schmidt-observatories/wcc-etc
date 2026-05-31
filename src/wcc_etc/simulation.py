@@ -593,7 +593,7 @@ class Simulation(_MetaHolder_):
             
         return source_signal, total_variance
 
-    def get_peak_pixel(self, time=None, units="adu"):
+    def get_peak_pixel(self, time=None, units="adu", n_reads=None):
         """
         Get the brightest-pixel value for a given exposure time.
 
@@ -619,6 +619,8 @@ class Simulation(_MetaHolder_):
             raise ValueError("no time given, none set to meta")
         if not isinstance(time, u.Quantity):
             time = time * u.second
+        n_reads = self._resolve_n_reads(n_reads)
+        time = time / n_reads          # per-frame integration; saturation is per-frame
 
         profile = self.psf_profile
         peak_fraction = profile["peak_pixel_fraction"]
@@ -656,7 +658,7 @@ class Simulation(_MetaHolder_):
 
         raise ValueError(f"unknown units {units=}. 'adu' or electron/'e-' expected.")
 
-    def is_saturated(self, time=None):
+    def is_saturated(self, time=None, n_reads=None):
         """
         Whether the brightest pixel reaches the ADC full scale (ADU clip).
 
@@ -664,13 +666,17 @@ class Simulation(_MetaHolder_):
         ----------
         time : float or Quantity or array_like, optional
             Exposure time(s) in seconds. Defaults to self.meta['time'].
+        n_reads : int, optional
+            Number of coadded reads. The total time is split into n_reads
+            frames; saturation is evaluated on the per-frame time t/n_reads.
+            Defaults to self.meta['n_reads'] or 1.
 
         Returns
         -------
         bool or ndarray of bool
             True where the peak pixel (in ADU) >= sensor.adc_max.
         """
-        peak_adu = self.get_peak_pixel(time, units="adu")
+        peak_adu = self.get_peak_pixel(time, units="adu", n_reads=n_reads)
         return peak_adu >= self.sensor.adc_max
 
     def get_image_snr(self, time=None, psf=None, r_aper_mas=None, ee_frac=None,
