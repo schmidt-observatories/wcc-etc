@@ -193,3 +193,29 @@ def test_aperture_time_for_snr_optimize_is_minimum():
     best = aperture_time_for_snr(psf, 50.0, 200.0, 0.5, 0.1, 3.0,
                                  n_reads=1, snr=50.0, optimize=True)
     assert best["time_s"] <= fixed["time_s"] + 1e-9
+
+
+def test_aperture_time_for_snr_n_reads_scaling():
+    import numpy as np
+    from wcc_etc.psfsim import aperture_time_for_snr, _radial_cumulative
+    n = 41
+    yy, xx = np.mgrid[0:n, 0:n]
+    r2 = (xx - n // 2) ** 2 + (yy - n // 2) ** 2
+    psf = np.exp(-r2 / (2 * 3.0 ** 2)); psf /= psf.sum()
+    plate, src_rate, diff_rate, dark_rate, rn = 50.0, 200.0, 0.5, 0.1, 3.0
+    N, S = 3, 40.0
+    res = aperture_time_for_snr(psf, plate, src_rate, diff_rate, dark_rate, rn,
+                                n_reads=N, snr=S, r_aper_mas=300.0)
+    t = res["time_s"]
+    # reconstruct per-radius coefficients at the selected aperture and verify the
+    # forward SNR with the n_reads-scaled read-noise term C = N*rn**2*n_pix
+    r_mas, enclosed, n_pix = _radial_cumulative(psf, plate)
+    idx = int(np.clip(np.searchsorted(r_mas, 300.0, side="right") - 1, 0, r_mas.size - 1))
+    A = src_rate * enclosed[idx]
+    B = A + (diff_rate + dark_rate) * n_pix[idx]
+    C = N * rn ** 2 * n_pix[idx]
+    assert np.isclose(A * t / np.sqrt(B * t + C), S, rtol=1e-9)
+    # more reads -> longer time for the same target/aperture
+    res1 = aperture_time_for_snr(psf, plate, src_rate, diff_rate, dark_rate, rn,
+                                 n_reads=1, snr=S, r_aper_mas=300.0)
+    assert res["time_s"] > res1["time_s"]
