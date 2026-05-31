@@ -527,7 +527,7 @@ class Simulation(_MetaHolder_):
         return list_of_quantity_to_array(countrates.values())
 
 
-    def get_signal_and_variance(self, time=None, units="e-"):
+    def get_signal_and_variance(self, time=None, units="e-", n_reads=None):
         """
         Get the signal and total variance for a given exposure time.
 
@@ -552,6 +552,8 @@ class Simulation(_MetaHolder_):
         elif not isinstance(time, u.Quantity):
            time = time*u.second
 
+        n_reads = self._resolve_n_reads(n_reads)
+
         # get the count rates in {adu,e-}/s
         count_rates = self.get_countrates(units="e/s", as_dict=True) # this is an array
         
@@ -568,7 +570,8 @@ class Simulation(_MetaHolder_):
         dark_signal = self.sensor.dark_current * time # e-/pix
         
         # u.electron/u.pixel as variance, so unit square
-        detector_variance = (dark_signal * u.electron/u.pixel + self.sensor.read_noise**2)  * self.psf_profile["num_psf_pixels"] # e-**2
+        detector_variance = (dark_signal * u.electron/u.pixel
+                             + n_reads * self.sensor.read_noise**2) * self.psf_profile["num_psf_pixels"] # e-**2
         #logging.info(f"signal: {scene_signal:.2f} e-")
 #        logging.info(f"sky signal: {sky_signal:.2f} e-") part of the scene signal?
         #logging.info(f"dark signal: {dark_signal:.2f} e-")
@@ -755,7 +758,7 @@ class Simulation(_MetaHolder_):
                 "r_aper_mas": float(prof["r_mas"][idx]),
                 "n_pix": int(prof["n_pix"][idx])}
 
-    def get_snr(self, time=None):
+    def get_snr(self, time=None, n_reads=None):
         """
         Get the signal to noise ratio for a given exposure time.
 
@@ -763,6 +766,8 @@ class Simulation(_MetaHolder_):
         ----------
         time : float or Quantity, optional
             Exposure time.
+        n_reads : int, optional
+            Number of reads. Defaults to meta['n_reads'] if set, else 1.
 
         Returns
         -------
@@ -770,12 +775,45 @@ class Simulation(_MetaHolder_):
             The SNR.
         """
         # scenes of noise
-        signal, variance = self.get_signal_and_variance(time) # units doesn't matter
+        signal, variance = self.get_signal_and_variance(time, n_reads=n_reads) # units doesn't matter
         return signal / np.sqrt(variance)
-    
+
+    def get_exptime_for_snr(self, snr, n_reads=None):
+        """
+        Exposure time (seconds, Quantity) to reach a target SNR on the analytic
+        (Airy) path. Inverse of get_snr. Returns inf*u.s if the source rate is 0.
+        """
+        from .psfsim import solve_time_for_snr
+        A, B, C = self._snr_coefficients(n_reads=n_reads)
+        return solve_time_for_snr(snr, A, B, C) * u.second
+
     # -------------- #
     #  Internal      #
     # -------------- #
+    def _resolve_n_reads(self, n_reads):
+        """n_reads from the argument, else meta['n_reads'], else 1."""
+        if n_reads is None:
+            n_reads = self._meta.get("n_reads", 1)
+        return int(n_reads)
+
+    def _snr_coefficients(self, n_reads=None):
+        """
+        (A, B, C) floats for SNR(t) = A*t / sqrt(B*t + C), electrons & seconds.
+        A = source rate; B = total scene rate + n_pix*dark; C = n_pix*N*RN**2.
+        """
+        n_reads = self._resolve_n_reads(n_reads)
+        count_rates = self.get_countrates(units="e/s", as_dict=True)
+        A = count_rates["source"].to(u.electron / u.s).value
+        all_rates = float(np.nansum([r.to(u.electron / u.s).value
+                                     for r in count_rates.values()]))
+        n_pix = self.psf_profile["num_psf_pixels"]
+        n_pix = n_pix.value if isinstance(n_pix, u.Quantity) else float(n_pix)
+        dark = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
+        rn = self.sensor.read_noise.to(u.electron / u.pix).value
+        B = all_rates + n_pix * dark
+        C = n_pix * n_reads * rn ** 2
+        return A, B, C
+
     def _parse_bandpass(self, bandpass):
         """
         Parse a bandpass name or object.
