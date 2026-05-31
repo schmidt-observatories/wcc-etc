@@ -157,3 +157,39 @@ def test_solve_time_for_snr_array_and_zero_signal():
     assert np.isinf(t[1])                       # zero source -> infinite time
     assert np.allclose(A[[0, 2]] * t[[0, 2]] /
                        np.sqrt(B[[0, 2]] * t[[0, 2]] + C[[0, 2]]), 30.0)
+
+
+def test_aperture_time_for_snr_matches_forward():
+    import numpy as np
+    from wcc_etc.psfsim import aperture_snr_radial, aperture_time_for_snr
+    # simple centered gaussian-ish PSF
+    n = 41
+    yy, xx = np.mgrid[0:n, 0:n]
+    r2 = (xx - n // 2) ** 2 + (yy - n // 2) ** 2
+    psf = np.exp(-r2 / (2 * 3.0 ** 2))
+    psf /= psf.sum()
+    plate, src_rate, diff_rate, dark_rate, rn = 50.0, 200.0, 0.5, 0.1, 3.0
+
+    # pick a fixed aperture radius, find the time for SNR=50, then check forward
+    res = aperture_time_for_snr(psf, plate, src_rate, diff_rate, dark_rate, rn,
+                                n_reads=1, snr=50.0, r_aper_mas=300.0)
+    t = res["time_s"]
+    prof = aperture_snr_radial(psf, plate, src_rate * t, diff_rate * t,
+                               dark_rate * t, rn)
+    # SNR at res's radius and that time reproduces the target
+    idx = np.searchsorted(prof["r_mas"], res["r_aper_mas"], side="right") - 1
+    assert abs(prof["snr"][idx] - 50.0) < 0.05
+
+
+def test_aperture_time_for_snr_optimize_is_minimum():
+    import numpy as np
+    from wcc_etc.psfsim import aperture_time_for_snr
+    n = 41
+    yy, xx = np.mgrid[0:n, 0:n]
+    r2 = (xx - n // 2) ** 2 + (yy - n // 2) ** 2
+    psf = np.exp(-r2 / (2 * 3.0 ** 2)); psf /= psf.sum()
+    fixed = aperture_time_for_snr(psf, 50.0, 200.0, 0.5, 0.1, 3.0,
+                                  n_reads=1, snr=50.0, r_aper_mas=300.0)
+    best = aperture_time_for_snr(psf, 50.0, 200.0, 0.5, 0.1, 3.0,
+                                 n_reads=1, snr=50.0, optimize=True)
+    assert best["time_s"] <= fixed["time_s"] + 1e-9

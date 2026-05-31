@@ -878,6 +878,45 @@ def select_aperture(profile, r_aper_mas=None, ee_frac=None, optimize=False):
     raise ValueError("select_aperture: specify optimize, r_aper_mas, or ee_frac.")
 
 
+def aperture_time_for_snr(psf_norm, plate_scale_mas, source_rate_total,
+                          diffuse_rate_per_pix, dark_rate_per_pix, read_noise,
+                          n_reads=1, snr=None, r_aper_mas=None, ee_frac=None,
+                          optimize=False):
+    """
+    Exposure time (s) to reach `snr` for a rendered PSF, per aperture mode.
+
+    Rates are per second (the time dependence is solved for analytically). The
+    read-noise variance is incurred n_reads times. Aperture precedence matches
+    select_aperture: optimize (fastest radius) > r_aper_mas > ee_frac.
+
+    Returns {'time_s', 'snr', 'r_aper_mas', 'enclosed_fraction', 'n_pix'}.
+    """
+    if snr is None:
+        raise ValueError("snr is required")
+    r_mas, enclosed, n_pix = _radial_cumulative(psf_norm, plate_scale_mas)
+
+    A = source_rate_total * enclosed
+    B = A + (diffuse_rate_per_pix + dark_rate_per_pix) * n_pix
+    C = n_reads * read_noise ** 2 * n_pix
+    t = solve_time_for_snr(snr, A, B, C)              # array over radii
+
+    if optimize:
+        idx = int(np.argmin(t))                       # radius reaching snr fastest
+    elif r_aper_mas is not None:
+        idx = int(np.clip(np.searchsorted(r_mas, r_aper_mas, side="right") - 1,
+                          0, r_mas.size - 1))
+    elif ee_frac is not None:
+        idx = int(np.clip(np.searchsorted(enclosed, ee_frac), 0, enclosed.size - 1))
+    else:
+        raise ValueError("specify optimize, r_aper_mas, or ee_frac.")
+
+    return {"time_s": float(t[idx]),
+            "snr": float(snr),
+            "r_aper_mas": float(r_mas[idx]),
+            "enclosed_fraction": float(enclosed[idx]),
+            "n_pix": int(n_pix[idx])}
+
+
 def calc_hwzm(x,y,z=20):
     """
     Calculates the HWHM at the Z-th maximum for a given dataset, by finding the roots of splines.
