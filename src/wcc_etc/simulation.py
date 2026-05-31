@@ -79,6 +79,9 @@ class Simulation(_MetaHolder_):
             Exposure time(s) in seconds. Default is 90.
         r_aper_mas : float, optional
             Radius of the aperture in milliarcseconds. Default is 70.
+        n_reads : int, optional
+            Number of coadded frames (read noise is incurred per frame; saturation
+            is evaluated per-frame). Default is 1.
         meta : dict, optional
             Additional parameters to store in the meta dictionary. Default is {}.
         """
@@ -783,8 +786,10 @@ class Simulation(_MetaHolder_):
         Exposure time (s) to reach a target SNR on the PSF-aware path.
 
         Inverse of get_image_snr. Aperture precedence: optimize > r_aper_mas >
-        ee_frac; if none is given the Simulation's r_aper_mas is used. Returns a
-        dict {'time_s', 'snr', 'r_aper_mas', 'enclosed_fraction', 'n_pix'}.
+        ee_frac; if none is given the Simulation's r_aper_mas is used. Note
+        optimize here picks the radius that reaches the target SNR *fastest*
+        (minimum time), the inverse of get_image_snr's max-SNR optimize. Returns
+        a dict {'time_s', 'snr', 'r_aper_mas', 'enclosed_fraction', 'n_pix'}.
         """
         from .psfsim import ImageSimulator, AiryPSF, aperture_time_for_snr
 
