@@ -53,14 +53,15 @@ class Simulation(_MetaHolder_):
     psf_profile : dict
         Calculated PSF profile parameters.
     """
-    _mutable_parameters = ["time", "r_aper_mas"]
-    
-    def __init__(self, 
+    _mutable_parameters = ["time", "r_aper_mas", "n_reads"]
+
+    def __init__(self,
                  telescope,
-                 sensor, 
-                 scene=None, 
-                 time=90, 
-                 r_aper_mas=70, 
+                 sensor,
+                 scene=None,
+                 time=90,
+                 r_aper_mas=70,
+                 n_reads=1,
                  meta={}
                  ):
         """ 
