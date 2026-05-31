@@ -537,6 +537,9 @@ class Simulation(_MetaHolder_):
             Exposure time. Defaults to self.meta['time'].
         units : str, optional
             Units of the signal ('e-', 'adu'). Default is "e-".
+        n_reads : int, optional
+            Number of coadded frames; the read-noise variance is incurred
+            n_reads times. Defaults to self.meta['n_reads'] (or 1).
 
         Returns
         -------
@@ -791,10 +794,13 @@ class Simulation(_MetaHolder_):
     #  Internal      #
     # -------------- #
     def _resolve_n_reads(self, n_reads):
-        """n_reads from the argument, else meta['n_reads'], else 1."""
+        """n_reads from the argument, else meta['n_reads'], else 1. Must be >= 1."""
         if n_reads is None:
             n_reads = self._meta.get("n_reads", 1)
-        return int(n_reads)
+        n_reads = int(n_reads)
+        if n_reads < 1:
+            raise ValueError(f"n_reads must be >= 1, got {n_reads}")
+        return n_reads
 
     def _snr_coefficients(self, n_reads=None):
         """

@@ -52,3 +52,12 @@ def test_exptime_uses_meta_n_reads_when_unset():
     t_meta = sim.get_exptime_for_snr(50.0)            # resolves n_reads=5 from meta
     t_explicit = sim.get_exptime_for_snr(50.0, n_reads=5)
     assert np.isclose(t_meta.value, t_explicit.value, rtol=1e-9)
+
+
+def test_n_reads_below_one_raises():
+    import pytest
+    sim = _sim()
+    with pytest.raises(ValueError):
+        sim.get_snr(60, n_reads=0)
+    with pytest.raises(ValueError):
+        sim.get_exptime_for_snr(50, n_reads=-1)
