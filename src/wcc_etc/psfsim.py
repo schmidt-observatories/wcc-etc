@@ -794,6 +794,28 @@ def solve_time_for_snr(snr, A, B, C):
     return t.item() if t.ndim == 0 else t
 
 
+def _radial_cumulative(psf_norm, plate_scale_mas):
+    """
+    Radius-sorted cumulative geometry of a normalized PSF.
+
+    Returns (r_mas, enclosed_fraction, n_pix) as ascending-radius arrays:
+    enclosed_fraction is the cumulative PSF sum (psf sums to 1) and n_pix is the
+    number of pixels enclosed (1..N).
+    """
+    psf_norm = np.asarray(psf_norm, dtype=float)
+    if psf_norm.ndim != 2 or psf_norm.shape[0] != psf_norm.shape[1]:
+        raise ValueError(f"psf_norm must be a square 2D array, got shape {psf_norm.shape}")
+    npix = psf_norm.shape[0]
+    c = (npix - 1) / 2.0
+    yy, xx = np.mgrid[0:npix, 0:npix]
+    r_pix = np.sqrt((xx - c) ** 2 + (yy - c) ** 2).ravel()
+    order = np.argsort(r_pix, kind="stable")
+    r_sorted = r_pix[order]
+    enclosed = np.cumsum(psf_norm.ravel()[order])
+    n_pix = np.arange(1, r_sorted.size + 1)
+    return r_sorted * plate_scale_mas, enclosed, n_pix
+
+
 def aperture_snr_radial(psf_norm, plate_scale_mas, source_e_total,
                         diffuse_per_pix, dark_per_pix, read_noise):
     """
@@ -821,25 +843,14 @@ def aperture_snr_radial(psf_norm, plate_scale_mas, source_e_total,
     dict of ndarrays, sorted by ascending radius:
         'r_mas', 'enclosed_fraction', 'n_pix', 'signal_e', 'noise_e', 'snr'.
     """
-    psf_norm = np.asarray(psf_norm, dtype=float)
-    if psf_norm.ndim != 2 or psf_norm.shape[0] != psf_norm.shape[1]:
-        raise ValueError(f"psf_norm must be a square 2D array, got shape {psf_norm.shape}")
-    npix = psf_norm.shape[0]
-    c = (npix - 1) / 2.0
-    yy, xx = np.mgrid[0:npix, 0:npix]
-    r_pix = np.sqrt((xx - c) ** 2 + (yy - c) ** 2).ravel()
-    order = np.argsort(r_pix, kind="stable")
-
-    r_sorted = r_pix[order]
-    enclosed = np.cumsum(psf_norm.ravel()[order])           # fraction (psf sums to 1)
-    n_pix = np.arange(1, r_sorted.size + 1)
+    r_mas, enclosed, n_pix = _radial_cumulative(psf_norm, plate_scale_mas)
 
     signal = source_e_total * enclosed
     per_pix_var = diffuse_per_pix + dark_per_pix + read_noise ** 2
     noise = np.sqrt(signal + per_pix_var * n_pix)
     snr = np.divide(signal, noise, out=np.zeros_like(signal), where=noise > 0)
 
-    return {"r_mas": r_sorted * plate_scale_mas,
+    return {"r_mas": r_mas,
             "enclosed_fraction": enclosed,
             "n_pix": n_pix,
             "signal_e": signal,
