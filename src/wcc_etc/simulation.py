@@ -600,6 +600,8 @@ class Simulation(_MetaHolder_):
         The peak pixel combines the source PSF peak, the per-pixel sky
         background, the per-pixel dark current, and (for ADU) the additive bias
         level. Used to test ADC-clip saturation against ``sensor.adc_max``.
+        Saturation is per-frame: with ``n_reads`` coadded frames spanning the
+        total ``time``, the peak is evaluated for a single ``time / n_reads`` frame.
 
         Parameters
         ----------
@@ -607,6 +609,9 @@ class Simulation(_MetaHolder_):
             Exposure time(s) in seconds. Defaults to self.meta['time'].
         units : str, optional
             'adu' (default, includes bias) or 'e-'/'e'/'electron' (excludes bias).
+        n_reads : int, optional
+            Number of coadded frames; the per-frame integration is time/n_reads.
+            Defaults to self.meta['n_reads'] (or 1).
 
         Returns
         -------
