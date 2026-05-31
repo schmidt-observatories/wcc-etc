@@ -775,6 +775,25 @@ class FitsImg(object):
 
 
 
+def solve_time_for_snr(snr, A, B, C):
+    """
+    Solve SNR = A*t / sqrt(B*t + C) for the positive root t.
+
+    A, B, C may be scalars or broadcastable arrays (A = signal rate, B = variance
+    rate, C = constant read-noise variance). Returns t in the same shape (a float
+    if all inputs are scalar). Entries with A <= 0 return +inf.
+    """
+    A = np.asarray(A, dtype=float)
+    B = np.asarray(B, dtype=float)
+    C = np.asarray(C, dtype=float)
+    s2 = float(snr) ** 2
+    disc = s2 * s2 * B ** 2 + 4.0 * A ** 2 * s2 * C
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = (s2 * B + np.sqrt(disc)) / (2.0 * A ** 2)
+    t = np.where(A > 0, t, np.inf)
+    return t.item() if t.ndim == 0 else t
+
+
 def aperture_snr_radial(psf_norm, plate_scale_mas, source_e_total,
                         diffuse_per_pix, dark_per_pix, read_noise):
     """

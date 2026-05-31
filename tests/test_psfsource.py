@@ -137,3 +137,23 @@ def test_custom_psf_from_array():
     psf = CustomPSF(arr, src_um_per_pix=3.76).render(_grid_ctx(3.76, npix=64))
     assert psf.shape == (64, 64)
     assert psf.sum() == pytest.approx(1.0, abs=1e-6)
+
+
+def test_solve_time_for_snr_scalar_roundtrips():
+    from wcc_etc.psfsim import solve_time_for_snr
+    A, B, C, snr = 10.0, 5.0, 100.0, 25.0
+    t = solve_time_for_snr(snr, A, B, C)
+    # forward SNR at t must recover the target
+    assert abs(A * t / (B * t + C) ** 0.5 - snr) < 1e-9
+
+
+def test_solve_time_for_snr_array_and_zero_signal():
+    import numpy as np
+    from wcc_etc.psfsim import solve_time_for_snr
+    A = np.array([10.0, 0.0, 4.0])
+    B = np.array([5.0, 5.0, 2.0])
+    C = np.array([100.0, 100.0, 50.0])
+    t = solve_time_for_snr(30.0, A, B, C)
+    assert np.isinf(t[1])                       # zero source -> infinite time
+    assert np.allclose(A[[0, 2]] * t[[0, 2]] /
+                       np.sqrt(B[[0, 2]] * t[[0, 2]] + C[[0, 2]]), 30.0)
