@@ -188,8 +188,10 @@ class ImageSimulator:
     def from_sensorfilter(cls, sensorfilter, scene, npix=300, oversample=11):
         """Build an ImageSimulator from a sensorfilter label (e.g. 'zwo:r+1').
 
-        The underlying Simulation's _default_psf is set from the sensor's
-        focus_level in sensor_info.
+        Sets _default_psf on the underlying Simulation (accessible via
+        self.sim._default_psf) based on the sensor's focus_level in sensor_info.
+        Note: simulate() still requires an explicit psf= argument; _default_psf
+        is used by Simulation.get_image_snr and get_image_exptime_for_snr.
         """
         sim = Simulation.from_sensorfilter(sensorfilter, scene)
         return cls(sim, npix=npix, oversample=oversample)

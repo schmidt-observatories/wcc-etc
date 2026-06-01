@@ -232,7 +232,10 @@ class Simulation(_MetaHolder_):
         Parameters
         ----------
         sensorfilter : str
-            Label from sensor_info, format 'kind:band'.
+            Label from sensor_info, format 'kind:band' (e.g. 'zwo:r',
+            'zwo:r+1', 'qcmos:bb'). Only canonical labels are accepted;
+            nicknames like 'sony:r' are not resolved here (use
+            from_sensor_and_scene for those).
         scene : Scene
 
         Returns
