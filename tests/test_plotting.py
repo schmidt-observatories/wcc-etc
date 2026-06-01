@@ -124,3 +124,27 @@ def test_plot_image_row_mpl_shared_color_scale():
     fig, axes = plotting.plot_image_row_mpl(s, stretch="linear")
     im0, im1 = axes[0].get_images()[0], axes[1].get_images()[0]
     assert im0.get_clim() == im1.get_clim()
+
+
+def _gaussian_simimg(npix=41, sigma=4.0, scale=20.0):
+    c = (npix - 1) / 2
+    yy, xx = np.mgrid[0:npix, 0:npix]
+    g = np.exp(-(((xx - c) ** 2 + (yy - c) ** 2) / (2 * sigma ** 2)))
+    return SimulatedImage(image_e=g.copy(), image_clean=g.copy(),
+                          saturation_mask=np.zeros_like(g, bool),
+                          gain=1.0, bias_level=0.0, npix=npix,
+                          pixel_scale_mas=scale, psf=AiryPSF())
+
+
+def test_plot_radial_mpl_returns_fig_ax_and_decreasing():
+    s = _gaussian_simimg()
+    fig, ax, (r, prof) = plotting.plot_radial_mpl(s, units="pix")
+    assert isinstance(fig, matplotlib.figure.Figure)
+    assert prof[0] > prof[-1]
+
+
+def test_plot_radial_mpl_units_scale_x_axis():
+    s = _gaussian_simimg(scale=20.0)
+    _, _, (r_pix, _) = plotting.plot_radial_mpl(s, units="pix")
+    _, _, (r_mas, _) = plotting.plot_radial_mpl(s, units="mas")
+    assert np.allclose(r_mas, r_pix * 20.0)

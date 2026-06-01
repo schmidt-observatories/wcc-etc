@@ -126,3 +126,39 @@ def plot_image_row_mpl(source=None, *, image_e=None, image_clean=None,
     axes[2].set_xlabel("X [mas]" if extent else "X [pix]")
     axes[2].set_ylabel("Y [mas]" if extent else "Y [pix]")
     return fig, axes
+
+
+def plot_radial_mpl(source=None, *, noise=False, image_e=None, image_clean=None,
+                    saturation_mask=None, pixel_scale_mas=None, units="mas",
+                    annulus_width=1, show_hwhm=True, title="", ax=None):
+    """Azimuthally-averaged radial profile of the simulated image.
+
+    Uses image_clean by default (noise=True uses image_e). units='mas' scales the
+    radius by pixel_scale_mas. Returns (fig, ax, (radius, profile))."""
+    ie, ic, _, ps = _resolve_inputs(
+        source, image_e=image_e, image_clean=image_clean,
+        saturation_mask=saturation_mask, pixel_scale_mas=pixel_scale_mas)
+    data = ie if noise else ic
+    rd = radial_data(np.asarray(data), annulus_width=annulus_width)
+    r = np.asarray(rd.r, dtype=float)
+    prof = np.asarray(rd.mean, dtype=float)
+    if units == "mas" and ps:
+        r = r * ps
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    ax.plot(r, prof)
+    if show_hwhm:
+        hwhm = calc_hwhm(r, prof)
+        if len(hwhm):
+            ymin, ymax = ax.get_ylim()
+            ax.vlines(hwhm[0], ymin, ymax, color="orange", linestyle="--", lw=1,
+                      label="HWHM={:.2f}".format(hwhm[0]))
+            ax.legend(loc="upper right")
+    ax.set_xlabel("Radius [mas]" if (units == "mas" and ps) else "Radius [pix]")
+    ax.set_ylabel("Azimuthally-averaged signal")
+    ax.set_title(title)
+    ax.grid(lw=0.5, alpha=0.3)
+    return fig, ax, (r, prof)
