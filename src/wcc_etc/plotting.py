@@ -15,11 +15,22 @@ from .airy import psf_to_encircled_energy
 from .psfsim import calc_hwhm
 
 
-# Shared look-and-feel for WCC matplotlib plots (STIX math/text font, no tick offset).
+# Shared look-and-feel for WCC matplotlib plots: STIX math/text font, higher dpi,
+# inward minor+major ticks, and faint gridlines. Grid is enabled globally (1D line
+# plots pick it up automatically); the 2D image plotters explicitly disable it.
 WCC_STYLE = {
     "mathtext.fontset": "stix",
     "font.family": "STIXGeneral",
     "axes.formatter.useoffset": False,
+    "figure.dpi": 150,
+    "savefig.dpi": 150,
+    "xtick.minor.visible": True,
+    "ytick.minor.visible": True,
+    "xtick.direction": "in",
+    "ytick.direction": "in",
+    "axes.grid": True,
+    "grid.alpha": 0.3,
+    "grid.linewidth": 0.3,
 }
 
 
@@ -100,6 +111,7 @@ def plot_image_mpl(source=None, *, noise=True, show_saturation=False,
     ax.set_xlabel("X [mas]" if extent else "X [pix]")
     ax.set_ylabel("Y [mas]" if extent else "Y [pix]")
     ax.set_title(title)
+    ax.grid(False)  # no gridlines over a 2D image
     if colorbar:
         fig.colorbar(im, ax=ax)
     return fig, ax
@@ -141,6 +153,8 @@ def plot_image_row_mpl(source=None, *, image_e=None, image_clean=None,
     axes[2].set_title(titles[2])
     axes[2].set_xlabel("X [mas]" if extent else "X [pix]")
     axes[2].set_ylabel("Y [mas]" if extent else "Y [pix]")
+    for ax in axes:
+        ax.grid(False)  # no gridlines over the 2D image panels
     return fig, axes
 
 
@@ -175,7 +189,7 @@ def plot_radial_mpl(source=None, *, noise=False, image_e=None, image_clean=None,
     ax.set_xlabel("Radius [mas]" if (units == "mas" and ps) else "Radius [pix]")
     ax.set_ylabel("Azimuthally-averaged signal")
     ax.set_title(title)
-    ax.grid(lw=0.5, alpha=0.3)
+    ax.grid(True, alpha=0.3, linewidth=0.3)
     return fig, ax, (r, prof)
 
 
@@ -214,7 +228,7 @@ def plot_encircled_energy_mpl(source=None, *, noise=False, image_e=None,
     ax.set_ylabel("Encircled energy")
     ax.set_ylim(0, 1.02)
     ax.set_title(title)
-    ax.grid(lw=0.5, alpha=0.3)
+    ax.grid(True, alpha=0.3, linewidth=0.3)
     return fig, ax, (r, ee)
 
 

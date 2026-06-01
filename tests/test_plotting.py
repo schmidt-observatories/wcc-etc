@@ -268,5 +268,37 @@ def test_set_wcc_style_updates_rcparams():
         assert mpl.rcParams["mathtext.fontset"] == "stix"
         assert mpl.rcParams["font.family"] == ["STIXGeneral"]
         assert mpl.rcParams["axes.formatter.useoffset"] is False
+        assert mpl.rcParams["figure.dpi"] == 150
+        assert mpl.rcParams["xtick.minor.visible"] is True
+        assert mpl.rcParams["ytick.minor.visible"] is True
+        assert mpl.rcParams["xtick.direction"] == "in"
+        assert mpl.rcParams["ytick.direction"] == "in"
+        assert mpl.rcParams["axes.grid"] is True
+        assert mpl.rcParams["grid.alpha"] == 0.3
+        assert mpl.rcParams["grid.linewidth"] == 0.3
     finally:
         mpl.rcParams.update(saved)
+
+
+def test_image_plots_disable_grid_even_when_global_grid_on():
+    import matplotlib as mpl
+    s = _make_simimg()
+    saved = mpl.rcParams["axes.grid"]
+    try:
+        mpl.rcParams["axes.grid"] = True  # global grid on (as set_wcc_style does)
+        fig, ax = plotting.plot_image_mpl(s, stretch="linear")
+        assert all(not gl.get_visible() for gl in ax.get_xgridlines())
+        assert all(not gl.get_visible() for gl in ax.get_ygridlines())
+        fig2, axes = plotting.plot_image_row_mpl(s, stretch="linear")
+        for a in axes:
+            assert all(not gl.get_visible() for gl in a.get_xgridlines())
+    finally:
+        mpl.rcParams["axes.grid"] = saved
+
+
+def test_oned_plots_have_faint_gridlines():
+    s = _gaussian_simimg()
+    fig, ax, _ = plotting.plot_radial_mpl(s, units="pix")
+    fig2, ax2, _ = plotting.plot_encircled_energy_mpl(s, units="pix")
+    assert any(gl.get_visible() for gl in ax.get_xgridlines())
+    assert any(gl.get_visible() for gl in ax2.get_xgridlines())
