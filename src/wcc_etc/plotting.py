@@ -242,3 +242,36 @@ def plot_image_bokeh(source=None, *, noise=True, image_e=None, image_clean=None,
                y_axis_label="Y [{}]".format(axis_label))
     p.image(image=[data], x=x0, y=y0, dw=dw, dh=dh, palette=palette)
     return _finish_bokeh(p, return_)
+
+
+def plot_image_row_bokeh(source=None, *, image_e=None, image_clean=None,
+                         saturation_mask=None, pixel_scale_mas=None, units="pix",
+                         palette="Viridis256", sat_palette="Greys256",
+                         width=300, height=300, return_="obj"):
+    """Bokeh 3-panel row: PSF+noise, PSF (no noise), saturation mask.
+
+    return_ selects the output form (see _finish_bokeh)."""
+    from bokeh.plotting import figure
+    from bokeh.layouts import row
+    ie, ic, sat, ps = _resolve_inputs(
+        source, image_e=image_e, image_clean=image_clean,
+        saturation_mask=saturation_mask, pixel_scale_mas=pixel_scale_mas)
+    ie = np.asarray(ie, dtype=float)
+    ic = np.asarray(ic, dtype=float)
+    sat = np.asarray(sat, dtype=float)
+    ny, nx = ie.shape
+    if units == "mas" and ps:
+        x0, y0, dw, dh, lbl = -nx / 2.0 * ps, -ny / 2.0 * ps, nx * ps, ny * ps, "mas"
+    else:
+        x0, y0, dw, dh, lbl = 0, 0, nx, ny, "pix"
+
+    panels = []
+    for data, title, pal in [(ie, "PSF + noise", palette),
+                             (ic, "PSF (no noise)", palette),
+                             (sat, "Saturation mask", sat_palette)]:
+        p = figure(width=width, height=height, match_aspect=True, title=title,
+                   x_axis_label="X [{}]".format(lbl),
+                   y_axis_label="Y [{}]".format(lbl))
+        p.image(image=[data], x=x0, y=y0, dw=dw, dh=dh, palette=pal)
+        panels.append(p)
+    return _finish_bokeh(row(*panels), return_)

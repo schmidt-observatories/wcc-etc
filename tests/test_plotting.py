@@ -193,3 +193,20 @@ def test_plot_image_bokeh_accepts_raw_arrays():
         saturation_mask=np.zeros((8, 8), bool), pixel_scale_mas=10.0,
         return_="obj")
     assert isinstance(obj, Plot)
+
+
+from bokeh.models import LayoutDOM
+
+
+def test_plot_image_row_bokeh_obj_is_layout():
+    s = _gaussian_simimg()
+    obj = plotting.plot_image_row_bokeh(s, return_="obj")
+    assert isinstance(obj, LayoutDOM)
+
+
+def test_plot_image_row_bokeh_html_and_components():
+    s = _gaussian_simimg()
+    html = plotting.plot_image_row_bokeh(s, return_="html")
+    assert isinstance(html, str) and "<script" in html
+    script, div = plotting.plot_image_row_bokeh(s, return_="components")
+    assert isinstance(script, str) and isinstance(div, str)
