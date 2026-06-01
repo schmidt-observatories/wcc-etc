@@ -224,3 +224,27 @@ def test_plot_ee_bokeh_obj_and_html():
     assert isinstance(plotting.plot_encircled_energy_bokeh(s, return_="obj"), Plot)
     html = plotting.plot_encircled_energy_bokeh(s, return_="html")
     assert isinstance(html, str) and "<script" in html
+
+
+def test_simimg_method_dispatch_mpl():
+    s = _gaussian_simimg()
+    fig, ax = s.plot_image(backend="mpl", stretch="linear")
+    assert isinstance(fig, matplotlib.figure.Figure)
+    fig2, axes = s.plot_image_row(backend="mpl", stretch="linear")
+    assert len(axes) == 3
+    fig3, ax3, (r, prof) = s.plot_radial(backend="mpl", units="pix")
+    assert len(r) == len(prof)
+    fig4, ax4, (re, ee) = s.plot_encircled_energy(backend="mpl", units="pix")
+    assert ee[-1] == pytest.approx(1.0, abs=1e-6)
+
+
+def test_simimg_method_dispatch_bokeh():
+    s = _gaussian_simimg()
+    assert isinstance(s.plot_image(backend="bokeh", return_="obj"), Plot)
+    assert isinstance(s.plot_radial(backend="bokeh", return_="obj"), Plot)
+
+
+def test_simimg_method_bad_backend_raises():
+    s = _gaussian_simimg()
+    with pytest.raises(ValueError):
+        s.plot_image(backend="nope")
