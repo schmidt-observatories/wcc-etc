@@ -152,5 +152,7 @@ def test_from_sensor_and_scene_unaffected():
     scene = _make_scene()
     sim = Simulation.from_sensor_and_scene("sony:r", scene)
     assert sim._default_psf is None
+    # result should equal explicit AiryPSF — confirms fallback uses Airy, not something else
     result = sim.get_image_snr(60)
-    assert result["snr"] > 0
+    result_explicit = sim.get_image_snr(60, psf=AiryPSF())
+    assert abs(result["snr"] - result_explicit["snr"]) < 1e-6

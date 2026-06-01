@@ -768,7 +768,8 @@ class Simulation(_MetaHolder_):
         time : float or Quantity, optional
             Exposure time (seconds if a bare float). Defaults to meta['time'].
         psf : PSFSource, optional
-            PSF model; defaults to AiryPSF().
+            PSF model. If None, uses _default_psf (set by from_sensorfilter)
+            when available, otherwise falls back to AiryPSF().
         r_aper_mas : float, optional
             Fixed aperture radius (mas).
         ee_frac : float, optional
@@ -854,6 +855,12 @@ class Simulation(_MetaHolder_):
         optimize here picks the radius that reaches the target SNR *fastest*
         (minimum time), the inverse of get_image_snr's max-SNR optimize. Returns
         a dict {'time_s', 'snr', 'r_aper_mas', 'enclosed_fraction', 'n_pix'}.
+
+        Parameters
+        ----------
+        psf : PSFSource, optional
+            PSF model. If None, uses _default_psf (set by from_sensorfilter)
+            when available, otherwise falls back to AiryPSF().
         """
         from .psfsim import ImageSimulator, AiryPSF, aperture_time_for_snr
 
