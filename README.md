@@ -61,7 +61,7 @@ See the `notebooks/` directory for example tutorials:
 
 
 # Notes
-Configuration files (.toml) are in the sr/wcc_etc/data/config/ directory. Notebooks show that it is easy to change default configuration parameters on the fly.
+Configuration files (.toml) are in the src/wcc_etc/data/config/ directory. Notebooks show that it is easy to change default configuration parameters on the fly.
 
 ## Viewing Documentation Locally
 
