@@ -4,7 +4,7 @@ from synphot import SpectralElement, Observation
 
 import warnings
 
-from .io import get_sensor_config, _SENSORFILTER_FOCUS
+from .io import get_sensor_config, _SENSORFILTER_FOCUS, _SENSORFILTER_IMPLEMENTED
 from .telescope import Telescope
 from .sensor import Sensor
 from .scene import Scene
@@ -247,6 +247,11 @@ class Simulation(_MetaHolder_):
             raise ValueError(
                 f"Unknown sensorfilter {sensorfilter!r}. "
                 f"Known labels: {known}"
+            )
+        if not _SENSORFILTER_IMPLEMENTED[sensorfilter]:
+            raise NotImplementedError(
+                f"Sensorfilter {sensorfilter!r} is not yet implemented "
+                f"(no throughput curve available)."
             )
         focus_level = _SENSORFILTER_FOCUS[sensorfilter]
         kind, band = sensorfilter.split(":", 1)
