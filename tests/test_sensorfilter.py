@@ -116,3 +116,41 @@ def test_from_sensorfilter_builds_working_sim():
     # basic sanity: can compute an analytic SNR
     snr = sim.get_snr(60)
     assert snr.value > 0
+
+
+def test_get_image_snr_uses_default_psf_for_defocused_sensor():
+    scene = _make_scene()
+    sim_infocus = Simulation.from_sensorfilter("zwo:r", scene)
+    sim_defocus = Simulation.from_sensorfilter("zwo:r+1", scene)
+    snr_infocus = sim_infocus.get_image_snr(60)["snr"]
+    snr_defocus = sim_defocus.get_image_snr(60)["snr"]
+    # defocused SNR should differ from in-focus (PSF is wider → lower peak SNR)
+    assert abs(snr_infocus - snr_defocus) > 0.01
+
+
+def test_get_image_snr_psf_override_works():
+    scene = _make_scene()
+    sim = Simulation.from_sensorfilter("zwo:r+1", scene)
+    sim_ref = Simulation.from_sensorfilter("zwo:r", scene)
+    # override the defocused sim with AiryPSF — should match in-focus result
+    snr_override = sim.get_image_snr(60, psf=AiryPSF())["snr"]
+    snr_ref = sim_ref.get_image_snr(60)["snr"]
+    assert abs(snr_override - snr_ref) < 0.01
+
+
+def test_get_image_exptime_uses_default_psf_for_defocused_sensor():
+    scene = _make_scene()
+    sim_infocus = Simulation.from_sensorfilter("zwo:r", scene)
+    sim_defocus = Simulation.from_sensorfilter("zwo:r+1", scene)
+    t_infocus = sim_infocus.get_image_exptime_for_snr(10)["time_s"]
+    t_defocus = sim_defocus.get_image_exptime_for_snr(10)["time_s"]
+    assert abs(t_infocus - t_defocus) > 0.01
+
+
+def test_from_sensor_and_scene_unaffected():
+    # old API: _default_psf is None, get_image_snr falls back to AiryPSF
+    scene = _make_scene()
+    sim = Simulation.from_sensor_and_scene("sony:r", scene)
+    assert sim._default_psf is None
+    result = sim.get_image_snr(60)
+    assert result["snr"] > 0

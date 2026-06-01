@@ -800,7 +800,7 @@ class Simulation(_MetaHolder_):
         n_reads = self._resolve_n_reads(n_reads)
 
         if psf is None:
-            psf = AiryPSF()
+            psf = self._default_psf if self._default_psf is not None else AiryPSF()
 
         imsim = ImageSimulator(self, npix=npix, oversample=oversample)
         ctx = imsim._context(jitter_sigma_mas=jitter_sigma_mas)
@@ -859,7 +859,7 @@ class Simulation(_MetaHolder_):
 
         n_reads = self._resolve_n_reads(n_reads)
         if psf is None:
-            psf = AiryPSF()
+            psf = self._default_psf if self._default_psf is not None else AiryPSF()
 
         imsim = ImageSimulator(self, npix=npix, oversample=oversample)
         ctx = imsim._context(jitter_sigma_mas=jitter_sigma_mas)
