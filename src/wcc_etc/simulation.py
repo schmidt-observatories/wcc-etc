@@ -1004,7 +1004,7 @@ class Simulation(_MetaHolder_):
                                                                  fnum=self.telescope.f_num, 
                                                                  D=self.telescope.diameter_primary.value,
                                                                  pixel_size=self.sensor.pixel_size.value,
-                                                                 verbose=True)
+                                                                 verbose=False)
 
         # compute the number of pixels associated to the PSF
         plate_scale = self.sensor.get_plate_scale(self.telescope) # in arcsec/pix
