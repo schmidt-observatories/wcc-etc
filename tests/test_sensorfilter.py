@@ -2,7 +2,7 @@ import pytest
 import wcc_etc
 from wcc_etc.io import SENSORS, _SENSORFILTER_FOCUS, sensor_info
 from wcc_etc.simulation import Simulation, _psf_from_focus_level
-from wcc_etc.psfsim import AiryPSF, DefocusPSF
+from wcc_etc.psfsim import AiryPSF, DefocusPSF, ImageSimulator
 
 
 def test_sensors_zwo_no_legacy_defocus():
@@ -156,3 +156,33 @@ def test_from_sensor_and_scene_unaffected():
     result = sim.get_image_snr(60)
     result_explicit = sim.get_image_snr(60, psf=AiryPSF())
     assert abs(result["snr"] - result_explicit["snr"]) < 1e-6
+
+
+def test_image_simulator_from_sensorfilter_0wave():
+    scene = _make_scene()
+    imsim = ImageSimulator.from_sensorfilter("zwo:r", scene)
+    assert isinstance(imsim.sim._default_psf, AiryPSF)
+
+
+def test_image_simulator_from_sensorfilter_1wave():
+    scene = _make_scene()
+    imsim = ImageSimulator.from_sensorfilter("zwo:r+1", scene)
+    assert isinstance(imsim.sim._default_psf, DefocusPSF)
+
+
+def test_image_simulator_from_sensorfilter_2wave():
+    scene = _make_scene()
+    imsim = ImageSimulator.from_sensorfilter("zwo:bb2", scene)
+    assert isinstance(imsim.sim._default_psf, DefocusPSF)
+
+
+def test_image_simulator_from_sensorfilter_unknown_raises():
+    scene = _make_scene()
+    with pytest.raises(ValueError, match="Unknown sensorfilter"):
+        ImageSimulator.from_sensorfilter("zwo:nonexistent", scene)
+
+
+def test_image_simulator_from_sensorfilter_has_npix():
+    scene = _make_scene()
+    imsim = ImageSimulator.from_sensorfilter("zwo:r", scene, npix=128)
+    assert imsim.npix == 128
