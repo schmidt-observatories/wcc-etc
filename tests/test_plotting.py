@@ -44,3 +44,11 @@ def test_image_extent_mas_vs_pix():
     assert plotting._image_extent(4, 4, 10.0, "pix") is None
     ext = plotting._image_extent(4, 4, 10.0, "mas")
     assert ext == [-20.0, 20.0, -20.0, 20.0]
+
+
+def test_make_norm_returns_expected_types():
+    from astropy.visualization.mpl_normalize import ImageNormalize
+    data = np.array([[1.0, 2.0], [3.0, 4.0]])
+    assert plotting._make_norm(data, "linear") is None
+    assert isinstance(plotting._make_norm(data, "log"), ImageNormalize)
+    assert isinstance(plotting._make_norm(data, "hist"), ImageNormalize)
