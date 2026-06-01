@@ -184,6 +184,18 @@ class ImageSimulator:
         sim = Simulation.from_sensor_and_scene(sensor, scene)
         return cls(sim, npix=npix, oversample=oversample)
 
+    @classmethod
+    def from_sensorfilter(cls, sensorfilter, scene, npix=300, oversample=11):
+        """Build an ImageSimulator from a sensorfilter label (e.g. 'zwo:r+1').
+
+        Sets _default_psf on the underlying Simulation (accessible via
+        self.sim._default_psf) based on the sensor's focus_level in sensor_info.
+        Note: simulate() still requires an explicit psf= argument; _default_psf
+        is used by Simulation.get_image_snr and get_image_exptime_for_snr.
+        """
+        sim = Simulation.from_sensorfilter(sensorfilter, scene)
+        return cls(sim, npix=npix, oversample=oversample)
+
     def _context(self, jitter_sigma_mas=None, center=None):
         sim = self.sim
         plate_scale_mas = sim.sensor.get_plate_scale(sim.telescope).to("arcsec/pix").value * 1000.0
