@@ -269,6 +269,7 @@ def test_set_wcc_style_updates_rcparams():
         assert mpl.rcParams["font.family"] == ["STIXGeneral"]
         assert mpl.rcParams["axes.formatter.useoffset"] is False
         assert mpl.rcParams["figure.dpi"] == 150
+        assert mpl.rcParams["axes.labelsize"] == 13
         assert mpl.rcParams["xtick.minor.visible"] is True
         assert mpl.rcParams["ytick.minor.visible"] is True
         assert mpl.rcParams["xtick.direction"] == "in"

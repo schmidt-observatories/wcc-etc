@@ -22,6 +22,7 @@ WCC_STYLE = {
     "mathtext.fontset": "stix",
     "font.family": "STIXGeneral",
     "axes.formatter.useoffset": False,
+    "axes.labelsize": 13,
     "figure.dpi": 150,
     "savefig.dpi": 150,
     "xtick.minor.visible": True,
@@ -140,7 +141,7 @@ def plot_image_row_mpl(source=None, *, image_e=None, image_clean=None,
     vmin = float(np.min(ie)) if norm is None else None
     vmax = float(np.max(ie)) if norm is None else None
 
-    titles = ["PSF + noise", "PSF (no noise)", "Saturation mask"]
+    titles = ["PSF + Noise", "PSF (No Noise)", "Saturation Mask"]
     for ax, data, title in zip(axes[:2], [ie, ic], titles[:2]):
         ax.imshow(data, origin="lower", cmap=cmap, norm=norm,
                   vmin=vmin, vmax=vmax, extent=extent, aspect="equal")
@@ -187,7 +188,7 @@ def plot_radial_mpl(source=None, *, noise=False, image_e=None, image_clean=None,
                        label="HWHM={:.2f}".format(hwhm[0]))
             ax.legend(loc="upper right")
     ax.set_xlabel("Radius [mas]" if (units == "mas" and ps) else "Radius [pix]")
-    ax.set_ylabel("Azimuthally-averaged signal")
+    ax.set_ylabel("Azimuthally-Averaged Signal")
     ax.set_title(title)
     ax.grid(True, alpha=0.3, linewidth=0.3)
     return fig, ax, (r, prof)
@@ -225,7 +226,7 @@ def plot_encircled_energy_mpl(source=None, *, noise=False, image_e=None,
             ax.axhline(ee_target, color="gray", linestyle=":", lw=1)
             ax.legend(loc="lower right")
     ax.set_xlabel("Radius [mas]" if (units == "mas" and ps) else "Radius [pix]")
-    ax.set_ylabel("Encircled energy")
+    ax.set_ylabel("Encircled Energy")
     ax.set_ylim(0, 1.02)
     ax.set_title(title)
     ax.grid(True, alpha=0.3, linewidth=0.3)
@@ -296,9 +297,9 @@ def plot_image_row_bokeh(source=None, *, image_e=None, image_clean=None,
         x0, y0, dw, dh, lbl = 0, 0, nx, ny, "pix"
 
     panels = []
-    for data, title, pal in [(ie, "PSF + noise", palette),
-                             (ic, "PSF (no noise)", palette),
-                             (sat, "Saturation mask", sat_palette)]:
+    for data, title, pal in [(ie, "PSF + Noise", palette),
+                             (ic, "PSF (No Noise)", palette),
+                             (sat, "Saturation Mask", sat_palette)]:
         p = figure(width=width, height=height, match_aspect=True, title=title,
                    x_axis_label="X [{}]".format(lbl),
                    y_axis_label="Y [{}]".format(lbl))
@@ -325,7 +326,7 @@ def plot_radial_bokeh(source=None, *, noise=False, image_e=None, image_clean=Non
         r = r * ps
     p = figure(width=width, height=height, title=title,
                x_axis_label="Radius [mas]" if use_mas else "Radius [pix]",
-               y_axis_label="Azimuthally-averaged signal")
+               y_axis_label="Azimuthally-Averaged Signal")
     p.line(r, prof, line_width=2)
     return _finish_bokeh(p, return_)
 
@@ -348,7 +349,7 @@ def plot_encircled_energy_bokeh(source=None, *, noise=False, image_e=None,
         ee = ee / ee[-1]
     p = figure(width=width, height=height, title=title, y_range=(0, 1.02),
                x_axis_label="Radius [mas]" if use_mas else "Radius [pix]",
-               y_axis_label="Encircled energy")
+               y_axis_label="Encircled Energy")
     p.line(r, ee, line_width=2)
     if ee_target is not None:
         from bokeh.models import Span
