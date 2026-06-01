@@ -1,6 +1,6 @@
 import pytest
 import wcc_etc
-from wcc_etc.io import SENSORS, _SENSORFILTER_FOCUS, sensor_info
+from wcc_etc.io import SENSORS, _SENSORFILTER_FOCUS, _SENSORFILTER_IMPLEMENTED, sensor_info
 from wcc_etc.simulation import Simulation, _psf_from_focus_level
 from wcc_etc.psfsim import AiryPSF, DefocusPSF, ImageSimulator
 
@@ -102,6 +102,22 @@ def test_from_sensorfilter_qcmos():
     scene = _make_scene()
     sim = Simulation.from_sensorfilter("qcmos:bb", scene)
     assert isinstance(sim._default_psf, AiryPSF)
+
+
+def test_sensorfilter_implemented_flags():
+    # known unimplemented narrowband filters
+    for sf in ("zwo:nii", "zwo:halpha", "zwo:hbeta", "zwo:heii", "zwo:oiii"):
+        assert _SENSORFILTER_IMPLEMENTED[sf] is False
+    # spot-check a few implemented ones
+    for sf in ("zwo:r", "zwo:r+1", "zwo:bb2", "qcmos:bb"):
+        assert _SENSORFILTER_IMPLEMENTED[sf] is True
+
+
+def test_from_sensorfilter_not_implemented_raises():
+    scene = _make_scene()
+    for sf in ("zwo:nii", "zwo:halpha", "zwo:hbeta", "zwo:heii", "zwo:oiii"):
+        with pytest.raises(NotImplementedError, match="not yet implemented"):
+            Simulation.from_sensorfilter(sf, scene)
 
 
 def test_from_sensorfilter_unknown_raises():

@@ -48,33 +48,38 @@ SENSORS = {"zwo": {"bb":     "wcc_imx_bb_throughput.csv",
           }
 
 sensor_info = {
-        "1":  {"center": (-1248.5, 437.0),  "sensorfilter": 'qcmos:bb',   "sensor": "hwk4123", "focus_level": "0wave", "filter_label": "BB"},
-        "2":  {"center": (-746.5, 437.0),   "sensorfilter": 'qcmos:z',    "sensor": "hwk4123", "focus_level": "0wave", "filter_label": "z"},
-        "3":  {"center": (-414.5, 437.0),   "sensorfilter": 'qcmos:bb',   "sensor": "hwk4123", "focus_level": "0wave", "filter_label": "BB"},
-        "4":  {"center": (-78.0, 437.0),    "sensorfilter": 'qcmos:g',    "sensor": "hwk4123", "focus_level": "0wave", "filter_label": "g"},
-        "5":  {"center": (256.0, 437.0),    "sensorfilter": 'qcmos:bb',   "sensor": "hwk4123", "focus_level": "0wave", "filter_label": "BB"},
-        "6":  {"center": (590.5, 437.0),    "sensorfilter": 'qcmos:u',    "sensor": "hwk4123", "focus_level": "0wave", "filter_label": "u"},
-        "7":  {"center": (924.5, 437.0),    "sensorfilter": 'qcmos:bb',   "sensor": "hwk4123", "focus_level": "0wave", "filter_label": "BB"},
-        "8":  {"center": (1258.5, 437.0),   "sensorfilter": 'qcmos:i',    "sensor": "hwk4123", "focus_level": "0wave", "filter_label": "i"},
-        "9":  {"center": (-1244.5, 12.0),   "sensorfilter": 'zwo:nii',    "sensor": "imx455" , "focus_level": "0wave", "filter_label": "N-II"},
-        "10": {"center": (-886.5, 12.0),    "sensorfilter": 'zwo:halpha', "sensor": "imx455" , "focus_level": "0wave", "filter_label": "H-alpha"},
-        "11": {"center": (-533.5, 12.0),    "sensorfilter": 'zwo:hbeta',  "sensor": "imx455" , "focus_level": "0wave", "filter_label": "H-Beta"},
-        "12": {"center": (-176.0, 12.0),    "sensorfilter": 'zwo:bb2',    "sensor": "imx455" , "focus_level": "2wave", "filter_label": "BB +2w"},
-        "13": {"center": (183.5, 12.0),     "sensorfilter": 'zwo:i',      "sensor": "imx455" , "focus_level": "0wave", "filter_label": "i"},
-        "14": {"center": (542.5, 12.0),     "sensorfilter": 'zwo:g',      "sensor": "imx455" , "focus_level": "0wave", "filter_label": "g"},
-        "15": {"center": (896.5, 12.0),     "sensorfilter": 'zwo:r',      "sensor": "imx455" , "focus_level": "0wave", "filter_label": "r"},
-        "16": {"center": (1254.0, 12.0),    "sensorfilter": 'zwo:r+1',    "sensor": "imx455" , "focus_level": "1wave", "filter_label": "r +1w"},
-        "17": {"center": (-1254.0, -399.5), "sensorfilter": 'zwo:bb',     "sensor": "imx455" , "focus_level": "0wave", "filter_label": "BB"},
-        "18": {"center": (-891.5, -399.5),  "sensorfilter": 'zwo:u',      "sensor": "imx455" , "focus_level": "0wave", "filter_label": "u"},
-        "19": {"center": (-532.5, -399.5),  "sensorfilter": 'zwo:heii',   "sensor": "imx455" , "focus_level": "0wave", "filter_label": "He II"},
-        "20": {"center": (-174.5, -399.5),  "sensorfilter": 'zwo:z',      "sensor": "imx455" , "focus_level": "0wave", "filter_label": "z"},
-        "21": {"center": (184.5, -399.5),   "sensorfilter": 'zwo:oiii',   "sensor": "imx455" , "focus_level": "0wave", "filter_label": "O-III"},
-        "22": {"center": (541.5, -399.5),   "sensorfilter": 'zwo:bb',     "sensor": "imx455" , "focus_level": "0wave", "filter_label": "BB"},
-        "23": {"center": (901.0, -399.5),   "sensorfilter": 'zwo:r-1',    "sensor": "imx455" , "focus_level": "1wave", "filter_label": "r -1w"},
+        "1":  {"center": (-1248.5, 437.0),  "sensorfilter": 'qcmos:bb',   "sensor": "hwk4123", "focus_level": "0wave", "implemented": True, "filter_label": "BB"},
+        "2":  {"center": (-746.5, 437.0),   "sensorfilter": 'qcmos:z',    "sensor": "hwk4123", "focus_level": "0wave", "implemented": True, "filter_label": "z"},
+        "3":  {"center": (-414.5, 437.0),   "sensorfilter": 'qcmos:bb',   "sensor": "hwk4123", "focus_level": "0wave", "implemented": True, "filter_label": "BB"},
+        "4":  {"center": (-78.0, 437.0),    "sensorfilter": 'qcmos:g',    "sensor": "hwk4123", "focus_level": "0wave", "implemented": True, "filter_label": "g"},
+        "5":  {"center": (256.0, 437.0),    "sensorfilter": 'qcmos:bb',   "sensor": "hwk4123", "focus_level": "0wave", "implemented": True, "filter_label": "BB"},
+        "6":  {"center": (590.5, 437.0),    "sensorfilter": 'qcmos:u',    "sensor": "hwk4123", "focus_level": "0wave", "implemented": True, "filter_label": "u"},
+        "7":  {"center": (924.5, 437.0),    "sensorfilter": 'qcmos:bb',   "sensor": "hwk4123", "focus_level": "0wave", "implemented": True, "filter_label": "BB"},
+        "8":  {"center": (1258.5, 437.0),   "sensorfilter": 'qcmos:i',    "sensor": "hwk4123", "focus_level": "0wave", "implemented": True, "filter_label": "i"},
+        "9":  {"center": (-1244.5, 12.0),   "sensorfilter": 'zwo:nii',    "sensor": "imx455" , "focus_level": "0wave", "implemented": False, "filter_label": "N-II"},
+        "10": {"center": (-886.5, 12.0),    "sensorfilter": 'zwo:halpha', "sensor": "imx455" , "focus_level": "0wave", "implemented": False, "filter_label": "H-alpha"},
+        "11": {"center": (-533.5, 12.0),    "sensorfilter": 'zwo:hbeta',  "sensor": "imx455" , "focus_level": "0wave", "implemented": False, "filter_label": "H-Beta"},
+        "12": {"center": (-176.0, 12.0),    "sensorfilter": 'zwo:bb2',    "sensor": "imx455" , "focus_level": "2wave", "implemented": True, "filter_label": "BB +2w"},
+        "13": {"center": (183.5, 12.0),     "sensorfilter": 'zwo:i',      "sensor": "imx455" , "focus_level": "0wave", "implemented": True, "filter_label": "i"},
+        "14": {"center": (542.5, 12.0),     "sensorfilter": 'zwo:g',      "sensor": "imx455" , "focus_level": "0wave", "implemented": True, "filter_label": "g"},
+        "15": {"center": (896.5, 12.0),     "sensorfilter": 'zwo:r',      "sensor": "imx455" , "focus_level": "0wave", "implemented": True, "filter_label": "r"},
+        "16": {"center": (1254.0, 12.0),    "sensorfilter": 'zwo:r+1',    "sensor": "imx455" , "focus_level": "1wave", "implemented": True, "filter_label": "r +1w"},
+        "17": {"center": (-1254.0, -399.5), "sensorfilter": 'zwo:bb',     "sensor": "imx455" , "focus_level": "0wave", "implemented": True, "filter_label": "BB"},
+        "18": {"center": (-891.5, -399.5),  "sensorfilter": 'zwo:u',      "sensor": "imx455" , "focus_level": "0wave", "implemented": True, "filter_label": "u"},
+        "19": {"center": (-532.5, -399.5),  "sensorfilter": 'zwo:heii',   "sensor": "imx455" , "focus_level": "0wave", "implemented": False, "filter_label": "He II"},
+        "20": {"center": (-174.5, -399.5),  "sensorfilter": 'zwo:z',      "sensor": "imx455" , "focus_level": "0wave", "implemented": True, "filter_label": "z"},
+        "21": {"center": (184.5, -399.5),   "sensorfilter": 'zwo:oiii',   "sensor": "imx455" , "focus_level": "0wave", "implemented": False, "filter_label": "O-III"},
+        "22": {"center": (541.5, -399.5),   "sensorfilter": 'zwo:bb',     "sensor": "imx455" , "focus_level": "0wave", "implemented": True, "filter_label": "BB"},
+        "23": {"center": (901.0, -399.5),   "sensorfilter": 'zwo:r-1',    "sensor": "imx455" , "focus_level": "1wave", "implemented": True, "filter_label": "r -1w"},
     }
 
 _SENSORFILTER_FOCUS: dict = {
     entry["sensorfilter"]: entry["focus_level"]
+    for entry in sensor_info.values()
+}
+
+_SENSORFILTER_IMPLEMENTED: dict = {
+    entry["sensorfilter"]: entry["implemented"]
     for entry in sensor_info.values()
 }
 
