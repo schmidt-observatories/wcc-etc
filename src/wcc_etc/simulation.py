@@ -219,7 +219,41 @@ class Simulation(_MetaHolder_):
 
         this.set_scene(scene)
         return this
-    
+
+    @classmethod
+    def from_sensorfilter(cls, sensorfilter, scene):
+        """
+        Create a Simulation from a sensorfilter label, auto-selecting the PSF.
+
+        The label must be a key in sensor_info (e.g. 'zwo:r', 'zwo:r+1',
+        'qcmos:bb'). The PSF matching the sensor's focus_level is stored as
+        _default_psf and used automatically by get_image_snr when psf=None.
+
+        Parameters
+        ----------
+        sensorfilter : str
+            Label from sensor_info, format 'kind:band'.
+        scene : Scene
+
+        Returns
+        -------
+        Simulation
+        """
+        from .io import _SENSORFILTER_FOCUS
+        if sensorfilter not in _SENSORFILTER_FOCUS:
+            known = sorted(_SENSORFILTER_FOCUS)
+            raise ValueError(
+                f"Unknown sensorfilter {sensorfilter!r}. "
+                f"Known labels: {known}"
+            )
+        focus_level = _SENSORFILTER_FOCUS[sensorfilter]
+        kind, band = sensorfilter.split(":", 1)
+        config = get_sensor_config(kind, band)
+        this = cls.from_config(config)
+        this.set_scene(scene)
+        this._default_psf = _psf_from_focus_level(focus_level)
+        return this
+
     # ================ #
     #   methods        #
     # ================ #
