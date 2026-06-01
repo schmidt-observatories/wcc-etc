@@ -38,6 +38,36 @@ def calculate_bg_normalization_magnitude(bg_surface_brightness, psf_area):
     bg_magnitude = bg_surface_brightness - 2.5 * np.log10(psf_area)
     return bg_magnitude
 
+
+def _psf_from_focus_level(focus_level):
+    """
+    Create a PSF object from a focus level string.
+
+    Parameters
+    ----------
+    focus_level : str
+        The focus level, one of "0wave", "1wave", or "2wave".
+
+    Returns
+    -------
+    AiryPSF or DefocusPSF
+        The PSF object corresponding to the focus level.
+
+    Raises
+    ------
+    ValueError
+        If focus_level is not one of the expected values.
+    """
+    from .psfsim import AiryPSF, DefocusPSF, DEFOCUS_1WAVE_PATH, DEFOCUS_2WAVE_PATH
+    if focus_level == "0wave":
+        return AiryPSF()
+    if focus_level == "1wave":
+        return DefocusPSF(DEFOCUS_1WAVE_PATH)
+    if focus_level == "2wave":
+        return DefocusPSF(DEFOCUS_2WAVE_PATH)
+    raise ValueError(f"Unknown focus_level {focus_level!r}. Expected '0wave', '1wave', or '2wave'.")
+
+
 class Simulation(_MetaHolder_):
     """
     A class to manage and run image exposure simulations.
@@ -88,6 +118,7 @@ class Simulation(_MetaHolder_):
         self._telescope = telescope
         self._sensor = sensor
         self.set_scene(scene)
+        self._default_psf = None
 
         input_parameters = {key:value for key,value in locals().items()
                              if key not in ["self", "telescope", "sensor", "scene", "meta"]

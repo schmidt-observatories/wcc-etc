@@ -44,3 +44,32 @@ def test_sensorfilter_focus_1wave():
 
 def test_sensorfilter_focus_2wave():
     assert _SENSORFILTER_FOCUS["zwo:bb2"] == "2wave"
+
+
+from wcc_etc.simulation import Simulation, _psf_from_focus_level
+from wcc_etc.psfsim import AiryPSF, DefocusPSF
+
+
+def test_psf_from_focus_level_0wave():
+    psf = _psf_from_focus_level("0wave")
+    assert isinstance(psf, AiryPSF)
+
+
+def test_psf_from_focus_level_1wave():
+    psf = _psf_from_focus_level("1wave")
+    assert isinstance(psf, DefocusPSF)
+
+
+def test_psf_from_focus_level_2wave():
+    psf = _psf_from_focus_level("2wave")
+    assert isinstance(psf, DefocusPSF)
+
+
+def test_psf_from_focus_level_unknown():
+    with pytest.raises(ValueError, match="Unknown focus_level"):
+        _psf_from_focus_level("3wave")
+
+
+def test_simulation_default_psf_is_none_by_default():
+    sim = Simulation(telescope=None, sensor=None, scene=None)
+    assert sim._default_psf is None
