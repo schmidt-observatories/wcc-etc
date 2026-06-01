@@ -1,3 +1,4 @@
+import sys
 import warnings
 import numpy as np
 from scipy.special import j1
@@ -6,6 +7,11 @@ from PIL import Image
 from astropy.io import fits
 import matplotlib.pyplot as plt
 import scipy.interpolate
+
+# render_detector_psf rounds an even n_pixels up by one (to center the PSF peak).
+# This is routine and happens on most grids, so we note it quietly at most once
+# per session instead of warning on every call (which floods notebooks).
+_ODD_NPIX_NOTIFIED = False
 
 
 def get_airy_psf(D, rr, wavelength, normalize=True):
@@ -190,11 +196,14 @@ def render_detector_psf(wavelength, fnum, D, pixel_size,
     n_pixels = int(n_pixels)
     oversample = int(oversample)
 
-    # Force odd pixel count so a pixel is centered on the PSF peak
+    # Force odd pixel count so a pixel is centered on the PSF peak.
     if n_pixels % 2 == 0:
-        warnings.warn(f"n_pixels must be odd to center the PSF peak; "
-                      f"using {n_pixels + 1} instead of {n_pixels}.")
         n_pixels += 1
+        global _ODD_NPIX_NOTIFIED
+        if not _ODD_NPIX_NOTIFIED:
+            _ODD_NPIX_NOTIFIED = True
+            print("[wcc_etc] note: even n_pixels is rounded up by 1 to center the "
+                  "PSF peak (shown once).", file=sys.stderr)
 
     # Detector and oversampled plate scales (mas/pix)
     pscale_mas = calc_plate_scale_from_flength(fnum * D, pixel_size) * 1000.0

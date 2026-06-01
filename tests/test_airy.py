@@ -42,3 +42,16 @@ def test_render_detector_psf_peak_fraction_reference_value():
         wavelength=0.6e-6, fnum=15, D=3, pixel_size=3.76,
         jitter_sigma_mas=0, n_pixels=21, oversample=11)
     assert psf.max() == pytest.approx(0.1333, abs=0.001)
+
+
+def test_render_detector_psf_even_npix_no_warning():
+    # Even n_pixels is rounded up to odd; this must NOT raise a UserWarning
+    # (it used to warn on every call and flood notebooks). Treat any warning as an error.
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        psf, _ = render_detector_psf(
+            wavelength=0.6e-6, fnum=15, D=3, pixel_size=3.76,
+            jitter_sigma_mas=0, n_pixels=128, oversample=5)
+    assert psf.shape == (129, 129)
+    assert psf.sum() == pytest.approx(1.0, abs=1e-6)
