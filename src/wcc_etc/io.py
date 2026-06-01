@@ -73,11 +73,10 @@ sensor_info = {
         "23": {"center": (901.0, -399.5),   "sensorfilter": 'zwo:r-1',    "sensor": "imx455" , "focus_level": "1wave", "filter_label": "r -1w"},
     }
 
-_SENSORFILTER_FOCUS: dict = {}
-for _sf_entry in sensor_info.values():
-    _sf_key = _sf_entry["sensorfilter"]
-    if _sf_key not in _SENSORFILTER_FOCUS:
-        _SENSORFILTER_FOCUS[_sf_key] = _sf_entry["focus_level"]
+_SENSORFILTER_FOCUS: dict = {
+    entry["sensorfilter"]: entry["focus_level"]
+    for entry in sensor_info.values()
+}
 
 # shortcut to simplify usage.
 _KIND_NAMES = {shortcut:"zwo" for shortcut in ["sony", "imx", "imx455"]}
