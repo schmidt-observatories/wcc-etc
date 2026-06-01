@@ -163,3 +163,33 @@ def test_plot_ee_mpl_target_marker_returns_radius():
         s, units="mas", ee_target=0.8)
     idx = np.searchsorted(ee, 0.8)
     assert 0 < idx < len(r)
+
+
+from bokeh.models import Plot
+
+
+def test_finish_bokeh_obj_html_components():
+    s = _gaussian_simimg()
+    obj = plotting.plot_image_bokeh(s, return_="obj")
+    assert isinstance(obj, Plot)
+
+    html = plotting.plot_image_bokeh(s, return_="html")
+    assert isinstance(html, str) and "<script" in html
+
+    comp = plotting.plot_image_bokeh(s, return_="components")
+    assert isinstance(comp, tuple) and len(comp) == 2
+    assert all(isinstance(x, str) for x in comp)
+
+
+def test_plot_image_bokeh_bad_return_raises():
+    s = _gaussian_simimg()
+    with pytest.raises(ValueError):
+        plotting.plot_image_bokeh(s, return_="nope")
+
+
+def test_plot_image_bokeh_accepts_raw_arrays():
+    obj = plotting.plot_image_bokeh(
+        image_e=np.ones((8, 8)), image_clean=np.zeros((8, 8)),
+        saturation_mask=np.zeros((8, 8), bool), pixel_scale_mas=10.0,
+        return_="obj")
+    assert isinstance(obj, Plot)

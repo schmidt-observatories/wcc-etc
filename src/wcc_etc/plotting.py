@@ -200,3 +200,45 @@ def plot_encircled_energy_mpl(source=None, *, noise=False, image_e=None,
     ax.set_title(title)
     ax.grid(lw=0.5, alpha=0.3)
     return fig, ax, (r, ee)
+
+
+def _finish_bokeh(obj, return_):
+    """Return a bokeh object as the figure ('obj'), a standalone HTML string
+    ('html'), or an (script, div) components tuple ('components')."""
+    if return_ == "obj":
+        return obj
+    if return_ == "html":
+        from bokeh.embed import file_html
+        from bokeh.resources import CDN
+        return file_html(obj, CDN)
+    if return_ == "components":
+        from bokeh.embed import components
+        return components(obj)
+    raise ValueError("return_ must be 'obj', 'html', or 'components'")
+
+
+def plot_image_bokeh(source=None, *, noise=True, image_e=None, image_clean=None,
+                     saturation_mask=None, pixel_scale_mas=None, units="pix",
+                     palette="Viridis256", title="", width=400, height=400,
+                     return_="obj"):
+    """Bokeh single-image plot with equal x/y scale (match_aspect=True).
+
+    return_ selects the output form (see _finish_bokeh)."""
+    from bokeh.plotting import figure
+    ie, ic, _sat, ps = _resolve_inputs(
+        source, image_e=image_e, image_clean=image_clean,
+        saturation_mask=saturation_mask, pixel_scale_mas=pixel_scale_mas)
+    data = np.asarray(ie if noise else ic, dtype=float)
+    ny, nx = data.shape
+    if units == "mas" and ps:
+        x0, y0, dw, dh = -nx / 2.0 * ps, -ny / 2.0 * ps, nx * ps, ny * ps
+        axis_label = "mas"
+    else:
+        x0, y0, dw, dh = 0, 0, nx, ny
+        axis_label = "pix"
+
+    p = figure(width=width, height=height, match_aspect=True, title=title,
+               x_axis_label="X [{}]".format(axis_label),
+               y_axis_label="Y [{}]".format(axis_label))
+    p.image(image=[data], x=x0, y=y0, dw=dw, dh=dh, palette=palette)
+    return _finish_bokeh(p, return_)
