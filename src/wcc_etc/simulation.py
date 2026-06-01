@@ -4,7 +4,7 @@ from synphot import SpectralElement, Observation
 
 import warnings
 
-from .io import get_sensor_config
+from .io import get_sensor_config, _SENSORFILTER_FOCUS
 from .telescope import Telescope
 from .sensor import Sensor
 from .scene import Scene
@@ -227,7 +227,7 @@ class Simulation(_MetaHolder_):
 
         The label must be a key in sensor_info (e.g. 'zwo:r', 'zwo:r+1',
         'qcmos:bb'). The PSF matching the sensor's focus_level is stored as
-        _default_psf and used automatically by get_image_snr when psf=None.
+        _default_psf; get_image_snr uses it when no psf= argument is given.
 
         Parameters
         ----------
@@ -239,7 +239,6 @@ class Simulation(_MetaHolder_):
         -------
         Simulation
         """
-        from .io import _SENSORFILTER_FOCUS
         if sensorfilter not in _SENSORFILTER_FOCUS:
             known = sorted(_SENSORFILTER_FOCUS)
             raise ValueError(
