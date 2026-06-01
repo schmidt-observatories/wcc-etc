@@ -148,3 +148,18 @@ def test_plot_radial_mpl_units_scale_x_axis():
     _, _, (r_pix, _) = plotting.plot_radial_mpl(s, units="pix")
     _, _, (r_mas, _) = plotting.plot_radial_mpl(s, units="mas")
     assert np.allclose(r_mas, r_pix * 20.0)
+
+
+def test_plot_ee_mpl_monotonic_to_one():
+    s = _gaussian_simimg()
+    fig, ax, (r, ee) = plotting.plot_encircled_energy_mpl(s, units="pix")
+    assert np.all(np.diff(ee) >= -1e-9)
+    assert ee[-1] == pytest.approx(1.0, abs=1e-6)
+
+
+def test_plot_ee_mpl_target_marker_returns_radius():
+    s = _gaussian_simimg()
+    fig, ax, (r, ee) = plotting.plot_encircled_energy_mpl(
+        s, units="mas", ee_target=0.8)
+    idx = np.searchsorted(ee, 0.8)
+    assert 0 < idx < len(r)

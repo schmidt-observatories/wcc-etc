@@ -161,3 +161,42 @@ def plot_radial_mpl(source=None, *, noise=False, image_e=None, image_clean=None,
     ax.set_title(title)
     ax.grid(lw=0.5, alpha=0.3)
     return fig, ax, (r, prof)
+
+
+def plot_encircled_energy_mpl(source=None, *, noise=False, image_e=None,
+                              image_clean=None, saturation_mask=None,
+                              pixel_scale_mas=None, units="mas",
+                              ee_target=None, title="", ax=None):
+    """Encircled-energy curve (normalized to 1) of the simulated image.
+
+    Uses image_clean by default. units='mas' uses the mas radius from
+    psf_to_encircled_energy; units='pix' divides by pixel_scale_mas. ee_target
+    (e.g. 0.8) draws the enclosing-radius marker. Returns (fig, ax, (radius, ee))."""
+    ie, ic, _, ps = _resolve_inputs(
+        source, image_e=image_e, image_clean=image_clean,
+        saturation_mask=saturation_mask, pixel_scale_mas=pixel_scale_mas)
+    data = ie if noise else ic
+    scale = ps if ps else 1.0
+    r_mas, _psf1d, ee = psf_to_encircled_energy(np.asarray(data), scale, scale)
+    r = r_mas if (units == "mas" and ps) else r_mas / scale
+    if ee[-1] > 0:
+        ee = ee / ee[-1]
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    ax.plot(r, ee)
+    if ee_target is not None:
+        idx = int(np.searchsorted(ee, ee_target))
+        if 0 < idx < len(r):
+            ax.axvline(r[idx], color="red", linestyle="--", lw=1,
+                       label="EE={:.2f} @ {:.1f}".format(ee_target, r[idx]))
+            ax.axhline(ee_target, color="gray", linestyle=":", lw=1)
+            ax.legend(loc="lower right")
+    ax.set_xlabel("Radius [mas]" if (units == "mas" and ps) else "Radius [pix]")
+    ax.set_ylabel("Encircled energy")
+    ax.set_ylim(0, 1.02)
+    ax.set_title(title)
+    ax.grid(lw=0.5, alpha=0.3)
+    return fig, ax, (r, ee)
