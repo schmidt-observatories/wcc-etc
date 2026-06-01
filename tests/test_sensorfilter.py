@@ -184,5 +184,14 @@ def test_image_simulator_from_sensorfilter_unknown_raises():
 
 def test_image_simulator_from_sensorfilter_has_npix():
     scene = _make_scene()
-    imsim = ImageSimulator.from_sensorfilter("zwo:r", scene, npix=128)
+    imsim = ImageSimulator.from_sensorfilter("zwo:r", scene, npix=128, oversample=5)
     assert imsim.npix == 128
+    assert imsim.oversample == 5
+
+
+def test_image_simulator_from_sensorfilter_builds_working_imsim():
+    scene = _make_scene()
+    imsim = ImageSimulator.from_sensorfilter("zwo:r", scene, npix=64)
+    result = imsim.simulate(60, add_noise=False)
+    assert result is not None
+    assert result.image_e.max() > 0
