@@ -48,7 +48,16 @@ snr_new = sim.get_snr(10)
 ```
 
 # Tutorial
-See notebooks/ directory for example tutorials.
+See the `notebooks/` directory for example tutorials:
+
+| Notebook | What it covers |
+|---|---|
+| `01_example.ipynb` | General ETC quickstart: scenes, sensors, SNR. |
+| `02_saturation_flag.ipynb` | Peak-pixel / saturation flagging (`get_peak_pixel`, `is_saturated`). |
+| `03_from_sensorfilter.ipynb` | `from_sensorfilter` — auto PSF selection by sensor:filter focus level (in-focus vs defocused). |
+| `04_psf_and_image_snr.ipynb` | PSF simulator (`AiryPSF`/`DefocusPSF`), `ImageSimulator`, and PSF-aware SNR (`get_image_snr`) with aperture optimization. |
+| `05_n_reads_exptime.ipynb` | `n_reads` and the exposure-time-for-SNR inverses (`get_exptime_for_snr`, `get_image_exptime_for_snr`); per-frame saturation. |
+| `06_source_spectra.ipynb` | Parametric source spectra in `get_scene` (blackbody/flat/powerlaw/emission) and rebuilding via `update`. |
 
 
 # Notes
