@@ -22,10 +22,6 @@ from .simulation import Simulation
 from . import io
 
 
-import warnings
-warnings.warn("DEPRECATION: wcc_etc.py is deprecated.")
-
-
 #   One line function prepends the support path to variable s2 if s1 is provided, else returns s2 as is.
 prepend_if_not_none = lambda s1, s2: f"{s1}{s2}" if s1 is not None else s2
 
