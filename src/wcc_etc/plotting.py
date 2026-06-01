@@ -153,9 +153,8 @@ def plot_radial_mpl(source=None, *, noise=False, image_e=None, image_clean=None,
     if show_hwhm:
         hwhm = calc_hwhm(r, prof)
         if len(hwhm):
-            ymin, ymax = ax.get_ylim()
-            ax.vlines(hwhm[0], ymin, ymax, color="orange", linestyle="--", lw=1,
-                      label="HWHM={:.2f}".format(hwhm[0]))
+            ax.axvline(hwhm[0], color="orange", linestyle="--", lw=1,
+                       label="HWHM={:.2f}".format(hwhm[0]))
             ax.legend(loc="upper right")
     ax.set_xlabel("Radius [mas]" if (units == "mas" and ps) else "Radius [pix]")
     ax.set_ylabel("Azimuthally-averaged signal")
