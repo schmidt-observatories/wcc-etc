@@ -275,3 +275,57 @@ def plot_image_row_bokeh(source=None, *, image_e=None, image_clean=None,
         p.image(image=[data], x=x0, y=y0, dw=dw, dh=dh, palette=pal)
         panels.append(p)
     return _finish_bokeh(row(*panels), return_)
+
+
+def plot_radial_bokeh(source=None, *, noise=False, image_e=None, image_clean=None,
+                      saturation_mask=None, pixel_scale_mas=None, units="mas",
+                      annulus_width=1, title="", width=500, height=350,
+                      return_="obj"):
+    """Bokeh radial profile. return_ selects the output form (see _finish_bokeh)."""
+    from bokeh.plotting import figure
+    ie, ic, _sat, ps = _resolve_inputs(
+        source, image_e=image_e, image_clean=image_clean,
+        saturation_mask=saturation_mask, pixel_scale_mas=pixel_scale_mas)
+    data = ie if noise else ic
+    rd = radial_data(np.asarray(data), annulus_width=annulus_width)
+    r = np.asarray(rd.r, dtype=float)
+    prof = np.asarray(rd.mean, dtype=float)
+    use_mas = units == "mas" and ps
+    if use_mas:
+        r = r * ps
+    p = figure(width=width, height=height, title=title,
+               x_axis_label="Radius [mas]" if use_mas else "Radius [pix]",
+               y_axis_label="Azimuthally-averaged signal")
+    p.line(r, prof, line_width=2)
+    return _finish_bokeh(p, return_)
+
+
+def plot_encircled_energy_bokeh(source=None, *, noise=False, image_e=None,
+                                image_clean=None, saturation_mask=None,
+                                pixel_scale_mas=None, units="mas", ee_target=None,
+                                title="", width=500, height=350, return_="obj"):
+    """Bokeh encircled-energy curve. return_ selects the output form."""
+    from bokeh.plotting import figure
+    ie, ic, _sat, ps = _resolve_inputs(
+        source, image_e=image_e, image_clean=image_clean,
+        saturation_mask=saturation_mask, pixel_scale_mas=pixel_scale_mas)
+    data = ie if noise else ic
+    scale = ps if ps else 1.0
+    r_mas, _psf1d, ee = psf_to_encircled_energy(np.asarray(data), scale, scale)
+    use_mas = units == "mas" and ps
+    r = r_mas if use_mas else r_mas / scale
+    if ee[-1] > 0:
+        ee = ee / ee[-1]
+    p = figure(width=width, height=height, title=title, y_range=(0, 1.02),
+               x_axis_label="Radius [mas]" if use_mas else "Radius [pix]",
+               y_axis_label="Encircled energy")
+    p.line(r, ee, line_width=2)
+    if ee_target is not None:
+        from bokeh.models import Span
+        idx = int(np.searchsorted(ee, ee_target))
+        if 0 < idx < len(r):
+            p.add_layout(Span(location=r[idx], dimension="height",
+                              line_color="red", line_dash="dashed"))
+            p.add_layout(Span(location=ee_target, dimension="width",
+                              line_color="gray", line_dash="dotted"))
+    return _finish_bokeh(p, return_)

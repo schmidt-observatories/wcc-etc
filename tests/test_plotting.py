@@ -210,3 +210,17 @@ def test_plot_image_row_bokeh_html_and_components():
     assert isinstance(html, str) and "<script" in html
     script, div = plotting.plot_image_row_bokeh(s, return_="components")
     assert isinstance(script, str) and isinstance(div, str)
+
+
+def test_plot_radial_bokeh_obj_and_components():
+    s = _gaussian_simimg()
+    assert isinstance(plotting.plot_radial_bokeh(s, return_="obj"), Plot)
+    script, div = plotting.plot_radial_bokeh(s, return_="components")
+    assert isinstance(script, str) and isinstance(div, str)
+
+
+def test_plot_ee_bokeh_obj_and_html():
+    s = _gaussian_simimg()
+    assert isinstance(plotting.plot_encircled_energy_bokeh(s, return_="obj"), Plot)
+    html = plotting.plot_encircled_energy_bokeh(s, return_="html")
+    assert isinstance(html, str) and "<script" in html
