@@ -1,5 +1,7 @@
 import pytest
 from wcc_etc.io import SENSORS, _SENSORFILTER_FOCUS, sensor_info
+from wcc_etc.simulation import Simulation, _psf_from_focus_level
+from wcc_etc.psfsim import AiryPSF, DefocusPSF
 
 
 def test_sensors_zwo_no_legacy_defocus():
@@ -44,10 +46,6 @@ def test_sensorfilter_focus_1wave():
 
 def test_sensorfilter_focus_2wave():
     assert _SENSORFILTER_FOCUS["zwo:bb2"] == "2wave"
-
-
-from wcc_etc.simulation import Simulation, _psf_from_focus_level
-from wcc_etc.psfsim import AiryPSF, DefocusPSF
 
 
 def test_psf_from_focus_level_0wave():

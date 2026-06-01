@@ -118,7 +118,7 @@ class Simulation(_MetaHolder_):
         self._telescope = telescope
         self._sensor = sensor
         self.set_scene(scene)
-        self._default_psf = None
+        self._default_psf = None  # set by from_sensorfilter only
 
         input_parameters = {key:value for key,value in locals().items()
                              if key not in ["self", "telescope", "sensor", "scene", "meta"]
