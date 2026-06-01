@@ -87,3 +87,42 @@ def plot_image_mpl(source=None, *, noise=True, show_saturation=False,
     if colorbar:
         fig.colorbar(im, ax=ax)
     return fig, ax
+
+
+def plot_image_row_mpl(source=None, *, image_e=None, image_clean=None,
+                       saturation_mask=None, pixel_scale_mas=None,
+                       stretch="log", cmap="viridis", units="pix",
+                       sat_cmap="gray", figsize=(15, 5), axes=None):
+    """Three panels: PSF+noise, PSF (no noise), and the saturation mask.
+
+    The two image panels share a common color scale (computed from the noisy
+    image). Returns (fig, axes) where axes has length 3."""
+    ie, ic, sat, ps = _resolve_inputs(
+        source, image_e=image_e, image_clean=image_clean,
+        saturation_mask=saturation_mask, pixel_scale_mas=pixel_scale_mas)
+    ny, nx = ie.shape
+    extent = _image_extent(ny, nx, ps, units)
+
+    if axes is None:
+        fig, axes = plt.subplots(1, 3, figsize=figsize)
+    else:
+        fig = axes[0].figure
+
+    norm = _make_norm(ie, stretch)
+    vmin = float(np.min(ie)) if norm is None else None
+    vmax = float(np.max(ie)) if norm is None else None
+
+    titles = ["PSF + noise", "PSF (no noise)", "Saturation mask"]
+    for ax, data, title in zip(axes[:2], [ie, ic], titles[:2]):
+        ax.imshow(data, origin="lower", cmap=cmap, norm=norm,
+                  vmin=vmin, vmax=vmax, extent=extent, aspect="equal")
+        ax.set_title(title)
+        ax.set_xlabel("X [mas]" if extent else "X [pix]")
+        ax.set_ylabel("Y [mas]" if extent else "Y [pix]")
+
+    axes[2].imshow(np.asarray(sat, dtype=float), origin="lower",
+                   cmap=sat_cmap, extent=extent, aspect="equal")
+    axes[2].set_title(titles[2])
+    axes[2].set_xlabel("X [mas]" if extent else "X [pix]")
+    axes[2].set_ylabel("Y [mas]" if extent else "Y [pix]")
+    return fig, axes

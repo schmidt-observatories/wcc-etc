@@ -99,3 +99,28 @@ def test_plot_image_mpl_accepts_raw_arrays():
         saturation_mask=np.zeros((4, 4), bool), pixel_scale_mas=10.0,
         stretch="linear")
     assert isinstance(fig, matplotlib.figure.Figure)
+
+
+def test_plot_image_row_mpl_three_axes():
+    s = _make_simimg()
+    fig, axes = plotting.plot_image_row_mpl(s, stretch="linear")
+    assert len(axes) == 3
+    for ax in axes:
+        assert ax.get_aspect() in (1.0, "equal")
+
+
+def test_plot_image_row_mpl_panel_data():
+    s = _make_simimg()
+    fig, axes = plotting.plot_image_row_mpl(s, stretch="linear")
+    assert np.array_equal(axes[0].get_images()[0].get_array().data, s.image_e)
+    assert np.array_equal(axes[1].get_images()[0].get_array().data, s.image_clean)
+    assert np.array_equal(
+        np.asarray(axes[2].get_images()[0].get_array()).astype(bool),
+        s.saturation_mask)
+
+
+def test_plot_image_row_mpl_shared_color_scale():
+    s = _make_simimg()
+    fig, axes = plotting.plot_image_row_mpl(s, stretch="linear")
+    im0, im1 = axes[0].get_images()[0], axes[1].get_images()[0]
+    assert im0.get_clim() == im1.get_clim()
