@@ -168,6 +168,42 @@ class SimulatedImage:
         """Wrap the electron image in a FitsImg for photometry/plotting."""
         return FitsImg(data=self.image_e)
 
+    def plot_image(self, backend="mpl", **kwargs):
+        """Plot this image (single panel). backend='mpl' or 'bokeh'."""
+        from . import plotting
+        if backend == "mpl":
+            return plotting.plot_image_mpl(self, **kwargs)
+        if backend == "bokeh":
+            return plotting.plot_image_bokeh(self, **kwargs)
+        raise ValueError("backend must be 'mpl' or 'bokeh'")
+
+    def plot_image_row(self, backend="mpl", **kwargs):
+        """Plot the 3-panel row (PSF+noise, PSF, saturation mask)."""
+        from . import plotting
+        if backend == "mpl":
+            return plotting.plot_image_row_mpl(self, **kwargs)
+        if backend == "bokeh":
+            return plotting.plot_image_row_bokeh(self, **kwargs)
+        raise ValueError("backend must be 'mpl' or 'bokeh'")
+
+    def plot_radial(self, backend="mpl", **kwargs):
+        """Plot the azimuthally-averaged radial profile."""
+        from . import plotting
+        if backend == "mpl":
+            return plotting.plot_radial_mpl(self, **kwargs)
+        if backend == "bokeh":
+            return plotting.plot_radial_bokeh(self, **kwargs)
+        raise ValueError("backend must be 'mpl' or 'bokeh'")
+
+    def plot_encircled_energy(self, backend="mpl", **kwargs):
+        """Plot the encircled-energy curve."""
+        from . import plotting
+        if backend == "mpl":
+            return plotting.plot_encircled_energy_mpl(self, **kwargs)
+        if backend == "bokeh":
+            return plotting.plot_encircled_energy_bokeh(self, **kwargs)
+        raise ValueError("backend must be 'mpl' or 'bokeh'")
+
 
 class ImageSimulator:
     """Render a point source onto a detector grid with noise, driven by an ETC Simulation."""

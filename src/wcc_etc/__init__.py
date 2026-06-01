@@ -2,7 +2,14 @@ import importlib.metadata
 from pathlib import Path
 __version__ = importlib.metadata.version(__package__ or "wcc_etc")
 
-__all__ = [ "__version__"]
+__all__ = [
+    "__version__",
+    "plot_image_mpl", "plot_image_bokeh",
+    "plot_image_row_mpl", "plot_image_row_bokeh",
+    "plot_radial_mpl", "plot_radial_bokeh",
+    "plot_encircled_energy_mpl", "plot_encircled_energy_bokeh",
+    "set_wcc_style", "WCC_STYLE",
+]
 
 from .wcc_etc import *
 from .io import read_config, get_sensor_config, get_pickles_spectrum_filename
@@ -15,6 +22,13 @@ from .psfsim import (
 from .sensor import Sensor
 from .scene import *
 from .astro import *
+from .plotting import (
+    plot_image_mpl, plot_image_bokeh,
+    plot_image_row_mpl, plot_image_row_bokeh,
+    plot_radial_mpl, plot_radial_bokeh,
+    plot_encircled_energy_mpl, plot_encircled_energy_bokeh,
+    set_wcc_style, WCC_STYLE,
+)
 #from .airy import *
 #from .psfsim import *
 #from .radial_data import *

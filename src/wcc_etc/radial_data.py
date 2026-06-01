@@ -113,7 +113,7 @@ def radial_data(data,annulus_width=1,working_mask=None,x=None,y=None,rmax=None):
     #---------------------
     # Prepare the data container
     #---------------------
-    dr = ny.abs([x[0,0] - x[0,1]]) * annulus_width
+    dr = ny.abs(x[0,0] - x[0,1]) * annulus_width  # scalar (numpy 2 rejects 1-elem arrays in arange)
     radial = ny.arange(rmax/dr)*dr + dr/2.
     nrad = len(radial)
     radialdata = radialDat()
