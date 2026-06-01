@@ -8,6 +8,7 @@ __all__ = [
     "plot_image_row_mpl", "plot_image_row_bokeh",
     "plot_radial_mpl", "plot_radial_bokeh",
     "plot_encircled_energy_mpl", "plot_encircled_energy_bokeh",
+    "set_wcc_style", "WCC_STYLE",
 ]
 
 from .wcc_etc import *
@@ -26,6 +27,7 @@ from .plotting import (
     plot_image_row_mpl, plot_image_row_bokeh,
     plot_radial_mpl, plot_radial_bokeh,
     plot_encircled_energy_mpl, plot_encircled_energy_bokeh,
+    set_wcc_style, WCC_STYLE,
 )
 #from .airy import *
 #from .psfsim import *

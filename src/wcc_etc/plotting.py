@@ -15,6 +15,22 @@ from .airy import psf_to_encircled_energy
 from .psfsim import calc_hwhm
 
 
+# Shared look-and-feel for WCC matplotlib plots (STIX math/text font, no tick offset).
+WCC_STYLE = {
+    "mathtext.fontset": "stix",
+    "font.family": "STIXGeneral",
+    "axes.formatter.useoffset": False,
+}
+
+
+def set_wcc_style():
+    """Apply the WCC plotting style to matplotlib's global rcParams.
+
+    Call once (e.g. at the top of a notebook) so every subsequent matplotlib
+    figure shares the same look. Mutates global state by design."""
+    plt.rcParams.update(WCC_STYLE)
+
+
 def _resolve_inputs(source=None, *, image_e=None, image_clean=None,
                     saturation_mask=None, pixel_scale_mas=None):
     """Resolve (image_e, image_clean, saturation_mask, pixel_scale_mas) from a

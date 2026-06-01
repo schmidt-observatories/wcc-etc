@@ -256,3 +256,17 @@ def test_plotting_functions_exported():
                  "plot_image_row_bokeh", "plot_radial_mpl", "plot_radial_bokeh",
                  "plot_encircled_energy_mpl", "plot_encircled_energy_bokeh"]:
         assert hasattr(wcc_etc, name), f"{name} not exported from wcc_etc"
+
+
+def test_set_wcc_style_updates_rcparams():
+    import matplotlib as mpl
+    import wcc_etc
+    saved = {k: mpl.rcParams[k] for k in plotting.WCC_STYLE}
+    try:
+        mpl.rcParams["axes.formatter.useoffset"] = True
+        wcc_etc.set_wcc_style()
+        assert mpl.rcParams["mathtext.fontset"] == "stix"
+        assert mpl.rcParams["font.family"] == ["STIXGeneral"]
+        assert mpl.rcParams["axes.formatter.useoffset"] is False
+    finally:
+        mpl.rcParams.update(saved)
