@@ -48,3 +48,42 @@ def _saturation_overlay(saturation_mask):
     imshow of it colors only the saturated pixels."""
     mask = np.asarray(saturation_mask, dtype=bool)
     return np.ma.masked_where(~mask, np.ones(mask.shape, dtype=float))
+
+
+def plot_image_mpl(source=None, *, noise=True, show_saturation=False,
+                   image_e=None, image_clean=None, saturation_mask=None,
+                   pixel_scale_mas=None, stretch="log", cmap="viridis",
+                   vmin=None, vmax=None, colorbar=True, title="",
+                   units="pix", sat_color="red", sat_alpha=0.6, ax=None):
+    """Plot a single simulated detector image with equal x/y scale.
+
+    noise=True shows the noisy image_e; noise=False shows the noiseless
+    image_clean. show_saturation overlays the saturation mask. units='mas'
+    labels the axes in milliarcsec using pixel_scale_mas. Returns (fig, ax)."""
+    ie, ic, sat, ps = _resolve_inputs(
+        source, image_e=image_e, image_clean=image_clean,
+        saturation_mask=saturation_mask, pixel_scale_mas=pixel_scale_mas)
+    data = ie if noise else ic
+    ny, nx = data.shape
+    extent = _image_extent(ny, nx, ps, units)
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+
+    norm = _make_norm(data, stretch)
+    im = ax.imshow(data, origin="lower", cmap=cmap, norm=norm,
+                   vmin=vmin, vmax=vmax, extent=extent, aspect="equal")
+
+    if show_saturation and sat is not None:
+        ax.imshow(_saturation_overlay(sat), origin="lower",
+                  cmap=ListedColormap([sat_color]), alpha=sat_alpha,
+                  extent=extent, aspect="equal")
+
+    ax.set_xlabel("X [mas]" if extent else "X [pix]")
+    ax.set_ylabel("Y [mas]" if extent else "Y [pix]")
+    ax.set_title(title)
+    if colorbar:
+        fig.colorbar(im, ax=ax)
+    return fig, ax
