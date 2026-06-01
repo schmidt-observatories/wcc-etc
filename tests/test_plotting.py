@@ -248,3 +248,11 @@ def test_simimg_method_bad_backend_raises():
     s = _gaussian_simimg()
     with pytest.raises(ValueError):
         s.plot_image(backend="nope")
+
+
+def test_plotting_functions_exported():
+    import wcc_etc
+    for name in ["plot_image_mpl", "plot_image_bokeh", "plot_image_row_mpl",
+                 "plot_image_row_bokeh", "plot_radial_mpl", "plot_radial_bokeh",
+                 "plot_encircled_energy_mpl", "plot_encircled_energy_bokeh"]:
+        assert hasattr(wcc_etc, name), f"{name} not exported from wcc_etc"
