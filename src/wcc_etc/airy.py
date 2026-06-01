@@ -255,7 +255,7 @@ def calc_plate_scale_from_flength(focal_length,pix_size):
     return plate_scale_arcsec_pix
 
 
-def get_airy_and_ee_curve_pixel_grid(wavelength,r_aper_mas,grid_size=100,verbose=True,jitter_sigma_mas=0,
+def get_airy_and_ee_curve_pixel_grid(wavelength,r_aper_mas,grid_size=100,verbose=False,jitter_sigma_mas=0,
                           plot=False,ax1=None,ax2=None,pixel_size=3.74,fnum=15,D=3):
     """
     INPUT:
@@ -356,7 +356,7 @@ def get_airy_and_ee_curve_pixel_grid(wavelength,r_aper_mas,grid_size=100,verbose
     return r_mas, psf1d, ee, ee_aper, psf_blur
 
 
-def get_airy_and_ee_curve(wavelength,r_aper_mas,grid_size=1024,extent_mas=500,verbose=True,jitter_sigma_mas=0,
+def get_airy_and_ee_curve(wavelength,r_aper_mas,grid_size=1024,extent_mas=500,verbose=False,jitter_sigma_mas=0,
                           plot=False,ax1=None,ax2=None,pixel_size=3.74,fnum=15,D=3):
     """
     Calculate airy curve
