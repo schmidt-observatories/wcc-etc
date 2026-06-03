@@ -108,8 +108,7 @@ def _build_file(meta):
     """
     filename = meta.get("source_file", meta.get("file", meta.get("filename")))
     if filename is None:
-        raise ValueError("file source requires 'source_file'")
-
+        raise ValueError("file source requires 'source_file' (or 'file'/'filename')")
     delimiter = meta.get("delimiter")
     if delimiter is None and str(filename).lower().endswith(".csv"):
         delimiter = ","
