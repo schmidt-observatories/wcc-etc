@@ -207,8 +207,8 @@ def get_scene(name, mag,
 def get_scene_from_file(source_file, mag=None,
                         wave_column=0, flux_column=1,
                         wave_unit="AA", flux_unit="FLAM",
-                        host=None, host_prop={},
-                        background="zodi", background_prop={},
+                        host=None, host_prop=None,
+                        background="zodi", background_prop=None,
                         **kwargs):
     """
     Build a Scene whose source spectrum is read from a wavelength/flux file.
