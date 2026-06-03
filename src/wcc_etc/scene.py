@@ -4,12 +4,12 @@ import numpy as np
 
 from astropy import units as u
 from synphot import SourceSpectrum, SpectralElement, Observation, units as su
-from synphot.models import (BlackBodyNorm1D, ConstFlux1D,
+from synphot.models import (BlackBodyNorm1D, ConstFlux1D, Empirical1D,
                             PowerLawFlux1D, GaussianFlux1D)
 
 from .meta import _MetaHolder_
 
-__all__ = ["get_scene", "get_scene_element", "Scene"]
+__all__ = ["get_scene", "get_scene_from_file", "get_scene_element", "Scene"]
 
 
 # ===================== #
@@ -78,10 +78,74 @@ def _build_emission(meta):
     return spectrum
 
 
+def _get_unit(unit):
+    """Resolve astropy or synphot unit names."""
+    if hasattr(unit, "is_equivalent"):
+        return unit
+    if hasattr(su, str(unit)):
+        return getattr(su, str(unit))
+    return u.Unit(unit)
+
+
+def _get_file_column(data, column, label):
+    if data.dtype.names is not None:
+        if isinstance(column, str):
+            return data[column]
+        return data[data.dtype.names[int(column)]]
+
+    if isinstance(column, str):
+        raise ValueError(f"{label}_column={column!r} requires names=True or a named table")
+    return np.asarray(data)[:, int(column)]
+
+
+def _build_file(meta):
+    """Empirical spectrum read from wavelength and flux columns in a text file.
+
+    Requires ``source_file`` (or ``file``/``filename``). By default, column 0 is
+    wavelength in Angstrom and column 1 is flux in FLAM. CSV delimiters are
+    inferred from a ``.csv`` extension; otherwise whitespace-separated input is
+    assumed. Pass string column names with ``names=True`` for named tables.
+    """
+    filename = meta.get("source_file", meta.get("file", meta.get("filename")))
+    if filename is None:
+        raise ValueError("file source requires 'source_file'")
+
+    delimiter = meta.get("delimiter")
+    if delimiter is None and str(filename).lower().endswith(".csv"):
+        delimiter = ","
+
+    wave_column = meta.get("wave_column", meta.get("wavelength_column", 0))
+    flux_column = meta.get("flux_column", 1)
+    names = meta.get("names")
+    if names is None:
+        names = isinstance(wave_column, str) or isinstance(flux_column, str)
+    if names is False:
+        names = None
+
+    data = np.genfromtxt(filename, delimiter=delimiter, names=names,
+                         comments=meta.get("comments", "#"), dtype=float)
+    wave = np.atleast_1d(_get_file_column(data, wave_column, "wave")).astype(float)
+    flux = np.atleast_1d(_get_file_column(data, flux_column, "flux")).astype(float)
+
+    if wave.size != flux.size:
+        raise ValueError("file source wavelength and flux columns must have the same length")
+    finite = np.isfinite(wave) & np.isfinite(flux)
+    wave = wave[finite]
+    flux = flux[finite]
+    if wave.size < 2:
+        raise ValueError("file source requires at least two finite wavelength/flux rows")
+
+    order = np.argsort(wave)
+    wave = wave[order] * _get_unit(meta.get("wave_unit", "AA"))
+    flux = flux[order] * _get_unit(meta.get("flux_unit", "FLAM"))
+    return SourceSpectrum(Empirical1D, points=wave, lookup_table=flux)
+
+
 _SPECTRUM_BUILDERS = {"blackbody": _build_blackbody,
                       "flat": _build_flat,
                       "powerlaw": _build_powerlaw,
-                      "emission": _build_emission}
+                      "emission": _build_emission,
+                      "file": _build_file}
 
 # Shape-defining parameters each parametric spectrum accepts. These become
 # updatable for a source of that type (see SceneElement.mutable_parameters);
@@ -90,7 +154,11 @@ _SPECTRUM_BUILDERS = {"blackbody": _build_blackbody,
 _SPECTRUM_PARAMS = {"blackbody": ["teff"],
                     "flat": ["flat_unit"],
                     "powerlaw": ["alpha", "lambda_ref"],
-                    "emission": ["lines"]}
+                    "emission": ["lines"],
+                    "file": ["source_file", "file", "filename",
+                             "wave_column", "wavelength_column", "flux_column",
+                             "wave_unit", "flux_unit", "delimiter", "names",
+                             "comments"]}
 
 # Top level
 
@@ -135,6 +203,50 @@ def get_scene(name, mag,
         background = get_scene_element(background, **background_prop)
 
     return Scene(source=source, host=host, background=background)
+
+
+def get_scene_from_file(source_file, mag=None,
+                        wave_column=0, flux_column=1,
+                        wave_unit="AA", flux_unit="FLAM",
+                        host=None, host_prop={},
+                        background="zodi", background_prop={},
+                        **kwargs):
+    """
+    Build a Scene whose source spectrum is read from a wavelength/flux file.
+
+    Parameters
+    ----------
+    source_file : str
+        Path to a text file containing wavelength and flux columns.
+    mag : float or None, optional
+        Magnitude used to normalize the source. If None, the file's absolute
+        flux is preserved.
+    wave_column, flux_column : int or str, optional
+        Wavelength and flux columns. String columns require a named table or
+        ``names=True``.
+    wave_unit, flux_unit : str or Unit, optional
+        Units for the wavelength and flux columns. Defaults are Angstrom and
+        FLAM.
+    **kwargs
+        Additional keyword arguments passed to get_scene. Useful file-reading
+        options include ``delimiter``, ``names``, and ``comments``.
+
+    Returns
+    -------
+    Scene
+        A scene with a file-backed source spectrum.
+    """
+    return get_scene("file", mag=mag,
+                     source_file=source_file,
+                     wave_column=wave_column,
+                     flux_column=flux_column,
+                     wave_unit=wave_unit,
+                     flux_unit=flux_unit,
+                     host=host, host_prop=host_prop,
+                     background=background,
+                     background_prop=background_prop,
+                     **kwargs)
+
 
 def get_scene_element(element=None, **kwargs):
     """
@@ -926,4 +1038,3 @@ class Scene(_MetaHolder_):
                                                 if (element := getattr(self,element_name)) is not None
                                                 for k in element.mutable_parameters  
                                             ]
-

@@ -4,7 +4,7 @@ import numpy as np
 import astropy.units as u
 from scipy.integrate import trapezoid
 from synphot import SpectralElement, Observation, units as su
-from wcc_etc.scene import broadcast_mapping, SceneElement, Scene
+from wcc_etc.scene import broadcast_mapping, get_scene_from_file, SceneElement, Scene
 
 
 def _observed_abmag(spectrum, band_name="johnson_v"):
@@ -103,6 +103,82 @@ def test_emission_lines_sum():
     flam = sp(w, flux_unit=su.FLAM).value
     integral = trapezoid(flam, w.value)
     assert np.isclose(integral, 1.4e-15, rtol=1e-2)
+
+
+def test_file_source_reads_wavelength_and_flux_columns(tmp_path):
+    specfile = tmp_path / "source.dat"
+    np.savetxt(specfile, [[6000.0, 3e-16],
+                          [4000.0, 1e-16],
+                          [5000.0, 2e-16]])
+
+    se = SceneElement.from_config({"spectrum": "file",
+                                   "source_file": str(specfile),
+                                   "mag": None})
+    sp = se.get_spectrum(apply_mag=False)
+    w = np.array([4000.0, 5000.0, 6000.0]) * u.AA
+    flam = sp(w, flux_unit=su.FLAM).value
+    assert np.allclose(flam, [1e-16, 2e-16, 3e-16])
+
+
+def test_file_source_reads_named_csv_columns(tmp_path):
+    specfile = tmp_path / "source.csv"
+    specfile.write_text("wave_nm,flam\n400,1e-16\n500,2e-16\n600,3e-16\n")
+
+    se = SceneElement.from_config({"spectrum": "file",
+                                   "source_file": str(specfile),
+                                   "wave_column": "wave_nm",
+                                   "flux_column": "flam",
+                                   "wave_unit": "nm",
+                                   "flux_unit": "FLAM",
+                                   "mag": None})
+    sp = se.get_spectrum(apply_mag=False)
+    flam = sp(np.array([4000.0, 5000.0, 6000.0]) * u.AA, flux_unit=su.FLAM).value
+    assert np.allclose(flam, [1e-16, 2e-16, 3e-16])
+
+
+def test_file_source_roundtrips_magnitude(tmp_path):
+    specfile = tmp_path / "source.dat"
+    np.savetxt(specfile, [[4000.0, 1e-16],
+                          [5000.0, 2e-16],
+                          [6000.0, 3e-16],
+                          [7000.0, 2e-16]])
+
+    se = SceneElement.from_config({"spectrum": "file",
+                                   "source_file": str(specfile),
+                                   "mag": 18,
+                                   "bandpass": "johnson_v"})
+    assert abs(_observed_abmag(se.get_spectrum()) - 18) < 0.01
+
+
+def test_get_scene_from_file_preserves_absolute_flux(tmp_path):
+    specfile = tmp_path / "source.csv"
+    specfile.write_text("wavelength,flux\n4000,1e-16\n5000,2e-16\n6000,3e-16\n")
+
+    scene = get_scene_from_file(str(specfile),
+                                mag=None,
+                                wave_column="wavelength",
+                                flux_column="flux",
+                                names=True,
+                                background=None)
+    sp = scene.source.get_spectrum(apply_mag=False)
+    flam = sp(np.array([4000.0, 5000.0, 6000.0]) * u.AA, flux_unit=su.FLAM).value
+    assert np.allclose(flam, [1e-16, 2e-16, 3e-16])
+
+
+def test_update_file_source_rebuilds_spectrum(tmp_path):
+    specfile1 = tmp_path / "source1.dat"
+    specfile2 = tmp_path / "source2.dat"
+    np.savetxt(specfile1, [[4000.0, 1e-16], [5000.0, 2e-16], [6000.0, 3e-16]])
+    np.savetxt(specfile2, [[4000.0, 3e-16], [5000.0, 2e-16], [6000.0, 1e-16]])
+
+    se = SceneElement.from_config({"spectrum": "file",
+                                   "source_file": str(specfile1),
+                                   "mag": None})
+    before = se.get_spectrum(apply_mag=False)(4000 * u.AA, flux_unit=su.FLAM).value
+    se.update(source_file=str(specfile2))
+    after = se.get_spectrum(apply_mag=False)(4000 * u.AA, flux_unit=su.FLAM).value
+    assert np.isclose(before, 1e-16)
+    assert np.isclose(after, 3e-16)
 
 
 def test_get_spectrum_skips_normalization_when_mag_is_none():
