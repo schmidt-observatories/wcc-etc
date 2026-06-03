@@ -876,6 +876,11 @@ def get_wcc_snr_and_simulation(mag,
                                source_type='pickles',
                                spt='',
                                teff=None,
+                               source_file=None,
+                               wave_column=0,
+                               flux_column=1,
+                               wave_unit="AA",
+                               flux_unit="FLAM",
                                source_bandpass='johnson_r',
                                source_mag_type='Vega',
                                sensor_and_filter='zwo:r',
@@ -888,9 +893,14 @@ def get_wcc_snr_and_simulation(mag,
     Get the SNR for a given set of parameters.
 
     INPUT:
-        source_type: Type of the source (e.g. 'pickles', 'blackbody')
+        source_type: Type of the source (e.g. 'pickles', 'blackbody', 'file')
         spt: spectral type, only used for source_type == 'pickles'
         teff: Effective temperature in K, only used if source_type=='blackbody'
+        source_file: Wavelength/flux spectrum file, only used if source_type=='file'
+        wave_column: Wavelength column in source_file, only used if source_type=='file'
+        flux_column: Flux column in source_file, only used if source_type=='file'
+        wave_unit: Wavelength unit in source_file, only used if source_type=='file'
+        flux_unit: Flux unit in source_file, only used if source_type=='file'
 
     EXAMPLE:
         get_wcc_snr(25.4,60)
@@ -907,6 +917,19 @@ def get_wcc_snr_and_simulation(mag,
         scene = get_scene('blackbody',
                           mag=mag,
                           teff=teff,
+                          host=None,
+                          background="zodi",
+                          bandpass=source_bandpass,
+                          background_prop={"bandpass": bg_bandpass,
+                                           'mag': bg_surface_brightness})
+    elif source_type=='file':
+        scene = get_scene('file',
+                          mag=mag,
+                          source_file=source_file,
+                          wave_column=wave_column,
+                          flux_column=flux_column,
+                          wave_unit=wave_unit,
+                          flux_unit=flux_unit,
                           host=None,
                           background="zodi",
                           bandpass=source_bandpass,
