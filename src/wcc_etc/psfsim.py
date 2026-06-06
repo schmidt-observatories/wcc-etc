@@ -84,7 +84,13 @@ class PSFSource:
         raise NotImplementedError("Subclasses must implement render(ctx).")
 
     def cache_key(self):
-        """Hashable key identifying this PSF for render caching."""
+        """
+        Hashable key identifying this PSF *source's* parameters (not the
+        rendered output). The render also depends on the DetectorPSFContext
+        (wavelength, optics, jitter, npix, oversample), so a render cache must
+        combine this key with the context and/or be invalidated when the
+        simulation state changes — see Simulation._image_render_bundle.
+        """
         return (type(self).__name__,)
 
 

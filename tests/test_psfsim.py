@@ -11,9 +11,17 @@ def test_airy_cache_key_is_constant():
 def test_resampled_cache_key_stable_per_object():
     data = np.ones((9, 9))
     psf = CustomPSF(data, src_um_per_pix=4.0)
-    assert psf.cache_key() == psf.cache_key()              # stable across calls
-    assert psf.cache_key()[0] == "CustomPSF"
-    assert psf.cache_key()[1] == 4.0
+    key = psf.cache_key()
+    assert psf.cache_key() == key          # stable across calls
+    assert key[0] == "CustomPSF"
+    assert key[1] == 4.0
+
+
+def test_resampled_cache_key_differs_for_distinct_objects():
+    data = np.ones((9, 9))
+    p1 = CustomPSF(data.copy(), src_um_per_pix=4.0)
+    p2 = CustomPSF(data.copy(), src_um_per_pix=4.0)
+    assert p1.cache_key() != p2.cache_key()
 
 
 def test_defocus_cache_key_uses_path():
