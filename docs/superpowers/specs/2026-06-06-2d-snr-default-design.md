@@ -81,6 +81,28 @@ def get_snr(self, time=None, psf=None, r_aper_mas=None, ee_frac=None,
 `get_image_snr` remains the canonical implementation (notebooks and tests
 reference it directly).
 
+#### Array (vectorized) time support
+
+The old 1D `get_snr` accepted an **array** of exposure times and returned an
+array of SNRs (the "Getting Started" notebook plots an SNR-vs-time curve this
+way). `get_image_snr` currently only handles a scalar time and raises a
+broadcast `ValueError` on arrays. Since `get_snr` now delegates to
+`get_image_snr`, the 2D path must support array time.
+
+The render-cache makes this cheap: the PSF render is time-independent, so render
+once, then loop the per-time aperture evaluation. `get_image_snr`:
+
+- normalizes `time` to a Quantity (scalar or array),
+- fetches the (cached) render bundle once,
+- loops over `np.atleast_1d(time)` doing only the cheap
+  `aperture_snr_radial` + `select_aperture` per time,
+- returns a dict of scalars when `time` is scalar (unchanged behavior), or a
+  dict whose values are arrays (`snr`, `signal_e`, `noise_e`,
+  `enclosed_fraction`, `r_aper_mas` as float arrays; `n_pix` as an int array)
+  when `time` is an array.
+
+`read_noise` is time-independent and computed once outside the loop.
+
 ### 3. Render-cache
 
 The expensive, time-independent part of `get_image_snr` /
@@ -183,6 +205,9 @@ update.
 - Cache invalidation: after `update(jitter_sigma=...)` (or `source__mag=...`)
   the cache is empty and the new SNR reflects the change (regression test for
   the stale-PSF bug).
+- Array time: `get_snr(np.array([30,60,120]))` returns a dict of length-3
+  arrays, monotonically increasing in `snr`, each element equal to the
+  corresponding scalar call.
 
 ## Files touched
 
