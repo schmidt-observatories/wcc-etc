@@ -297,9 +297,24 @@ def test_get_image_snr_array_time():
     assert out["n_pix"].dtype.kind == "i"
     # monotonic increasing SNR with exposure time
     assert out["snr"][0] < out["snr"][1] < out["snr"][2]
-    # each element equals the scalar call
+    # each element matches the corresponding scalar call across all keys
     for i, t in enumerate(times):
-        assert out["snr"][i] == pytest.approx(sim.get_image_snr(time=float(t))["snr"], rel=1e-9)
+        scalar = sim.get_image_snr(time=float(t))
+        for key in ("snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas"):
+            assert out[key][i] == pytest.approx(scalar[key], rel=1e-9)
+        assert int(out["n_pix"][i]) == scalar["n_pix"]
+
+
+def test_get_image_snr_array_time_optimize():
+    sim = _bright_sim(16)
+    times = np.array([30., 300., 3000.])
+    out = sim.get_image_snr(time=times, optimize=True)
+    assert np.shape(out["r_aper_mas"]) == (3,)
+    # each element matches the corresponding scalar optimize call
+    for i, t in enumerate(times):
+        scalar = sim.get_image_snr(time=float(t), optimize=True)
+        assert out["snr"][i] == pytest.approx(scalar["snr"], rel=1e-9)
+        assert out["r_aper_mas"][i] == pytest.approx(scalar["r_aper_mas"], rel=1e-9)
 
 
 def test_get_image_snr_scalar_still_dict_of_floats():

@@ -827,8 +827,10 @@ class Simulation(_MetaHolder_):
 
         Parameters
         ----------
-        time : float or Quantity, optional
-            Exposure time (seconds if a bare float). Defaults to meta['time'].
+        time : float, array_like, or Quantity, optional
+            Exposure time(s) in seconds (bare floats are interpreted as
+            seconds). Defaults to meta['time']. A scalar yields a dict of
+            Python float/int; an array yields a dict of equal-length ndarrays.
         psf : PSFSource, optional
             PSF model. If None, uses _default_psf (set by from_sensorfilter)
             when available, otherwise falls back to AiryPSF().
@@ -849,7 +851,9 @@ class Simulation(_MetaHolder_):
         Returns
         -------
         dict
-            'snr', 'signal_e', 'noise_e', 'enclosed_fraction', 'r_aper_mas', 'n_pix'.
+            'snr', 'signal_e', 'noise_e', 'enclosed_fraction', 'r_aper_mas',
+            'n_pix'. Values are Python float/int for scalar `time`, or
+            ndarrays (n_pix as int) for array `time`.
         """
         from .psfsim import AiryPSF, aperture_snr_radial, select_aperture
 
