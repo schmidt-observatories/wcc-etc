@@ -129,9 +129,8 @@ def test_from_sensorfilter_unknown_raises():
 def test_from_sensorfilter_builds_working_sim():
     scene = _make_scene()
     sim = Simulation.from_sensorfilter("zwo:r", scene)
-    # basic sanity: can compute an analytic SNR
-    snr = sim.get_snr(60)
-    assert snr.value > 0
+    # basic sanity: can compute a (2D) SNR
+    assert sim.get_snr(60)["snr"] > 0
 
 
 def test_get_image_snr_uses_default_psf_for_defocused_sensor():

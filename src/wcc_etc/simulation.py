@@ -956,9 +956,27 @@ class Simulation(_MetaHolder_):
                                      r_aper_mas=r_aper_mas, ee_frac=ee_frac,
                                      optimize=optimize)
 
-    def get_snr(self, time=None, n_reads=None):
+    def get_snr(self, time=None, psf=None, r_aper_mas=None, ee_frac=None,
+                optimize=False, jitter_sigma_mas=None, n_reads=None,
+                npix=128, oversample=11):
         """
-        Get the signal to noise ratio for a given exposure time.
+        Signal-to-noise ratio via the 2D image simulation (PSF-aware default).
+
+        Delegates to get_image_snr; see it for parameter details and the
+        returned dict. `time` may be a scalar or an array (returns a dict of
+        arrays). For the legacy analytic Airy approximation use get_snr_airy
+        (deprecated).
+        """
+        return self.get_image_snr(
+            time=time, psf=psf, r_aper_mas=r_aper_mas, ee_frac=ee_frac,
+            optimize=optimize, jitter_sigma_mas=jitter_sigma_mas,
+            n_reads=n_reads, npix=npix, oversample=oversample)
+
+    def get_snr_airy(self, time=None, n_reads=None):
+        """
+        DEPRECATED analytic Airy-disk SNR (the 1D approximation).
+
+        Use get_snr, which computes the SNR via the 2D image simulation.
 
         Parameters
         ----------
@@ -972,8 +990,11 @@ class Simulation(_MetaHolder_):
         Quantity
             The SNR.
         """
-        # scenes of noise
-        signal, variance = self.get_signal_and_variance(time, n_reads=n_reads) # units doesn't matter
+        warnings.warn(
+            "get_snr_airy (analytic Airy approximation) is deprecated; "
+            "use get_snr, which now uses the 2D image simulation.",
+            DeprecationWarning, stacklevel=2)
+        signal, variance = self.get_signal_and_variance(time, n_reads=n_reads)
         return signal / np.sqrt(variance)
 
     def get_exptime_for_snr(self, snr, n_reads=None):

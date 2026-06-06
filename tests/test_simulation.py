@@ -171,7 +171,8 @@ def test_get_image_snr_matches_get_snr_in_focus():
     for t in [30, 300]:
         for m in [16, 20]:
             sim.update(source__mag=m)
-            etc = sim.get_snr(t)
+            with pytest.warns(DeprecationWarning):
+                etc = sim.get_snr_airy(t)
             etc = float(etc.value) if hasattr(etc, "value") else float(etc)
             img = sim.get_image_snr(time=t)["snr"]
             assert img == pytest.approx(etc, rel=0.03)
@@ -322,3 +323,22 @@ def test_get_image_snr_scalar_still_dict_of_floats():
     out = sim.get_image_snr(time=60)
     assert isinstance(out["snr"], float)
     assert isinstance(out["n_pix"], int)
+
+
+def test_get_snr_airy_deprecated_matches_analytic():
+    sim = _bright_sim(16)
+    with pytest.warns(DeprecationWarning):
+        airy = sim.get_snr_airy(60)
+    signal, variance = sim.get_signal_and_variance(60)
+    assert float(airy.value) == pytest.approx(float((signal / np.sqrt(variance)).value), rel=1e-12)
+
+
+def test_get_snr_delegates_to_image_snr():
+    sim = _bright_sim(16)
+    assert sim.get_snr(60)["snr"] == pytest.approx(sim.get_image_snr(time=60)["snr"], rel=1e-12)
+
+
+def test_get_snr_array_time():
+    sim = _bright_sim(16)
+    out = sim.get_snr(np.array([30., 60., 120.]))
+    assert out["snr"][0] < out["snr"][1] < out["snr"][2]
