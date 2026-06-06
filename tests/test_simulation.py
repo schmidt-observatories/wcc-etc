@@ -254,3 +254,35 @@ def test_update_jitter_clears_caches():
     sim.update(jitter_sigma=50)
     assert len(sim._image_render_bundle_cache) == 0
     assert len(sim._psf_profile) == 0
+
+
+def test_set_sensor_clears_render_cache():
+    sim = _bright_sim(16)
+    sim.get_image_snr(time=60)
+    assert len(sim._image_render_bundle_cache) == 1
+    sim.set_sensor(sim.sensor)            # re-setting must drop the render cache
+    assert len(sim._image_render_bundle_cache) == 0
+
+
+def test_set_telescope_clears_render_cache():
+    sim = _bright_sim(16)
+    sim.get_image_snr(time=60)
+    assert len(sim._image_render_bundle_cache) == 1
+    sim.set_telescope(sim.telescope)      # re-setting must drop the render cache
+    assert len(sim._image_render_bundle_cache) == 0
+
+
+def test_reset_clears_render_cache():
+    sim = _bright_sim(16)
+    sim.get_image_snr(time=60)
+    assert len(sim._image_render_bundle_cache) == 1
+    sim.reset()
+    assert len(sim._image_render_bundle_cache) == 0
+
+
+def test_render_cache_tracks_direct_telescope_jitter_change():
+    sim = _bright_sim(16)
+    snr1 = sim.get_image_snr(time=60)["snr"]
+    sim.telescope.update(jitter_sigma=80)   # direct mutation, bypasses Simulation.update
+    snr2 = sim.get_image_snr(time=60)["snr"]
+    assert snr2 < snr1                       # more jitter -> lower fixed-aperture SNR, not a stale hit

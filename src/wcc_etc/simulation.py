@@ -381,6 +381,8 @@ class Simulation(_MetaHolder_):
         for element in [self.telescope, self.sensor, self.scene]:
             if element is not None:
                 element.reset()
+        self._psf_profile = {}
+        self._image_render_bundle_cache = {}
             
                 
     def update(self, **kwargs):
@@ -774,6 +776,9 @@ class Simulation(_MetaHolder_):
         render-affecting state; cleared by update()/set_sensor()/set_telescope().
         """
         from .psfsim import ImageSimulator
+
+        if jitter_sigma_mas is None:
+            jitter_sigma_mas = self.telescope.jitter_sigma.to("mas").value
 
         cache = getattr(self, "_image_render_bundle_cache", None)
         if cache is None:
