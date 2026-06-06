@@ -286,3 +286,24 @@ def test_render_cache_tracks_direct_telescope_jitter_change():
     sim.telescope.update(jitter_sigma=80)   # direct mutation, bypasses Simulation.update
     snr2 = sim.get_image_snr(time=60)["snr"]
     assert snr2 < snr1                       # more jitter -> lower fixed-aperture SNR, not a stale hit
+
+
+def test_get_image_snr_array_time():
+    sim = _bright_sim(16)
+    times = np.array([30., 60., 120.])
+    out = sim.get_image_snr(time=times)
+    assert np.shape(out["snr"]) == (3,)
+    assert np.shape(out["n_pix"]) == (3,)
+    assert out["n_pix"].dtype.kind == "i"
+    # monotonic increasing SNR with exposure time
+    assert out["snr"][0] < out["snr"][1] < out["snr"][2]
+    # each element equals the scalar call
+    for i, t in enumerate(times):
+        assert out["snr"][i] == pytest.approx(sim.get_image_snr(time=float(t))["snr"], rel=1e-9)
+
+
+def test_get_image_snr_scalar_still_dict_of_floats():
+    sim = _bright_sim(16)
+    out = sim.get_image_snr(time=60)
+    assert isinstance(out["snr"], float)
+    assert isinstance(out["n_pix"], int)

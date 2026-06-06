@@ -873,21 +873,28 @@ class Simulation(_MetaHolder_):
         read_noise = self.sensor.read_noise.to(u.electron / u.pix).value * np.sqrt(n_reads)
         dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
 
-        t_sec = time.to(u.second).value
-        source_e_total = b["source_rate_total"] * t_sec
-        diffuse_per_pix = b["diffuse_rate_per_pix"] * t_sec
-        dark_per_pix = dark_rate_per_pix * t_sec
+        def _snr_at(t_sec):
+            source_e_total = b["source_rate_total"] * t_sec
+            diffuse_per_pix = b["diffuse_rate_per_pix"] * t_sec
+            dark_per_pix = dark_rate_per_pix * t_sec
+            prof = aperture_snr_radial(b["psf_norm"], b["plate_scale_mas"],
+                                       source_e_total, diffuse_per_pix, dark_per_pix, read_noise)
+            idx = select_aperture(prof, r_aper_mas=r_aper_mas, ee_frac=ee_frac, optimize=optimize)
+            return {"snr": float(prof["snr"][idx]),
+                    "signal_e": float(prof["signal_e"][idx]),
+                    "noise_e": float(prof["noise_e"][idx]),
+                    "enclosed_fraction": float(prof["enclosed_fraction"][idx]),
+                    "r_aper_mas": float(prof["r_mas"][idx]),
+                    "n_pix": int(prof["n_pix"][idx])}
 
-        prof = aperture_snr_radial(b["psf_norm"], b["plate_scale_mas"],
-                                   source_e_total, diffuse_per_pix, dark_per_pix, read_noise)
-        idx = select_aperture(prof, r_aper_mas=r_aper_mas, ee_frac=ee_frac, optimize=optimize)
+        if time.isscalar:
+            return _snr_at(time.to(u.second).value)
 
-        return {"snr": float(prof["snr"][idx]),
-                "signal_e": float(prof["signal_e"][idx]),
-                "noise_e": float(prof["noise_e"][idx]),
-                "enclosed_fraction": float(prof["enclosed_fraction"][idx]),
-                "r_aper_mas": float(prof["r_mas"][idx]),
-                "n_pix": int(prof["n_pix"][idx])}
+        results = [_snr_at(t) for t in time.to(u.second).value]
+        out = {k: np.array([r[k] for r in results])
+               for k in ("snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas")}
+        out["n_pix"] = np.array([r["n_pix"] for r in results], dtype=int)
+        return out
 
     def get_image_exptime_for_snr(self, snr, psf=None, r_aper_mas=None,
                                   ee_frac=None, optimize=False,
