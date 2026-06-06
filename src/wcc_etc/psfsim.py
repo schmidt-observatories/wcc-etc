@@ -83,6 +83,10 @@ class PSFSource:
     def render(self, ctx):
         raise NotImplementedError("Subclasses must implement render(ctx).")
 
+    def cache_key(self):
+        """Hashable key identifying this PSF for render caching."""
+        return (type(self).__name__,)
+
 
 class AiryPSF(PSFSource):
     """Diffraction-limited Airy PSF rendered on the detector grid (default)."""
@@ -131,6 +135,9 @@ class _ResampledPSF(PSFSource):
             psf = normalize_psf(recenter(psf, ctx.center))
         return psf
 
+    def cache_key(self):
+        return (type(self).__name__, self.src_um_per_pix, id(self._data))
+
 
 class DefocusPSF(_ResampledPSF):
     """A defocused PSF loaded from a Zemax Huygens text file."""
@@ -138,6 +145,9 @@ class DefocusPSF(_ResampledPSF):
     def __init__(self, path, src_um_per_pix=4.0, encoding="utf-16"):
         super().__init__(load_huygens_psf(path, encoding), src_um_per_pix)
         self.path = path
+
+    def cache_key(self):
+        return (type(self).__name__, self.src_um_per_pix, self.path)
 
 
 class CustomPSF(_ResampledPSF):
