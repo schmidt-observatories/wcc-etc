@@ -1000,7 +1000,7 @@ class Simulation(_MetaHolder_):
     def get_exptime_for_snr(self, snr, n_reads=None):
         """
         Exposure time (seconds, Quantity) to reach a target SNR on the analytic
-        (Airy) path. Inverse of get_snr. Returns inf*u.s if the source rate is 0.
+        (Airy) path. Inverse of get_snr_airy. Returns inf*u.s if the source rate is 0.
         """
         from .psfsim import solve_time_for_snr
         A, B, C = self._snr_coefficients(n_reads=n_reads)
