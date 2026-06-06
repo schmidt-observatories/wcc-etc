@@ -336,6 +336,9 @@ def test_get_snr_airy_deprecated_matches_analytic():
 def test_get_snr_delegates_to_image_snr():
     sim = _bright_sim(16)
     assert sim.get_snr(60)["snr"] == pytest.approx(sim.get_image_snr(time=60)["snr"], rel=1e-12)
+    # overrides are forwarded
+    assert sim.get_snr(60, n_reads=3)["snr"] == pytest.approx(
+        sim.get_image_snr(time=60, n_reads=3)["snr"], rel=1e-12)
 
 
 def test_get_snr_array_time():

@@ -819,10 +819,11 @@ class Simulation(_MetaHolder_):
         """
         PSF-aware aperture signal-to-noise ratio.
 
-        Unlike get_snr (which assumes the analytic Airy disk), this renders the
-        given PSF (default AiryPSF) on the detector grid and computes the SNR for
-        a circular aperture. The in-focus default-aperture case reproduces
-        get_snr. Aperture precedence: optimize > r_aper_mas > ee_frac; if none is
+        Unlike get_snr_airy (the analytic Airy-disk approximation), this renders
+        the given PSF (default AiryPSF) on the detector grid and computes the SNR
+        for a circular aperture. get_snr now delegates to this method; the
+        in-focus default-aperture case reproduces get_snr_airy to within ~1%.
+        Aperture precedence: optimize > r_aper_mas > ee_frac; if none is
         given, the Simulation's r_aper_mas is used.
 
         Parameters
@@ -966,6 +967,13 @@ class Simulation(_MetaHolder_):
         returned dict. `time` may be a scalar or an array (returns a dict of
         arrays). For the legacy analytic Airy approximation use get_snr_airy
         (deprecated).
+
+        Returns
+        -------
+        dict
+            Same as get_image_snr: 'snr', 'signal_e', 'noise_e',
+            'enclosed_fraction', 'r_aper_mas', 'n_pix' (scalar values for scalar
+            `time`, ndarrays for array `time`).
         """
         return self.get_image_snr(
             time=time, psf=psf, r_aper_mas=r_aper_mas, ee_frac=ee_frac,
@@ -974,7 +982,7 @@ class Simulation(_MetaHolder_):
 
     def get_snr_airy(self, time=None, n_reads=None):
         """
-        DEPRECATED analytic Airy-disk SNR (the 1D approximation).
+        DEPRECATED analytic Airy-disk SNR approximation.
 
         Use get_snr, which computes the SNR via the 2D image simulation.
 
