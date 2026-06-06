@@ -37,14 +37,15 @@ scene = get_scene("K3IV", mag=20, host=None, background="zodi")
 # Create a simulation for a sensor (kind:band format) and the scene
 sim = Simulation.from_sensor_and_scene("sony:bb", scene)
 
-# Compute SNR for a single exposure time (seconds)
-snr = sim.get_snr(10)
+# Compute SNR for a single exposure time (seconds). get_snr uses the 2D image
+# simulation and returns a dict; ["snr"] is the signal-to-noise ratio.
+snr = sim.get_snr(10)["snr"]
 
 # Update scene or instrument parameters (example: change source magnitude)
 sim.update(source__mag=22)
 
 # Recompute SNR after the change
-snr_new = sim.get_snr(10)
+snr_new = sim.get_snr(10)["snr"]
 ```
 
 # Tutorial
