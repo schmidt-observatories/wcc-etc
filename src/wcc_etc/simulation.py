@@ -285,6 +285,9 @@ class Simulation(_MetaHolder_):
         # this should move inside scene eventually
         self._h_spec_observation = None
         self._h_bkgd_observation = None
+        # scene drives the count rates / PSF profile: drop derived caches
+        self._psf_profile = {}
+        self._image_render_bundle_cache = {}
 
     def set_sensor(self, sensor_or_config):
         """

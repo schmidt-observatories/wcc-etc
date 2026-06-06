@@ -354,3 +354,17 @@ def test_image_exptime_for_snr_unchanged_after_refactor():
     # round-trips: the returned time reproduces the target SNR via get_image_snr
     snr_back = sim.get_image_snr(time=res["time_s"])["snr"]
     assert snr_back == pytest.approx(target, rel=0.02)
+
+
+def test_set_scene_clears_render_cache():
+    sim = _bright_sim(15)
+    snr1 = sim.get_snr(90)["snr"]
+    assert len(sim._image_render_bundle_cache) == 1
+    faint = wcc_etc.get_scene(name='G5V', mag=22, host=None, background="zodi",
+                              bandpass='johnson_r',
+                              background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+    sim.set_scene(faint)
+    assert len(sim._image_render_bundle_cache) == 0   # scene drives count rates
+    assert len(sim._psf_profile) == 0
+    snr2 = sim.get_snr(90)["snr"]
+    assert snr2 < snr1                                 # fainter scene -> lower SNR, not a stale hit
