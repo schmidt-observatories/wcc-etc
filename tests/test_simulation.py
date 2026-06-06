@@ -219,3 +219,38 @@ def test_get_image_snr_no_background_runs():
     out = sim.get_image_snr(time=60)
     assert out['snr'] > 0
     assert out['n_pix'] >= 1
+
+
+def test_image_render_bundle_cached(monkeypatch):
+    import wcc_etc.psfsim as psfsim
+    sim = _bright_sim(16)
+    calls = {"n": 0}
+    orig = psfsim.AiryPSF.render
+    def counting_render(self, ctx):
+        calls["n"] += 1
+        return orig(self, ctx)
+    monkeypatch.setattr(psfsim.AiryPSF, "render", counting_render)
+    a = sim.get_image_snr(time=30)["snr"]
+    b = sim.get_image_snr(time=60)["snr"]
+    assert calls["n"] == 1                       # rendered once, reused
+    assert len(sim._image_render_bundle_cache) == 1
+    assert b > a                                 # longer exposure -> higher SNR
+
+
+def test_update_invalidates_render_cache():
+    sim = _bright_sim(16)
+    snr1 = sim.get_image_snr(time=60)["snr"]
+    assert len(sim._image_render_bundle_cache) == 1
+    sim.update(source__mag=20)                   # fainter source
+    assert len(sim._image_render_bundle_cache) == 0
+    assert len(sim._psf_profile) == 0            # stale-PSF bug fix
+    snr2 = sim.get_image_snr(time=60)["snr"]
+    assert snr2 < snr1
+
+
+def test_update_jitter_clears_caches():
+    sim = _bright_sim(16)
+    sim.get_image_snr(time=60)
+    sim.update(jitter_sigma=50)
+    assert len(sim._image_render_bundle_cache) == 0
+    assert len(sim._psf_profile) == 0
