@@ -345,3 +345,12 @@ def test_get_snr_array_time():
     sim = _bright_sim(16)
     out = sim.get_snr(np.array([30., 60., 120.]))
     assert out["snr"][0] < out["snr"][1] < out["snr"][2]
+
+
+def test_image_exptime_for_snr_unchanged_after_refactor():
+    sim = _bright_sim(16)
+    target = 20.0
+    res = sim.get_image_exptime_for_snr(target)
+    # round-trips: the returned time reproduces the target SNR via get_image_snr
+    snr_back = sim.get_image_snr(time=res["time_s"])["snr"]
+    assert snr_back == pytest.approx(target, rel=0.02)

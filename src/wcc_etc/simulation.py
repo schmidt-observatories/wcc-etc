@@ -920,38 +920,22 @@ class Simulation(_MetaHolder_):
             PSF model. If None, uses _default_psf (set by from_sensorfilter)
             when available, otherwise falls back to AiryPSF().
         """
-        from .psfsim import ImageSimulator, AiryPSF, aperture_time_for_snr
+        from .psfsim import AiryPSF, aperture_time_for_snr
 
         n_reads = self._resolve_n_reads(n_reads)
         if psf is None:
             psf = self._default_psf if self._default_psf is not None else AiryPSF()
 
-        imsim = ImageSimulator(self, npix=npix, oversample=oversample)
-        ctx = imsim._context(jitter_sigma_mas=jitter_sigma_mas)
-        psf_norm = psf.render(ctx)
+        b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
 
-        profile = self.psf_profile
-        ee_at_aper = profile["ee_at_aper"]
-        if ee_at_aper == 0:
-            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
-        num_psf_pixels = profile["num_psf_pixels"]
-        n_psf = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
-
-        count_rates = self.get_countrates(units="e/s", as_dict=True)
-        source_rate_total = (count_rates["source"] / ee_at_aper).to(u.electron / u.s).value
-        diffuse_rate_per_pix = 0.0
-        for name, rate in count_rates.items():
-            if name == "source":
-                continue
-            diffuse_rate_per_pix += (rate / n_psf).to(u.electron / u.s).value
         dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
         read_noise = self.sensor.read_noise.to(u.electron / u.pix).value
 
         if not optimize and r_aper_mas is None and ee_frac is None:
             r_aper_mas = self._meta.get("r_aper_mas")
 
-        return aperture_time_for_snr(psf_norm, ctx.plate_scale_mas,
-                                     source_rate_total, diffuse_rate_per_pix,
+        return aperture_time_for_snr(b["psf_norm"], b["plate_scale_mas"],
+                                     b["source_rate_total"], b["diffuse_rate_per_pix"],
                                      dark_rate_per_pix, read_noise,
                                      n_reads=n_reads, snr=snr,
                                      r_aper_mas=r_aper_mas, ee_frac=ee_frac,
