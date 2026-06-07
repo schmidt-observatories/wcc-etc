@@ -2,6 +2,7 @@ import warnings
 
 import numpy as np
 import pytest
+import astropy.units as u
 
 import wcc_etc
 from wcc_etc.psfsim import ImageSimulator, AiryPSF, saturation_mask_from_image_e
@@ -161,3 +162,32 @@ def test_exptime_for_snr_warns_when_solved_time_saturates():
     sim = _sim(12)
     with pytest.warns(UserWarning, match="saturat"):
         sim.get_image_exptime_for_snr(1e5, r_aper_mas=70)
+
+
+def test_get_snr_airy_warns_on_saturation_and_keeps_type():
+    sim = _sim(12)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        val = sim.get_snr_airy(60)
+    assert isinstance(val, u.Quantity)            # return type unchanged
+    assert any(issubclass(w.category, UserWarning) and "saturat" in str(w.message)
+               for w in caught)
+
+
+def test_get_snr_airy_warn_false_no_saturation_warning():
+    sim = _sim(12)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        sim.get_snr_airy(60, warn=False)
+    assert not any(issubclass(w.category, UserWarning) and "saturat" in str(w.message)
+                   for w in caught)
+
+
+def test_get_exptime_for_snr_warns_when_solved_time_saturates():
+    sim = _sim(12)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        t = sim.get_exptime_for_snr(1e5)          # huge SNR -> long time -> saturates
+    assert isinstance(t, u.Quantity)              # return type unchanged
+    assert any(issubclass(w.category, UserWarning) and "saturat" in str(w.message)
+               for w in caught)

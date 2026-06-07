@@ -1061,7 +1061,7 @@ class Simulation(_MetaHolder_):
             optimize=optimize, jitter_sigma_mas=jitter_sigma_mas,
             n_reads=n_reads, npix=npix, oversample=oversample, warn=warn)
 
-    def get_snr_airy(self, time=None, n_reads=None):
+    def get_snr_airy(self, time=None, n_reads=None, warn=True):
         """
         DEPRECATED analytic Airy-disk SNR approximation.
 
@@ -1073,6 +1073,8 @@ class Simulation(_MetaHolder_):
             Exposure time.
         n_reads : int, optional
             Number of reads. Defaults to meta['n_reads'] if set, else 1.
+        warn : bool, optional
+            If True (default), warn when the detector saturates at this time.
 
         Returns
         -------
@@ -1084,16 +1086,42 @@ class Simulation(_MetaHolder_):
             "use get_snr, which now uses the 2D image simulation.",
             DeprecationWarning, stacklevel=2)
         signal, variance = self.get_signal_and_variance(time, n_reads=n_reads)
+        if warn:
+            try:
+                sat = self.is_saturated(time, n_reads=n_reads)
+            except ValueError:
+                sat = False                       # no time resolvable; skip the saturation check
+            if bool(np.any(sat)):
+                warnings.warn(
+                    "detector saturates (per-frame); the analytic Airy SNR is "
+                    "unreliable. Use get_snr for the saturated-pixel count.",
+                    stacklevel=2)
         return signal / np.sqrt(variance)
 
-    def get_exptime_for_snr(self, snr, n_reads=None):
+    def get_exptime_for_snr(self, snr, n_reads=None, warn=True):
         """
         Exposure time (seconds, Quantity) to reach a target SNR on the analytic
         (Airy) path. Inverse of get_snr_airy. Returns inf*u.s if the source rate is 0.
+
+        Parameters
+        ----------
+        snr : float
+            Target SNR.
+        n_reads : int, optional
+            Number of reads. Defaults to meta['n_reads'] if set, else 1.
+        warn : bool, optional
+            If True (default), warn when the detector saturates at the solved
+            exposure time.
         """
         from .psfsim import solve_time_for_snr
         A, B, C = self._snr_coefficients(n_reads=n_reads)
-        return solve_time_for_snr(snr, A, B, C) * u.second
+        t = solve_time_for_snr(snr, A, B, C) * u.second
+        if warn and np.isfinite(t.value) and bool(np.any(self.is_saturated(t, n_reads=n_reads))):
+            warnings.warn(
+                f"detector saturates at the solved exposure time ({t:.3g}); "
+                "use get_image_exptime_for_snr for the saturated-pixel count.",
+                stacklevel=2)
+        return t
 
     # -------------- #
     #  Internal      #
