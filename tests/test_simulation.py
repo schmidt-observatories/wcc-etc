@@ -437,3 +437,23 @@ def test_get_image_snr_mags_array_optimize_aperture_non_increasing():
     for i, m in enumerate(mags):
         rebuilt = _bright_sim(float(m)).get_image_snr(time=60, optimize=True)
         assert out["snr"][i] == pytest.approx(rebuilt["snr"], rel=1e-12)
+
+
+def test_get_image_snr_time_and_mags_both_arrays_raises():
+    sim = _bright_sim(20)
+    with pytest.raises(ValueError, match="both be arrays"):
+        sim.get_image_snr(time=np.array([30., 60.]), mags=np.array([18., 20.]))
+
+
+def test_get_image_snr_mags_without_source_raises():
+    scene = wcc_etc.get_scene(
+        name='G5V', mag=20, host=None, background="zodi", bandpass='johnson_r',
+        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+    sim = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
+    # prime the render-bundle cache while the source still exists, so that
+    # after stripping the source we reach the mags guard rather than failing
+    # earlier in get_countrates() (which needs the 'source' element).
+    sim.get_image_snr(time=60)
+    sim.scene._source = None  # strip the source to hit the guard
+    with pytest.raises(ValueError, match="requires a scene with a source"):
+        sim.get_image_snr(time=60, mags=20)
