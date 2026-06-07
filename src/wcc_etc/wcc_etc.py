@@ -943,7 +943,7 @@ def get_wcc_snr_and_simulation(mag,
         simu.update(read_noise=read_noise)
     simu.update(jitter_sigma=jitter_sigma)
 
-    snr = simu.get_snr(texp)
+    snr = simu.get_snr(texp)["snr"]
     return snr, simu
 
 def get_blackbody_flux(w,teff,mag,unit='FLAM',filter='johnson_v',plot=False,ax=None):

@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.units as u
+import pytest
 import wcc_etc
 
 
@@ -20,29 +21,33 @@ def test_n_reads_is_mutable_parameter_and_defaults_to_one():
 
 def test_get_snr_n_reads_one_matches_baseline():
     sim = _sim()
-    baseline = float(sim.get_snr(60).value)
-    assert np.isclose(float(sim.get_snr(60, n_reads=1).value), baseline)
+    baseline = sim.get_snr(60)["snr"]
+    assert np.isclose(sim.get_snr(60, n_reads=1)["snr"], baseline)
 
 
 def test_more_reads_lowers_snr_at_fixed_time():
     sim = _sim(mag=19)  # faint -> read-noise matters
-    s1 = float(sim.get_snr(30, n_reads=1).value)
-    s9 = float(sim.get_snr(30, n_reads=9).value)
+    s1 = sim.get_snr(30, n_reads=1)["snr"]
+    s9 = sim.get_snr(30, n_reads=9)["snr"]
     assert s9 < s1
 
 
 def test_exptime_for_snr_roundtrips():
+    # get_exptime_for_snr is the analytic path; verify roundtrip with get_snr_airy
     sim = _sim()
     for target in (20.0, 100.0):
         t = sim.get_exptime_for_snr(target)
-        got = float(sim.get_snr(t).value)
+        with pytest.warns(DeprecationWarning):
+            got = float(sim.get_snr_airy(t).value)
         assert np.isclose(got, target, rtol=1e-3)
 
 
 def test_exptime_for_snr_roundtrips_with_reads():
+    # get_exptime_for_snr is the analytic path; verify roundtrip with get_snr_airy
     sim = _sim(mag=18)
     t = sim.get_exptime_for_snr(50.0, n_reads=5)
-    got = float(sim.get_snr(t, n_reads=5).value)
+    with pytest.warns(DeprecationWarning):
+        got = float(sim.get_snr_airy(t, n_reads=5).value)
     assert np.isclose(got, 50.0, rtol=1e-3)
 
 

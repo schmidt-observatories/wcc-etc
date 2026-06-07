@@ -171,7 +171,8 @@ def test_get_image_snr_matches_get_snr_in_focus():
     for t in [30, 300]:
         for m in [16, 20]:
             sim.update(source__mag=m)
-            etc = sim.get_snr(t)
+            with pytest.warns(DeprecationWarning):
+                etc = sim.get_snr_airy(t)
             etc = float(etc.value) if hasattr(etc, "value") else float(etc)
             img = sim.get_image_snr(time=t)["snr"]
             assert img == pytest.approx(etc, rel=0.03)
@@ -219,3 +220,151 @@ def test_get_image_snr_no_background_runs():
     out = sim.get_image_snr(time=60)
     assert out['snr'] > 0
     assert out['n_pix'] >= 1
+
+
+def test_image_render_bundle_cached(monkeypatch):
+    import wcc_etc.psfsim as psfsim
+    sim = _bright_sim(16)
+    calls = {"n": 0}
+    orig = psfsim.AiryPSF.render
+    def counting_render(self, ctx):
+        calls["n"] += 1
+        return orig(self, ctx)
+    monkeypatch.setattr(psfsim.AiryPSF, "render", counting_render)
+    a = sim.get_image_snr(time=30)["snr"]
+    b = sim.get_image_snr(time=60)["snr"]
+    assert calls["n"] == 1                       # rendered once, reused
+    assert len(sim._image_render_bundle_cache) == 1
+    assert b > a                                 # longer exposure -> higher SNR
+
+
+def test_update_invalidates_render_cache():
+    sim = _bright_sim(16)
+    snr1 = sim.get_image_snr(time=60)["snr"]
+    assert len(sim._image_render_bundle_cache) == 1
+    sim.update(source__mag=20)                   # fainter source
+    assert len(sim._image_render_bundle_cache) == 0
+    assert len(sim._psf_profile) == 0            # stale-PSF bug fix
+    snr2 = sim.get_image_snr(time=60)["snr"]
+    assert snr2 < snr1
+
+
+def test_update_jitter_clears_caches():
+    sim = _bright_sim(16)
+    sim.get_image_snr(time=60)
+    sim.update(jitter_sigma=50)
+    assert len(sim._image_render_bundle_cache) == 0
+    assert len(sim._psf_profile) == 0
+
+
+def test_set_sensor_clears_render_cache():
+    sim = _bright_sim(16)
+    sim.get_image_snr(time=60)
+    assert len(sim._image_render_bundle_cache) == 1
+    sim.set_sensor(sim.sensor)            # re-setting must drop the render cache
+    assert len(sim._image_render_bundle_cache) == 0
+
+
+def test_set_telescope_clears_render_cache():
+    sim = _bright_sim(16)
+    sim.get_image_snr(time=60)
+    assert len(sim._image_render_bundle_cache) == 1
+    sim.set_telescope(sim.telescope)      # re-setting must drop the render cache
+    assert len(sim._image_render_bundle_cache) == 0
+
+
+def test_reset_clears_render_cache():
+    sim = _bright_sim(16)
+    sim.get_image_snr(time=60)
+    assert len(sim._image_render_bundle_cache) == 1
+    sim.reset()
+    assert len(sim._image_render_bundle_cache) == 0
+
+
+def test_render_cache_tracks_direct_telescope_jitter_change():
+    sim = _bright_sim(16)
+    snr1 = sim.get_image_snr(time=60)["snr"]
+    sim.telescope.update(jitter_sigma=80)   # direct mutation, bypasses Simulation.update
+    snr2 = sim.get_image_snr(time=60)["snr"]
+    assert snr2 < snr1                       # more jitter -> lower fixed-aperture SNR, not a stale hit
+
+
+def test_get_image_snr_array_time():
+    sim = _bright_sim(16)
+    times = np.array([30., 60., 120.])
+    out = sim.get_image_snr(time=times)
+    assert np.shape(out["snr"]) == (3,)
+    assert np.shape(out["n_pix"]) == (3,)
+    assert out["n_pix"].dtype.kind == "i"
+    # monotonic increasing SNR with exposure time
+    assert out["snr"][0] < out["snr"][1] < out["snr"][2]
+    # each element matches the corresponding scalar call across all keys
+    for i, t in enumerate(times):
+        scalar = sim.get_image_snr(time=float(t))
+        for key in ("snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas"):
+            assert out[key][i] == pytest.approx(scalar[key], rel=1e-9)
+        assert int(out["n_pix"][i]) == scalar["n_pix"]
+
+
+def test_get_image_snr_array_time_optimize():
+    sim = _bright_sim(16)
+    times = np.array([30., 300., 3000.])
+    out = sim.get_image_snr(time=times, optimize=True)
+    assert np.shape(out["r_aper_mas"]) == (3,)
+    # each element matches the corresponding scalar optimize call
+    for i, t in enumerate(times):
+        scalar = sim.get_image_snr(time=float(t), optimize=True)
+        assert out["snr"][i] == pytest.approx(scalar["snr"], rel=1e-9)
+        assert out["r_aper_mas"][i] == pytest.approx(scalar["r_aper_mas"], rel=1e-9)
+
+
+def test_get_image_snr_scalar_still_dict_of_floats():
+    sim = _bright_sim(16)
+    out = sim.get_image_snr(time=60)
+    assert isinstance(out["snr"], float)
+    assert isinstance(out["n_pix"], int)
+
+
+def test_get_snr_airy_deprecated_matches_analytic():
+    sim = _bright_sim(16)
+    with pytest.warns(DeprecationWarning):
+        airy = sim.get_snr_airy(60)
+    signal, variance = sim.get_signal_and_variance(60)
+    assert float(airy.value) == pytest.approx(float((signal / np.sqrt(variance)).value), rel=1e-12)
+
+
+def test_get_snr_delegates_to_image_snr():
+    sim = _bright_sim(16)
+    assert sim.get_snr(60)["snr"] == pytest.approx(sim.get_image_snr(time=60)["snr"], rel=1e-12)
+    # overrides are forwarded
+    assert sim.get_snr(60, n_reads=3)["snr"] == pytest.approx(
+        sim.get_image_snr(time=60, n_reads=3)["snr"], rel=1e-12)
+
+
+def test_get_snr_array_time():
+    sim = _bright_sim(16)
+    out = sim.get_snr(np.array([30., 60., 120.]))
+    assert out["snr"][0] < out["snr"][1] < out["snr"][2]
+
+
+def test_image_exptime_for_snr_unchanged_after_refactor():
+    sim = _bright_sim(16)
+    target = 20.0
+    res = sim.get_image_exptime_for_snr(target)
+    # round-trips: the returned time reproduces the target SNR via get_image_snr
+    snr_back = sim.get_image_snr(time=res["time_s"])["snr"]
+    assert snr_back == pytest.approx(target, rel=0.02)
+
+
+def test_set_scene_clears_render_cache():
+    sim = _bright_sim(15)
+    snr1 = sim.get_snr(90)["snr"]
+    assert len(sim._image_render_bundle_cache) == 1
+    faint = wcc_etc.get_scene(name='G5V', mag=22, host=None, background="zodi",
+                              bandpass='johnson_r',
+                              background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+    sim.set_scene(faint)
+    assert len(sim._image_render_bundle_cache) == 0   # scene drives count rates
+    assert len(sim._psf_profile) == 0
+    snr2 = sim.get_snr(90)["snr"]
+    assert snr2 < snr1                                 # fainter scene -> lower SNR, not a stale hit

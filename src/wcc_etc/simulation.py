@@ -119,6 +119,8 @@ class Simulation(_MetaHolder_):
         self._sensor = sensor
         self.set_scene(scene)
         self._default_psf = None  # set by from_sensorfilter only
+        self._psf_profile = {}
+        self._image_render_bundle_cache = {}
 
         input_parameters = {key:value for key,value in locals().items()
                              if key not in ["self", "telescope", "sensor", "scene", "meta"]
@@ -283,6 +285,9 @@ class Simulation(_MetaHolder_):
         # this should move inside scene eventually
         self._h_spec_observation = None
         self._h_bkgd_observation = None
+        # scene drives the count rates / PSF profile: drop derived caches
+        self._psf_profile = {}
+        self._image_render_bundle_cache = {}
 
     def set_sensor(self, sensor_or_config):
         """
@@ -300,6 +305,7 @@ class Simulation(_MetaHolder_):
 
         self._sensor = sensor
         self._psf_profile = {}  # reset the psf profile
+        self._image_render_bundle_cache = {}
         # these following entries might depend on sensor for the bandpass
         self._h_spec_observation = None
         self._h_bkgd_observation = None
@@ -320,6 +326,7 @@ class Simulation(_MetaHolder_):
         
         self._telescope = telescope
         self._psf_profile = {} # reset the psf profile
+        self._image_render_bundle_cache = {}
 
     # ------- #
     # update  #
@@ -377,6 +384,8 @@ class Simulation(_MetaHolder_):
         for element in [self.telescope, self.sensor, self.scene]:
             if element is not None:
                 element.reset()
+        self._psf_profile = {}
+        self._image_render_bundle_cache = {}
             
                 
     def update(self, **kwargs):
@@ -444,8 +453,10 @@ class Simulation(_MetaHolder_):
         self.update_scene(**to_update["scene"])
     
         self._meta |= update_this
-                    
-    
+        # any parameter change can affect the PSF/count rates: drop caches
+        self._psf_profile = {}
+        self._image_render_bundle_cache = {}
+
     def update_telescope(self, **kwargs):
         """
         Update telescope parameters.
@@ -759,22 +770,71 @@ class Simulation(_MetaHolder_):
         peak_adu = self.get_peak_pixel(time, units="adu", n_reads=n_reads)
         return peak_adu >= self.sensor.adc_max
 
+    def _image_render_bundle(self, psf, jitter_sigma_mas, npix, oversample):
+        """
+        Cached, time-independent inputs for the PSF-aware SNR/exptime path.
+
+        Returns a dict with the rendered normalized PSF, the plate scale (mas),
+        and the source/diffuse count *rates* (electrons / s). Memoized on
+        render-affecting state; cleared by update()/set_sensor()/set_telescope().
+        """
+        from .psfsim import ImageSimulator
+
+        if jitter_sigma_mas is None:
+            jitter_sigma_mas = self.telescope.jitter_sigma.to("mas").value
+
+        cache = getattr(self, "_image_render_bundle_cache", None)
+        if cache is None:
+            cache = self._image_render_bundle_cache = {}
+        key = (psf.cache_key(), jitter_sigma_mas, int(npix), int(oversample))
+        if key in cache:
+            return cache[key]
+
+        imsim = ImageSimulator(self, npix=npix, oversample=oversample)
+        ctx = imsim._context(jitter_sigma_mas=jitter_sigma_mas)
+        psf_norm = psf.render(ctx)
+
+        profile = self.psf_profile
+        ee_at_aper = profile["ee_at_aper"]
+        if ee_at_aper == 0:
+            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
+        num_psf_pixels = profile["num_psf_pixels"]
+        n_psf = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
+
+        count_rates = self.get_countrates(units="e/s", as_dict=True)
+        source_rate_total = (count_rates["source"] / ee_at_aper).to(u.electron / u.s).value
+        diffuse_rate_per_pix = 0.0
+        for name, rate in count_rates.items():
+            if name == "source":
+                continue
+            diffuse_rate_per_pix += (rate / n_psf).to(u.electron / u.s).value
+
+        bundle = {"psf_norm": psf_norm,
+                  "plate_scale_mas": ctx.plate_scale_mas,
+                  "source_rate_total": source_rate_total,
+                  "diffuse_rate_per_pix": diffuse_rate_per_pix}
+        cache[key] = bundle
+        return bundle
+
     def get_image_snr(self, time=None, psf=None, r_aper_mas=None, ee_frac=None,
                       optimize=False, jitter_sigma_mas=None, n_reads=None,
                       npix=128, oversample=11):
         """
         PSF-aware aperture signal-to-noise ratio.
 
-        Unlike get_snr (which assumes the analytic Airy disk), this renders the
-        given PSF (default AiryPSF) on the detector grid and computes the SNR for
-        a circular aperture. The in-focus default-aperture case reproduces
-        get_snr. Aperture precedence: optimize > r_aper_mas > ee_frac; if none is
+        Unlike get_snr_airy (the analytic Airy-disk approximation), this renders
+        the given PSF (default AiryPSF) on the detector grid and computes the SNR
+        for a circular aperture. get_snr now delegates to this method; the
+        in-focus default-aperture case reproduces get_snr_airy to within ~1%.
+        Aperture precedence: optimize > r_aper_mas > ee_frac; if none is
         given, the Simulation's r_aper_mas is used.
 
         Parameters
         ----------
-        time : float or Quantity, optional
-            Exposure time (seconds if a bare float). Defaults to meta['time'].
+        time : float, array_like, or Quantity, optional
+            Exposure time(s) in seconds (bare floats are interpreted as
+            seconds). Defaults to meta['time']. A scalar yields a dict of
+            Python float/int; an array yields a dict of equal-length ndarrays.
         psf : PSFSource, optional
             PSF model. If None, uses _default_psf (set by from_sensorfilter)
             when available, otherwise falls back to AiryPSF().
@@ -795,9 +855,11 @@ class Simulation(_MetaHolder_):
         Returns
         -------
         dict
-            'snr', 'signal_e', 'noise_e', 'enclosed_fraction', 'r_aper_mas', 'n_pix'.
+            'snr', 'signal_e', 'noise_e', 'enclosed_fraction', 'r_aper_mas',
+            'n_pix'. Values are Python float/int for scalar `time`, or
+            ndarrays (n_pix as int) for array `time`.
         """
-        from .psfsim import ImageSimulator, AiryPSF, aperture_snr_radial, select_aperture
+        from .psfsim import AiryPSF, aperture_snr_radial, select_aperture
 
         if time is None:
             time = self._meta.get("time", None)
@@ -807,49 +869,40 @@ class Simulation(_MetaHolder_):
             time = time * u.second
 
         n_reads = self._resolve_n_reads(n_reads)
-
         if psf is None:
             psf = self._default_psf if self._default_psf is not None else AiryPSF()
 
-        imsim = ImageSimulator(self, npix=npix, oversample=oversample)
-        ctx = imsim._context(jitter_sigma_mas=jitter_sigma_mas)
-        psf_norm = psf.render(ctx)
-
-        profile = self.psf_profile
-        ee_at_aper = profile["ee_at_aper"]
-        if ee_at_aper == 0:
-            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
-        num_psf_pixels = profile["num_psf_pixels"]
-        n_psf = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
-
-        count_rates = self.get_countrates(units="e/s", as_dict=True)
-        source_e_total = (count_rates["source"] / ee_at_aper * time).to(u.electron).value
-
-        # per-pixel diffuse electrons from all non-source elements (sky, host)
-        diffuse_per_pix = 0.0
-        for element_name, rate in count_rates.items():
-            if element_name == "source":
-                continue
-            diffuse_per_pix += (rate * time / n_psf).to(u.electron).value
-
-        dark_per_pix = (self.sensor.dark_current * time).to(u.electron / u.pix).value
-        read_noise = self.sensor.read_noise.to(u.electron / u.pix).value * np.sqrt(n_reads)
-
-        prof = aperture_snr_radial(psf_norm, ctx.plate_scale_mas, source_e_total,
-                                   diffuse_per_pix, dark_per_pix, read_noise)
+        b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
 
         # default to the ETC aperture if no mode was requested
         if not optimize and r_aper_mas is None and ee_frac is None:
             r_aper_mas = self._meta.get("r_aper_mas")
 
-        idx = select_aperture(prof, r_aper_mas=r_aper_mas, ee_frac=ee_frac, optimize=optimize)
+        read_noise = self.sensor.read_noise.to(u.electron / u.pix).value * np.sqrt(n_reads)
+        dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
 
-        return {"snr": float(prof["snr"][idx]),
-                "signal_e": float(prof["signal_e"][idx]),
-                "noise_e": float(prof["noise_e"][idx]),
-                "enclosed_fraction": float(prof["enclosed_fraction"][idx]),
-                "r_aper_mas": float(prof["r_mas"][idx]),
-                "n_pix": int(prof["n_pix"][idx])}
+        def _snr_at(t_sec):
+            source_e_total = b["source_rate_total"] * t_sec
+            diffuse_per_pix = b["diffuse_rate_per_pix"] * t_sec
+            dark_per_pix = dark_rate_per_pix * t_sec
+            prof = aperture_snr_radial(b["psf_norm"], b["plate_scale_mas"],
+                                       source_e_total, diffuse_per_pix, dark_per_pix, read_noise)
+            idx = select_aperture(prof, r_aper_mas=r_aper_mas, ee_frac=ee_frac, optimize=optimize)
+            return {"snr": float(prof["snr"][idx]),
+                    "signal_e": float(prof["signal_e"][idx]),
+                    "noise_e": float(prof["noise_e"][idx]),
+                    "enclosed_fraction": float(prof["enclosed_fraction"][idx]),
+                    "r_aper_mas": float(prof["r_mas"][idx]),
+                    "n_pix": int(prof["n_pix"][idx])}
+
+        if time.isscalar:
+            return _snr_at(time.to(u.second).value)
+
+        results = [_snr_at(t) for t in time.to(u.second).value]
+        out = {k: np.array([r[k] for r in results])
+               for k in ("snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas")}
+        out["n_pix"] = np.array([r["n_pix"] for r in results], dtype=int)
+        return out
 
     def get_image_exptime_for_snr(self, snr, psf=None, r_aper_mas=None,
                                   ee_frac=None, optimize=False,
@@ -870,46 +923,55 @@ class Simulation(_MetaHolder_):
             PSF model. If None, uses _default_psf (set by from_sensorfilter)
             when available, otherwise falls back to AiryPSF().
         """
-        from .psfsim import ImageSimulator, AiryPSF, aperture_time_for_snr
+        from .psfsim import AiryPSF, aperture_time_for_snr
 
         n_reads = self._resolve_n_reads(n_reads)
         if psf is None:
             psf = self._default_psf if self._default_psf is not None else AiryPSF()
 
-        imsim = ImageSimulator(self, npix=npix, oversample=oversample)
-        ctx = imsim._context(jitter_sigma_mas=jitter_sigma_mas)
-        psf_norm = psf.render(ctx)
+        b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
 
-        profile = self.psf_profile
-        ee_at_aper = profile["ee_at_aper"]
-        if ee_at_aper == 0:
-            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
-        num_psf_pixels = profile["num_psf_pixels"]
-        n_psf = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
-
-        count_rates = self.get_countrates(units="e/s", as_dict=True)
-        source_rate_total = (count_rates["source"] / ee_at_aper).to(u.electron / u.s).value
-        diffuse_rate_per_pix = 0.0
-        for name, rate in count_rates.items():
-            if name == "source":
-                continue
-            diffuse_rate_per_pix += (rate / n_psf).to(u.electron / u.s).value
         dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
         read_noise = self.sensor.read_noise.to(u.electron / u.pix).value
 
         if not optimize and r_aper_mas is None and ee_frac is None:
             r_aper_mas = self._meta.get("r_aper_mas")
 
-        return aperture_time_for_snr(psf_norm, ctx.plate_scale_mas,
-                                     source_rate_total, diffuse_rate_per_pix,
+        return aperture_time_for_snr(b["psf_norm"], b["plate_scale_mas"],
+                                     b["source_rate_total"], b["diffuse_rate_per_pix"],
                                      dark_rate_per_pix, read_noise,
                                      n_reads=n_reads, snr=snr,
                                      r_aper_mas=r_aper_mas, ee_frac=ee_frac,
                                      optimize=optimize)
 
-    def get_snr(self, time=None, n_reads=None):
+    def get_snr(self, time=None, psf=None, r_aper_mas=None, ee_frac=None,
+                optimize=False, jitter_sigma_mas=None, n_reads=None,
+                npix=128, oversample=11):
         """
-        Get the signal to noise ratio for a given exposure time.
+        Signal-to-noise ratio via the 2D image simulation (PSF-aware default).
+
+        Delegates to get_image_snr; see it for parameter details and the
+        returned dict. `time` may be a scalar or an array (returns a dict of
+        arrays). For the legacy analytic Airy approximation use get_snr_airy
+        (deprecated).
+
+        Returns
+        -------
+        dict
+            Same as get_image_snr: 'snr', 'signal_e', 'noise_e',
+            'enclosed_fraction', 'r_aper_mas', 'n_pix' (scalar values for scalar
+            `time`, ndarrays for array `time`).
+        """
+        return self.get_image_snr(
+            time=time, psf=psf, r_aper_mas=r_aper_mas, ee_frac=ee_frac,
+            optimize=optimize, jitter_sigma_mas=jitter_sigma_mas,
+            n_reads=n_reads, npix=npix, oversample=oversample)
+
+    def get_snr_airy(self, time=None, n_reads=None):
+        """
+        DEPRECATED analytic Airy-disk SNR approximation.
+
+        Use get_snr, which computes the SNR via the 2D image simulation.
 
         Parameters
         ----------
@@ -923,14 +985,17 @@ class Simulation(_MetaHolder_):
         Quantity
             The SNR.
         """
-        # scenes of noise
-        signal, variance = self.get_signal_and_variance(time, n_reads=n_reads) # units doesn't matter
+        warnings.warn(
+            "get_snr_airy (analytic Airy approximation) is deprecated; "
+            "use get_snr, which now uses the 2D image simulation.",
+            DeprecationWarning, stacklevel=2)
+        signal, variance = self.get_signal_and_variance(time, n_reads=n_reads)
         return signal / np.sqrt(variance)
 
     def get_exptime_for_snr(self, snr, n_reads=None):
         """
         Exposure time (seconds, Quantity) to reach a target SNR on the analytic
-        (Airy) path. Inverse of get_snr. Returns inf*u.s if the source rate is 0.
+        (Airy) path. Inverse of get_snr_airy. Returns inf*u.s if the source rate is 0.
         """
         from .psfsim import solve_time_for_snr
         A, B, C = self._snr_coefficients(n_reads=n_reads)
