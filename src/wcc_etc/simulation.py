@@ -878,6 +878,19 @@ class Simulation(_MetaHolder_):
         if psf is None:
             psf = self._default_psf if self._default_psf is not None else AiryPSF()
 
+        # validate mags inputs before the (expensive) render bundle
+        m0 = None
+        if mags is not None:
+            if not self.scene.has_source():
+                raise ValueError("mags sweep requires a scene with a source")
+            m0 = self.scene.source.mag
+            if m0 is None:
+                raise ValueError("mags sweep requires a source with a set magnitude")
+            m0 = m0.value
+            if np.ndim(mags) > 0 and not time.isscalar:
+                raise ValueError("time and mags cannot both be arrays; "
+                                 "sweep one axis at a time")
+
         b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
 
         # default to the ETC aperture if no mode was requested
@@ -907,23 +920,14 @@ class Simulation(_MetaHolder_):
             out["n_pix"] = np.array([r["n_pix"] for r in results], dtype=int)
             return out
 
-        # resolve the source-flux scale from mags
+        # resolve the source-flux scale from mags (validated above)
         if mags is None:
             source_scale = 1.0
+        elif np.ndim(mags) > 0:
+            scales = 10 ** (-0.4 * (np.asarray(mags, dtype=float) - m0))
+            t_sec = time.to(u.second).value
+            return _assemble_array([_snr_at(t_sec, s) for s in scales])
         else:
-            if not self.scene.has_source():
-                raise ValueError("mags sweep requires a scene with a source")
-            m0 = self.scene.source.mag
-            if m0 is None:
-                raise ValueError("mags sweep requires a source with a set magnitude")
-            m0 = m0.value
-            if np.ndim(mags) > 0:
-                if not time.isscalar:
-                    raise ValueError("time and mags cannot both be arrays; "
-                                     "sweep one axis at a time")
-                scales = 10 ** (-0.4 * (np.asarray(mags, dtype=float) - m0))
-                t_sec = time.to(u.second).value
-                return _assemble_array([_snr_at(t_sec, s) for s in scales])
             source_scale = 10 ** (-0.4 * (float(mags) - m0))
 
         if time.isscalar:

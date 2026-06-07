@@ -450,10 +450,6 @@ def test_get_image_snr_mags_without_source_raises():
         name='G5V', mag=20, host=None, background="zodi", bandpass='johnson_r',
         background_prop={"bandpass": 'johnson_r', "mag": 22.5})
     sim = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
-    # prime the render-bundle cache while the source still exists, so that
-    # after stripping the source we reach the mags guard rather than failing
-    # earlier in get_countrates() (which needs the 'source' element).
-    sim.get_image_snr(time=60)
     sim.scene._source = None  # strip the source to hit the guard
     with pytest.raises(ValueError, match="requires a scene with a source"):
         sim.get_image_snr(time=60, mags=20)
