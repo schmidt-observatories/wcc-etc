@@ -16,9 +16,18 @@ edits only, reusing the saturation machinery already in the package.
   as **per-frame** (integration `time / n_reads`), on the **clean** (noiseless)
   electron image, against `sensor.adc_max` (ADU clip) **and** `well_depth`
   (full well).
-- `psfsim.ImageSimulator.simulate_image()` already builds a `saturation_mask`
+- `psfsim.ImageSimulator.simulate()` already builds a `saturation_mask`
   with exactly that test:
   `(image_e / gain) >= adc_max | image_e >= well_depth` (psfsim.py ~341–348).
+
+Note: the rendered-image saturation test (`simulate`'s mask, which this feature
+reuses) is **broader** than `is_saturated`. `is_saturated` flags only the ADC
+clip (and adds bias), whereas the image mask flags full-well **or** ADC clip on
+the bias-free electron image. For sensors whose full well is reached before the
+ADC clip (e.g. `sony:r`: well ≈ 16275 e⁻ vs ADC clip ≈ 17118 e⁻), `n_saturated`
+can be > 0 while `is_saturated` is False. `n_saturated` is therefore a superset:
+`is_saturated == True` implies `n_saturated > 0`, but not the converse. This is
+the correct definition for "saturated pixels in the image."
 - `Simulation._image_render_bundle()` already provides, for the PSF-aware SNR
   path, the normalized PSF image `psf_norm` (sums to 1) plus
   `source_rate_total`, `diffuse_rate_per_pix` (electrons/s); the dark rate is

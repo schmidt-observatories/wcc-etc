@@ -4,7 +4,7 @@
 
 **Goal:** Report the number of saturated pixels in the rendered image from `get_snr`/`get_image_snr` and `get_image_exptime_for_snr` (added to their result dicts), warn when saturation occurs (with a `warn=` toggle), and emit a warning-only on the deprecated analytic paths.
 
-**Architecture:** Extract the saturation-mask test already used by `psfsim.simulate_image` into a reusable helper, then call it from the SNR/exptime methods on a **per-frame clean electron image** (`time / n_reads`, no noise) formed from the data already in `_image_render_bundle`. This matches the existing `get_peak_pixel`/`is_saturated` convention so counts and flags always agree. SNR/exptime math is untouched.
+**Architecture:** Extract the saturation-mask test already used by `psfsim.ImageSimulator.simulate` into a reusable helper, then call it from the SNR/exptime methods on a **per-frame clean electron image** (`time / n_reads`, no noise) formed from the data already in `_image_render_bundle`. The per-frame, clean convention matches `get_peak_pixel`/`is_saturated`. The mask itself is the rendered-image mask (full-well OR ADC clip, bias-free), which is **broader** than `is_saturated` (ADC clip only): `is_saturated == True` implies `n_saturated > 0`, not the converse. SNR/exptime math is untouched.
 
 **Tech Stack:** Python, numpy, astropy units, pytest. Spec: `docs/superpowers/specs/2026-06-07-saturation-count-in-snr-design.md`.
 
@@ -192,11 +192,13 @@ def test_get_snr_values_unchanged_regression():
     assert np.isclose(snr, sim.get_image_snr(time=60, warn=False)["snr"])
 
 
-def test_get_snr_count_agrees_with_is_saturated():
-    # n_saturated > 0 iff is_saturated is True, at the same time/n_reads
+def test_get_snr_count_superset_of_is_saturated():
+    # is_saturated (ADC clip only) implies n_saturated > 0 (ADC clip OR full well).
+    # Not iff: n_saturated can exceed 0 via full well alone. At mag 12 both hold.
     sim = _sim(12)
     res = sim.get_snr(time=60, warn=False)
-    assert (res["n_saturated"] > 0) == bool(sim.is_saturated(60))
+    assert bool(sim.is_saturated(60))            # mag 12 clips the ADC at 60 s
+    assert res["n_saturated"] > 0                 # ... so the image mask must agree
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
