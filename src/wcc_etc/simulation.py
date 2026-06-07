@@ -809,10 +809,15 @@ class Simulation(_MetaHolder_):
                 continue
             diffuse_rate_per_pix += (rate / n_psf).to(u.electron / u.s).value
 
+        background_rate_per_pix = 0.0
+        if "background" in count_rates:
+            background_rate_per_pix = (count_rates["background"] / n_psf).to(u.electron / u.s).value
+
         bundle = {"psf_norm": psf_norm,
                   "plate_scale_mas": ctx.plate_scale_mas,
                   "source_rate_total": source_rate_total,
-                  "diffuse_rate_per_pix": diffuse_rate_per_pix}
+                  "diffuse_rate_per_pix": diffuse_rate_per_pix,
+                  "background_rate_per_pix": background_rate_per_pix}
         cache[key] = bundle
         return bundle
 
@@ -857,14 +862,20 @@ class Simulation(_MetaHolder_):
             contain the PSF; the default (128) contains the bundled defocus PSFs
             for the current sensors, but very small pixels or stronger defocus
             may need a larger value.
+        warn : bool, optional
+            If True (default), emit a warning when any pixel in the rendered
+            per-frame image saturates. The 'n_saturated'/'saturated' values are
+            returned regardless of this flag.
 
         Returns
         -------
         dict
             'snr', 'signal_e', 'noise_e', 'enclosed_fraction', 'r_aper_mas',
-            'n_pix'. Values are Python float/int for scalar `time` and
-            `mags`, or ndarrays (n_pix as int) when `time` or `mags` is an
-            array.
+            'n_pix', plus saturation info 'n_saturated' (count of pixels in the
+            rendered per-frame image at or above full well / ADC clip) and
+            'saturated' (bool). Values are Python float/int/bool for scalar
+            `time` and `mags`, or ndarrays (n_pix/n_saturated as int, saturated
+            as bool) when `time` or `mags` is an array.
         """
         from .psfsim import (AiryPSF, aperture_snr_radial, select_aperture,
                              saturation_mask_from_image_e)
@@ -910,10 +921,12 @@ class Simulation(_MetaHolder_):
                                        source_e_total, diffuse_per_pix, dark_per_pix, read_noise)
             idx = select_aperture(prof, r_aper_mas=r_aper_mas, ee_frac=ee_frac, optimize=optimize)
             # per-frame clean electron image -> saturated-pixel count
-            # (matches get_peak_pixel/is_saturated: saturation is per-frame)
+            # (matches get_peak_pixel/is_saturated: saturation is per-frame).
+            # Budget is source + background + dark only (host excluded), to match
+            # the rendered image from ImageSimulator.simulate/get_peak_pixel.
             tf = t_sec / n_reads
             image_e = (b["source_rate_total"] * source_scale * tf) * b["psf_norm"] \
-                      + b["diffuse_rate_per_pix"] * tf + dark_rate_per_pix * tf
+                      + b["background_rate_per_pix"] * tf + dark_rate_per_pix * tf
             mask = saturation_mask_from_image_e(self.sensor, image_e)
             return {"snr": float(prof["snr"][idx]),
                     "signal_e": float(prof["signal_e"][idx]),
@@ -937,7 +950,7 @@ class Simulation(_MetaHolder_):
                 n = result["n_saturated"]
                 n_max = int(np.max(n)) if np.ndim(n) else int(n)
                 warnings.warn(
-                    f"peak pixel saturates the detector — up to {n_max} pixel(s) "
+                    f"detector saturates — up to {n_max} pixel(s) "
                     f"at or above full well / ADC clip (per-frame, n_reads={n_reads}); "
                     f"SNR is unreliable. See is_saturated/get_peak_pixel.",
                     stacklevel=2)
@@ -1013,8 +1026,9 @@ class Simulation(_MetaHolder_):
         -------
         dict
             Same as get_image_snr: 'snr', 'signal_e', 'noise_e',
-            'enclosed_fraction', 'r_aper_mas', 'n_pix' (scalar values for scalar
-            `time`, ndarrays for array `time`).
+            'enclosed_fraction', 'r_aper_mas', 'n_pix', 'n_saturated',
+            'saturated' (scalar values for scalar `time`, ndarrays for array
+            `time`). Pass warn=False to silence the saturation warning.
         """
         return self.get_image_snr(
             time=time, psf=psf, r_aper_mas=r_aper_mas, ee_frac=ee_frac,

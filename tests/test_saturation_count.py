@@ -126,3 +126,14 @@ def test_get_snr_count_superset_of_is_saturated():
     res = sim.get_snr(time=60, warn=False)
     assert bool(sim.is_saturated(60))            # mag 12 clips the ADC at 60 s
     assert res["n_saturated"] > 0                 # ... so the image mask must agree
+
+
+def test_get_snr_count_matches_rendered_image():
+    # n_saturated must equal the saturated-pixel count of the actual rendered
+    # image (ImageSimulator.simulate), on the same grid, at n_reads=1 (tf == time).
+    from wcc_etc.psfsim import ImageSimulator, AiryPSF
+    sim = _sim(12)
+    res = sim.get_snr(time=60, n_reads=1, warn=False)        # defaults: npix=128, oversample=11
+    img = ImageSimulator(sim, npix=128, oversample=11).simulate(
+        time=60, psf=AiryPSF(), add_noise=False)
+    assert res["n_saturated"] == int(img.saturation_mask.sum())
