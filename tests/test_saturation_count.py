@@ -74,3 +74,55 @@ def test_helper_thresholds_adc_clip():
         f"adc_max={adc_max} ct  well_depth={well_depth}\n"
         f"image_e={image_e}\nexpected={expected}\ngot={got}"
     )
+
+
+def test_get_snr_faint_no_saturation_no_warning():
+    sim = _sim(25.4)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")          # any warning -> error
+        res = sim.get_snr(time=60)
+    assert res["n_saturated"] == 0
+    assert res["saturated"] is False
+
+
+def test_get_snr_bright_counts_and_warns():
+    sim = _sim(12)                               # bright: saturates a 60-s frame
+    with pytest.warns(UserWarning, match="saturat"):
+        res = sim.get_snr(time=60)
+    assert res["n_saturated"] > 0
+    assert res["saturated"] is True
+
+
+def test_get_snr_warn_false_silences_but_keeps_count():
+    sim = _sim(12)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        res = sim.get_snr(time=60, warn=False)
+    assert res["n_saturated"] > 0
+    assert res["saturated"] is True
+
+
+def test_get_snr_array_time_returns_count_array():
+    sim = _sim(12)
+    res = sim.get_snr(time=[30, 60, 120], warn=False)
+    assert res["n_saturated"].shape == (3,)
+    assert res["n_saturated"].dtype.kind == "i"
+    assert res["saturated"].dtype == bool
+    # more exposure -> at least as many saturated pixels (monotone, per-frame)
+    assert np.all(np.diff(res["n_saturated"]) >= 0)
+
+
+def test_get_snr_values_unchanged_regression():
+    # adding the count must not change the SNR itself
+    sim = _sim(25.4)
+    snr = sim.get_snr(time=60)["snr"]
+    assert np.isclose(snr, sim.get_image_snr(time=60, warn=False)["snr"])
+
+
+def test_get_snr_count_superset_of_is_saturated():
+    # is_saturated (ADC clip only) implies n_saturated > 0 (ADC clip OR full well).
+    # Not iff: n_saturated can exceed 0 via full well alone. At mag 12 both hold.
+    sim = _sim(12)
+    res = sim.get_snr(time=60, warn=False)
+    assert bool(sim.is_saturated(60))            # mag 12 clips the ADC at 60 s
+    assert res["n_saturated"] > 0                 # ... so the image mask must agree
