@@ -373,7 +373,6 @@ class ImageSimulator:
             pixel_scale_mas=ctx.plate_scale_mas, psf=psf)
 
 
-
 def howell_center(postage_stamp):
     """
     Howell centroiding, from Howell's Handbook of CCD astronomy
