@@ -862,8 +862,9 @@ class Simulation(_MetaHolder_):
         -------
         dict
             'snr', 'signal_e', 'noise_e', 'enclosed_fraction', 'r_aper_mas',
-            'n_pix'. Values are Python float/int for scalar `time`, or
-            ndarrays (n_pix as int) for array `time`.
+            'n_pix'. Values are Python float/int for scalar `time` and
+            `mags`, or ndarrays (n_pix as int) when `time` or `mags` is an
+            array.
         """
         from .psfsim import AiryPSF, aperture_snr_radial, select_aperture
 
