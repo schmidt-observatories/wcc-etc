@@ -368,3 +368,88 @@ def test_set_scene_clears_render_cache():
     assert len(sim._psf_profile) == 0
     snr2 = sim.get_snr(90)["snr"]
     assert snr2 < snr1                                 # fainter scene -> lower SNR, not a stale hit
+
+
+def test_get_image_snr_mags_scalar_matches_rebuild():
+    # scalar mags must equal a sim freshly built at that magnitude
+    sim = _bright_sim(20)
+    rebuilt = _bright_sim(25).get_image_snr(time=60)
+    swept = sim.get_image_snr(time=60, mags=25)
+    for key in ("snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas"):
+        assert swept[key] == pytest.approx(rebuilt[key], rel=1e-12)
+    assert swept["n_pix"] == rebuilt["n_pix"]
+    assert isinstance(swept["snr"], float)
+
+
+def test_get_image_snr_mags_at_reference_is_noop():
+    # mags equal to the scene's own magnitude reproduces the no-mags call
+    sim = _bright_sim(20)
+    base = sim.get_image_snr(time=60)
+    same = sim.get_image_snr(time=60, mags=20)
+    assert same["snr"] == pytest.approx(base["snr"], rel=1e-12)
+
+
+def test_get_image_snr_mags_requires_set_magnitude():
+    # a mag=None source (absolute-flux sentinel) must give a clear ValueError,
+    # not a bare AttributeError, when a mags sweep is requested
+    scene = wcc_etc.get_scene(
+        name='G5V', mag=None, host=None, background="zodi",
+        bandpass='johnson_r',
+        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+    sim = wcc_etc.Simulation.from_sensor_and_scene('sony:r', scene)
+    with pytest.raises(ValueError, match="set magnitude"):
+        sim.get_image_snr(time=60, mags=20)
+
+
+def test_get_image_snr_mags_array_matches_rebuild():
+    # the whole point: a mags sweep equals a per-magnitude rebuild, exactly
+    sim = _bright_sim(20)
+    mags = np.array([10., 15., 20., 25., 28.])
+    out = sim.get_image_snr(time=60, mags=mags)
+    assert np.shape(out["snr"]) == (5,)
+    assert np.shape(out["n_pix"]) == (5,)
+    assert out["n_pix"].dtype.kind == "i"
+    # fainter source -> lower SNR
+    assert out["snr"][0] > out["snr"][-1]
+    for i, m in enumerate(mags):
+        rebuilt = _bright_sim(float(m)).get_image_snr(time=60)
+        for key in ("snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas"):
+            assert out[key][i] == pytest.approx(rebuilt[key], rel=1e-12)
+        assert int(out["n_pix"][i]) == rebuilt["n_pix"]
+
+
+def test_get_image_snr_mags_array_length_one():
+    sim = _bright_sim(20)
+    out = sim.get_image_snr(time=60, mags=[20.])
+    scalar = sim.get_image_snr(time=60)
+    assert np.shape(out["snr"]) == (1,)
+    assert out["snr"][0] == pytest.approx(scalar["snr"], rel=1e-12)
+
+
+def test_get_image_snr_mags_array_optimize_aperture_non_increasing():
+    # under optimize, the SNR-optimal aperture should not grow as the source faints
+    sim = _bright_sim(18)
+    mags = np.array([14., 18., 22., 26.])
+    out = sim.get_image_snr(time=60, mags=mags, optimize=True)
+    r = out["r_aper_mas"]
+    assert np.all(np.diff(r) <= 1e-9)
+    # and each element still matches its rebuild under optimize
+    for i, m in enumerate(mags):
+        rebuilt = _bright_sim(float(m)).get_image_snr(time=60, optimize=True)
+        assert out["snr"][i] == pytest.approx(rebuilt["snr"], rel=1e-12)
+
+
+def test_get_image_snr_time_and_mags_both_arrays_raises():
+    sim = _bright_sim(20)
+    with pytest.raises(ValueError, match="both be arrays"):
+        sim.get_image_snr(time=np.array([30., 60.]), mags=np.array([18., 20.]))
+
+
+def test_get_image_snr_mags_without_source_raises():
+    scene = wcc_etc.get_scene(
+        name='G5V', mag=20, host=None, background="zodi", bandpass='johnson_r',
+        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+    sim = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
+    sim.scene._source = None  # strip the source to hit the guard
+    with pytest.raises(ValueError, match="requires a scene with a source"):
+        sim.get_image_snr(time=60, mags=20)
