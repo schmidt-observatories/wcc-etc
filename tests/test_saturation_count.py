@@ -137,3 +137,27 @@ def test_get_snr_count_matches_rendered_image():
     img = ImageSimulator(sim, npix=128, oversample=11).simulate(
         time=60, psf=AiryPSF(), add_noise=False)
     assert res["n_saturated"] == int(img.saturation_mask.sum())
+
+
+def test_exptime_for_snr_reports_count_keys():
+    sim = _sim(25.4)                              # faint: solved time does not saturate
+    res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
+    assert isinstance(res["n_saturated"], int)
+    assert res["saturated"] is False
+    assert res["n_saturated"] == 0
+
+
+def test_exptime_count_consistent_with_get_image_snr():
+    # count at the solved time must equal what get_image_snr reports at that time
+    sim = _sim(12)
+    res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
+    chk = sim.get_image_snr(time=res["time_s"], r_aper_mas=70, warn=False)
+    assert res["n_saturated"] == chk["n_saturated"]
+    assert res["saturated"] == chk["saturated"]
+
+
+def test_exptime_for_snr_warns_when_solved_time_saturates():
+    # bright source + very high target SNR -> long exposure -> saturates
+    sim = _sim(12)
+    with pytest.warns(UserWarning, match="saturat"):
+        sim.get_image_exptime_for_snr(1e5, r_aper_mas=70)
