@@ -821,6 +821,18 @@ class Simulation(_MetaHolder_):
         cache[key] = bundle
         return bundle
 
+    def _per_frame_clean_image_e(self, b, tf, source_scale=1.0):
+        """Per-frame clean electron image for the saturation test.
+
+        Budget is source + background + dark (host excluded), matching
+        ImageSimulator.simulate and get_peak_pixel. `b` is an
+        _image_render_bundle dict; `tf` is the per-frame integration time
+        (total time / n_reads); `source_scale` scales the source flux.
+        """
+        dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
+        return (b["source_rate_total"] * source_scale * tf) * b["psf_norm"] \
+               + b["background_rate_per_pix"] * tf + dark_rate_per_pix * tf
+
     def get_image_snr(self, time=None, mags=None, psf=None, r_aper_mas=None,
                       ee_frac=None, optimize=False, jitter_sigma_mas=None,
                       n_reads=None, npix=128, oversample=11, warn=True):
@@ -922,11 +934,7 @@ class Simulation(_MetaHolder_):
             idx = select_aperture(prof, r_aper_mas=r_aper_mas, ee_frac=ee_frac, optimize=optimize)
             # per-frame clean electron image -> saturated-pixel count
             # (matches get_peak_pixel/is_saturated: saturation is per-frame).
-            # Budget is source + background + dark only (host excluded), to match
-            # the rendered image from ImageSimulator.simulate/get_peak_pixel.
-            tf = t_sec / n_reads
-            image_e = (b["source_rate_total"] * source_scale * tf) * b["psf_norm"] \
-                      + b["background_rate_per_pix"] * tf + dark_rate_per_pix * tf
+            image_e = self._per_frame_clean_image_e(b, t_sec / n_reads, source_scale)
             mask = saturation_mask_from_image_e(self.sensor, image_e)
             return {"snr": float(prof["snr"][idx]),
                     "signal_e": float(prof["signal_e"][idx]),
@@ -1017,9 +1025,7 @@ class Simulation(_MetaHolder_):
 
         # saturated-pixel count at the solved time, on the per-frame clean image
         # (source + background + dark; host excluded), matching get_image_snr/simulate.
-        tf = result["time_s"] / n_reads
-        image_e = (b["source_rate_total"] * tf) * b["psf_norm"] \
-                  + b["background_rate_per_pix"] * tf + dark_rate_per_pix * tf
+        image_e = self._per_frame_clean_image_e(b, result["time_s"] / n_reads)
         mask = saturation_mask_from_image_e(self.sensor, image_e)
         result["n_saturated"] = int(mask.sum())
         result["saturated"] = bool(mask.any())
