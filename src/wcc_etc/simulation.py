@@ -913,7 +913,10 @@ class Simulation(_MetaHolder_):
         else:
             if not self.scene.has_source():
                 raise ValueError("mags sweep requires a scene with a source")
-            m0 = self.scene.source.mag.value
+            m0 = self.scene.source.mag
+            if m0 is None:
+                raise ValueError("mags sweep requires a source with a set magnitude")
+            m0 = m0.value
             if np.ndim(mags) > 0:
                 if not time.isscalar:
                     raise ValueError("time and mags cannot both be arrays; "

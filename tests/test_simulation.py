@@ -387,3 +387,15 @@ def test_get_image_snr_mags_at_reference_is_noop():
     base = sim.get_image_snr(time=60)
     same = sim.get_image_snr(time=60, mags=20)
     assert same["snr"] == pytest.approx(base["snr"], rel=1e-12)
+
+
+def test_get_image_snr_mags_requires_set_magnitude():
+    # a mag=None source (absolute-flux sentinel) must give a clear ValueError,
+    # not a bare AttributeError, when a mags sweep is requested
+    scene = wcc_etc.get_scene(
+        name='G5V', mag=None, host=None, background="zodi",
+        bandpass='johnson_r',
+        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+    sim = wcc_etc.Simulation.from_sensor_and_scene('sony:r', scene)
+    with pytest.raises(ValueError, match="set magnitude"):
+        sim.get_image_snr(time=60, mags=20)
