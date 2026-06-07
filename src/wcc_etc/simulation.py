@@ -816,9 +816,9 @@ class Simulation(_MetaHolder_):
         cache[key] = bundle
         return bundle
 
-    def get_image_snr(self, time=None, psf=None, r_aper_mas=None, ee_frac=None,
-                      optimize=False, jitter_sigma_mas=None, n_reads=None,
-                      npix=128, oversample=11):
+    def get_image_snr(self, time=None, mags=None, psf=None, r_aper_mas=None,
+                      ee_frac=None, optimize=False, jitter_sigma_mas=None,
+                      n_reads=None, npix=128, oversample=11):
         """
         PSF-aware aperture signal-to-noise ratio.
 
@@ -835,6 +835,12 @@ class Simulation(_MetaHolder_):
             Exposure time(s) in seconds (bare floats are interpreted as
             seconds). Defaults to meta['time']. A scalar yields a dict of
             Python float/int; an array yields a dict of equal-length ndarrays.
+        mags : float, array_like, or None, optional
+            Source magnitude(s) to evaluate at, sweeping the source brightness
+            relative to its set magnitude (host/background/dark/read held fixed).
+            None (default) leaves the source unchanged. A scalar yields a dict of
+            floats; a 1-D array yields a dict of arrays over magnitude. `time` and
+            `mags` may not both be arrays. Requires a scene with a source.
         psf : PSFSource, optional
             PSF model. If None, uses _default_psf (set by from_sensorfilter)
             when available, otherwise falls back to AiryPSF().
@@ -881,8 +887,8 @@ class Simulation(_MetaHolder_):
         read_noise = self.sensor.read_noise.to(u.electron / u.pix).value * np.sqrt(n_reads)
         dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
 
-        def _snr_at(t_sec):
-            source_e_total = b["source_rate_total"] * t_sec
+        def _snr_at(t_sec, source_scale=1.0):
+            source_e_total = b["source_rate_total"] * source_scale * t_sec
             diffuse_per_pix = b["diffuse_rate_per_pix"] * t_sec
             dark_per_pix = dark_rate_per_pix * t_sec
             prof = aperture_snr_radial(b["psf_norm"], b["plate_scale_mas"],
@@ -895,14 +901,32 @@ class Simulation(_MetaHolder_):
                     "r_aper_mas": float(prof["r_mas"][idx]),
                     "n_pix": int(prof["n_pix"][idx])}
 
-        if time.isscalar:
-            return _snr_at(time.to(u.second).value)
+        def _assemble_array(results):
+            out = {k: np.array([r[k] for r in results])
+                   for k in ("snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas")}
+            out["n_pix"] = np.array([r["n_pix"] for r in results], dtype=int)
+            return out
 
-        results = [_snr_at(t) for t in time.to(u.second).value]
-        out = {k: np.array([r[k] for r in results])
-               for k in ("snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas")}
-        out["n_pix"] = np.array([r["n_pix"] for r in results], dtype=int)
-        return out
+        # resolve the source-flux scale from mags
+        if mags is None:
+            source_scale = 1.0
+        else:
+            if not self.scene.has_source():
+                raise ValueError("mags sweep requires a scene with a source")
+            m0 = self.scene.source.mag.value
+            if np.ndim(mags) > 0:
+                if not time.isscalar:
+                    raise ValueError("time and mags cannot both be arrays; "
+                                     "sweep one axis at a time")
+                scales = 10 ** (-0.4 * (np.asarray(mags, dtype=float) - m0))
+                t_sec = time.to(u.second).value
+                return _assemble_array([_snr_at(t_sec, s) for s in scales])
+            source_scale = 10 ** (-0.4 * (float(mags) - m0))
+
+        if time.isscalar:
+            return _snr_at(time.to(u.second).value, source_scale)
+        results = [_snr_at(t, source_scale) for t in time.to(u.second).value]
+        return _assemble_array(results)
 
     def get_image_exptime_for_snr(self, snr, psf=None, r_aper_mas=None,
                                   ee_frac=None, optimize=False,

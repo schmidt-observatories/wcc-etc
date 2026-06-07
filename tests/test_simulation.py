@@ -368,3 +368,22 @@ def test_set_scene_clears_render_cache():
     assert len(sim._psf_profile) == 0
     snr2 = sim.get_snr(90)["snr"]
     assert snr2 < snr1                                 # fainter scene -> lower SNR, not a stale hit
+
+
+def test_get_image_snr_mags_scalar_matches_rebuild():
+    # scalar mags must equal a sim freshly built at that magnitude
+    sim = _bright_sim(20)
+    rebuilt = _bright_sim(25).get_image_snr(time=60)
+    swept = sim.get_image_snr(time=60, mags=25)
+    for key in ("snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas"):
+        assert swept[key] == pytest.approx(rebuilt[key], rel=1e-12)
+    assert swept["n_pix"] == rebuilt["n_pix"]
+    assert isinstance(swept["snr"], float)
+
+
+def test_get_image_snr_mags_at_reference_is_noop():
+    # mags equal to the scene's own magnitude reproduces the no-mags call
+    sim = _bright_sim(20)
+    base = sim.get_image_snr(time=60)
+    same = sim.get_image_snr(time=60, mags=20)
+    assert same["snr"] == pytest.approx(base["snr"], rel=1e-12)
