@@ -809,16 +809,33 @@ class Simulation(_MetaHolder_):
                 continue
             diffuse_rate_per_pix += (rate / n_psf).to(u.electron / u.s).value
 
+        background_rate_per_pix = 0.0
+        if "background" in count_rates:
+            background_rate_per_pix = (count_rates["background"] / n_psf).to(u.electron / u.s).value
+
         bundle = {"psf_norm": psf_norm,
                   "plate_scale_mas": ctx.plate_scale_mas,
                   "source_rate_total": source_rate_total,
-                  "diffuse_rate_per_pix": diffuse_rate_per_pix}
+                  "diffuse_rate_per_pix": diffuse_rate_per_pix,
+                  "background_rate_per_pix": background_rate_per_pix}
         cache[key] = bundle
         return bundle
 
+    def _per_frame_clean_image_e(self, b, tf, source_scale=1.0):
+        """Per-frame clean electron image for the saturation test.
+
+        Budget is source + background + dark (host excluded), matching
+        ImageSimulator.simulate and get_peak_pixel. `b` is an
+        _image_render_bundle dict; `tf` is the per-frame integration time
+        (total time / n_reads); `source_scale` scales the source flux.
+        """
+        dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
+        return (b["source_rate_total"] * source_scale * tf) * b["psf_norm"] \
+               + b["background_rate_per_pix"] * tf + dark_rate_per_pix * tf
+
     def get_image_snr(self, time=None, mags=None, psf=None, r_aper_mas=None,
                       ee_frac=None, optimize=False, jitter_sigma_mas=None,
-                      n_reads=None, npix=128, oversample=11):
+                      n_reads=None, npix=128, oversample=11, warn=True):
         """
         PSF-aware aperture signal-to-noise ratio.
 
@@ -857,16 +874,23 @@ class Simulation(_MetaHolder_):
             contain the PSF; the default (128) contains the bundled defocus PSFs
             for the current sensors, but very small pixels or stronger defocus
             may need a larger value.
+        warn : bool, optional
+            If True (default), emit a warning when any pixel in the rendered
+            per-frame image saturates. The 'n_saturated'/'saturated' values are
+            returned regardless of this flag.
 
         Returns
         -------
         dict
             'snr', 'signal_e', 'noise_e', 'enclosed_fraction', 'r_aper_mas',
-            'n_pix'. Values are Python float/int for scalar `time` and
-            `mags`, or ndarrays (n_pix as int) when `time` or `mags` is an
-            array.
+            'n_pix', plus saturation info 'n_saturated' (count of pixels in the
+            rendered per-frame image at or above full well / ADC clip) and
+            'saturated' (bool). Values are Python float/int/bool for scalar
+            `time` and `mags`, or ndarrays (n_pix/n_saturated as int, saturated
+            as bool) when `time` or `mags` is an array.
         """
-        from .psfsim import AiryPSF, aperture_snr_radial, select_aperture
+        from .psfsim import (AiryPSF, aperture_snr_radial, select_aperture,
+                             saturation_mask_from_image_e)
 
         if time is None:
             time = self._meta.get("time", None)
@@ -908,18 +932,37 @@ class Simulation(_MetaHolder_):
             prof = aperture_snr_radial(b["psf_norm"], b["plate_scale_mas"],
                                        source_e_total, diffuse_per_pix, dark_per_pix, read_noise)
             idx = select_aperture(prof, r_aper_mas=r_aper_mas, ee_frac=ee_frac, optimize=optimize)
+            # per-frame clean electron image -> saturated-pixel count
+            # (matches get_peak_pixel/is_saturated: saturation is per-frame).
+            image_e = self._per_frame_clean_image_e(b, t_sec / n_reads, source_scale)
+            mask = saturation_mask_from_image_e(self.sensor, image_e)
             return {"snr": float(prof["snr"][idx]),
                     "signal_e": float(prof["signal_e"][idx]),
                     "noise_e": float(prof["noise_e"][idx]),
                     "enclosed_fraction": float(prof["enclosed_fraction"][idx]),
                     "r_aper_mas": float(prof["r_mas"][idx]),
-                    "n_pix": int(prof["n_pix"][idx])}
+                    "n_pix": int(prof["n_pix"][idx]),
+                    "n_saturated": int(mask.sum()),
+                    "saturated": bool(mask.any())}
 
         def _assemble_array(results):
             out = {k: np.array([r[k] for r in results])
                    for k in ("snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas")}
             out["n_pix"] = np.array([r["n_pix"] for r in results], dtype=int)
+            out["n_saturated"] = np.array([r["n_saturated"] for r in results], dtype=int)
+            out["saturated"] = np.array([r["saturated"] for r in results], dtype=bool)
             return out
+
+        def _maybe_warn(result):
+            if warn and bool(np.any(result["saturated"])):
+                n = result["n_saturated"]
+                n_max = int(np.max(n)) if np.ndim(n) else int(n)
+                warnings.warn(
+                    f"detector saturates — up to {n_max} pixel(s) "
+                    f"at or above full well / ADC clip (per-frame, n_reads={n_reads}); "
+                    f"SNR is unreliable. See is_saturated/get_peak_pixel.",
+                    stacklevel=2)
+            return result
 
         # resolve the source-flux scale from mags (validated above)
         if mags is None:
@@ -927,19 +970,19 @@ class Simulation(_MetaHolder_):
         elif np.ndim(mags) > 0:
             scales = 10 ** (-0.4 * (np.asarray(mags, dtype=float) - m0))
             t_sec = time.to(u.second).value
-            return _assemble_array([_snr_at(t_sec, s) for s in scales])
+            return _maybe_warn(_assemble_array([_snr_at(t_sec, s) for s in scales]))
         else:
             source_scale = 10 ** (-0.4 * (float(mags) - m0))
 
         if time.isscalar:
-            return _snr_at(time.to(u.second).value, source_scale)
+            return _maybe_warn(_snr_at(time.to(u.second).value, source_scale))
         results = [_snr_at(t, source_scale) for t in time.to(u.second).value]
-        return _assemble_array(results)
+        return _maybe_warn(_assemble_array(results))
 
     def get_image_exptime_for_snr(self, snr, psf=None, r_aper_mas=None,
                                   ee_frac=None, optimize=False,
                                   jitter_sigma_mas=None, n_reads=None,
-                                  npix=128, oversample=11):
+                                  npix=128, oversample=11, warn=True):
         """
         Exposure time (s) to reach a target SNR on the PSF-aware path.
 
@@ -947,15 +990,19 @@ class Simulation(_MetaHolder_):
         ee_frac; if none is given the Simulation's r_aper_mas is used. Note
         optimize here picks the radius that reaches the target SNR *fastest*
         (minimum time), the inverse of get_image_snr's max-SNR optimize. Returns
-        a dict {'time_s', 'snr', 'r_aper_mas', 'enclosed_fraction', 'n_pix'}.
+        a dict {'time_s', 'snr', 'r_aper_mas', 'enclosed_fraction', 'n_pix',
+        'n_saturated', 'saturated'}.
 
         Parameters
         ----------
         psf : PSFSource, optional
             PSF model. If None, uses _default_psf (set by from_sensorfilter)
             when available, otherwise falls back to AiryPSF().
+        warn : bool, optional
+            If True (default), warn when the rendered image saturates at the
+            solved time; 'n_saturated'/'saturated' are returned regardless.
         """
-        from .psfsim import AiryPSF, aperture_time_for_snr
+        from .psfsim import AiryPSF, aperture_time_for_snr, saturation_mask_from_image_e
 
         n_reads = self._resolve_n_reads(n_reads)
         if psf is None:
@@ -969,16 +1016,30 @@ class Simulation(_MetaHolder_):
         if not optimize and r_aper_mas is None and ee_frac is None:
             r_aper_mas = self._meta.get("r_aper_mas")
 
-        return aperture_time_for_snr(b["psf_norm"], b["plate_scale_mas"],
-                                     b["source_rate_total"], b["diffuse_rate_per_pix"],
-                                     dark_rate_per_pix, read_noise,
-                                     n_reads=n_reads, snr=snr,
-                                     r_aper_mas=r_aper_mas, ee_frac=ee_frac,
-                                     optimize=optimize)
+        result = aperture_time_for_snr(b["psf_norm"], b["plate_scale_mas"],
+                                       b["source_rate_total"], b["diffuse_rate_per_pix"],
+                                       dark_rate_per_pix, read_noise,
+                                       n_reads=n_reads, snr=snr,
+                                       r_aper_mas=r_aper_mas, ee_frac=ee_frac,
+                                       optimize=optimize)
+
+        # saturated-pixel count at the solved time, on the per-frame clean image
+        # (source + background + dark; host excluded), matching get_image_snr/simulate.
+        image_e = self._per_frame_clean_image_e(b, result["time_s"] / n_reads)
+        mask = saturation_mask_from_image_e(self.sensor, image_e)
+        result["n_saturated"] = int(mask.sum())
+        result["saturated"] = bool(mask.any())
+        if warn and result["saturated"]:
+            warnings.warn(
+                f"detector saturates at the solved time ({result['time_s']:.3g} s) "
+                f"— {result['n_saturated']} pixel(s) at or above full well / ADC clip "
+                f"(per-frame, n_reads={n_reads}).",
+                stacklevel=2)
+        return result
 
     def get_snr(self, time=None, psf=None, r_aper_mas=None, ee_frac=None,
                 optimize=False, jitter_sigma_mas=None, n_reads=None,
-                npix=128, oversample=11):
+                npix=128, oversample=11, warn=True):
         """
         Signal-to-noise ratio via the 2D image simulation (PSF-aware default).
 
@@ -991,15 +1052,16 @@ class Simulation(_MetaHolder_):
         -------
         dict
             Same as get_image_snr: 'snr', 'signal_e', 'noise_e',
-            'enclosed_fraction', 'r_aper_mas', 'n_pix' (scalar values for scalar
-            `time`, ndarrays for array `time`).
+            'enclosed_fraction', 'r_aper_mas', 'n_pix', 'n_saturated',
+            'saturated' (scalar values for scalar `time`, ndarrays for array
+            `time`). Pass warn=False to silence the saturation warning.
         """
         return self.get_image_snr(
             time=time, psf=psf, r_aper_mas=r_aper_mas, ee_frac=ee_frac,
             optimize=optimize, jitter_sigma_mas=jitter_sigma_mas,
-            n_reads=n_reads, npix=npix, oversample=oversample)
+            n_reads=n_reads, npix=npix, oversample=oversample, warn=warn)
 
-    def get_snr_airy(self, time=None, n_reads=None):
+    def get_snr_airy(self, time=None, n_reads=None, warn=True):
         """
         DEPRECATED analytic Airy-disk SNR approximation.
 
@@ -1011,6 +1073,8 @@ class Simulation(_MetaHolder_):
             Exposure time.
         n_reads : int, optional
             Number of reads. Defaults to meta['n_reads'] if set, else 1.
+        warn : bool, optional
+            If True (default), warn when the detector saturates at this time.
 
         Returns
         -------
@@ -1022,16 +1086,42 @@ class Simulation(_MetaHolder_):
             "use get_snr, which now uses the 2D image simulation.",
             DeprecationWarning, stacklevel=2)
         signal, variance = self.get_signal_and_variance(time, n_reads=n_reads)
+        if warn:
+            try:
+                sat = self.is_saturated(time, n_reads=n_reads)
+            except ValueError:
+                sat = False                       # no time resolvable; skip the saturation check
+            if bool(np.any(sat)):
+                warnings.warn(
+                    "detector saturates (per-frame); the analytic Airy SNR is "
+                    "unreliable. Use get_snr for the saturated-pixel count.",
+                    stacklevel=2)
         return signal / np.sqrt(variance)
 
-    def get_exptime_for_snr(self, snr, n_reads=None):
+    def get_exptime_for_snr(self, snr, n_reads=None, warn=True):
         """
         Exposure time (seconds, Quantity) to reach a target SNR on the analytic
         (Airy) path. Inverse of get_snr_airy. Returns inf*u.s if the source rate is 0.
+
+        Parameters
+        ----------
+        snr : float
+            Target SNR.
+        n_reads : int, optional
+            Number of reads. Defaults to meta['n_reads'] if set, else 1.
+        warn : bool, optional
+            If True (default), warn when the detector saturates at the solved
+            exposure time.
         """
         from .psfsim import solve_time_for_snr
         A, B, C = self._snr_coefficients(n_reads=n_reads)
-        return solve_time_for_snr(snr, A, B, C) * u.second
+        t = solve_time_for_snr(snr, A, B, C) * u.second
+        if warn and np.isfinite(t.value) and bool(np.any(self.is_saturated(t, n_reads=n_reads))):
+            warnings.warn(
+                f"detector saturates at the solved exposure time ({t:.3g}); "
+                "use get_image_exptime_for_snr for the saturated-pixel count.",
+                stacklevel=2)
+        return t
 
     # -------------- #
     #  Internal      #

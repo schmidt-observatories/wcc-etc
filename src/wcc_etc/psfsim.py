@@ -164,6 +164,30 @@ class CustomPSF(_ResampledPSF):
         super().__init__(data, src_um_per_pix)
 
 
+def saturation_mask_from_image_e(sensor, image_e):
+    """Boolean mask of pixels at/over the ADC full scale or the full well.
+
+    Parameters
+    ----------
+    sensor : Sensor
+        Provides gain, adc_max, and (optionally) meta['well_depth'].
+    image_e : ndarray
+        Per-pixel charge in electrons (per frame for saturation tests).
+
+    Returns
+    -------
+    ndarray of bool
+        True where (image_e / gain) >= adc_max, OR image_e >= well_depth
+        when a well_depth is configured.
+    """
+    gain = sensor.gain.to(u.electron / u.ct).value
+    mask = (image_e / gain) >= sensor.adc_max.to(u.ct).value
+    well_depth = sensor.meta.get("well_depth")
+    if well_depth is not None:
+        mask = mask | (image_e >= well_depth)
+    return mask
+
+
 @dataclass
 class SimulatedImage:
     """Result of an ImageSimulator.simulate() call."""
@@ -340,12 +364,8 @@ class ImageSimulator:
 
         gain = sim.sensor.gain.to(u.electron / u.ct).value
         bias_level = sim.sensor.bias_level.to(u.ct).value
-        adc_max = sim.sensor.adc_max.to(u.ct).value
-        well_depth = sim.sensor.meta.get("well_depth")
 
-        saturation_mask = (image_e / gain) >= adc_max
-        if well_depth is not None:
-            saturation_mask = saturation_mask | (image_e >= well_depth)
+        saturation_mask = saturation_mask_from_image_e(sim.sensor, image_e)
 
         return SimulatedImage(
             image_e=image_e, image_clean=image_clean, saturation_mask=saturation_mask,
