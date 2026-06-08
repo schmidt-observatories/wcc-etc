@@ -95,7 +95,12 @@ def psf_to_encircled_energy(psf, pixel_scale_x_mas, pixel_scale_y_mas):
 
     """
     ny, nx = psf.shape
-    cy, cx = ny//2, nx//2
+    # Measure radii from the PSF's true centroid, not the n//2 index. On even
+    # grids the rendered+cropped PSF lands on an integer pixel a full pixel from
+    # n//2, biasing the curve of growth outward. psf_center shares one convention
+    # with psfsim._radial_cumulative so the two reducers can't drift apart.
+    from .psfsim import psf_center  # lazy import: psfsim imports airy at module load
+    cx, cy = psf_center(psf)
     y, x = np.indices(psf.shape)
     # Anisotropic pixel scale handled here:
     r_mas = np.sqrt(((x - cx) * pixel_scale_x_mas)**2 + ((y - cy) * pixel_scale_y_mas)**2)

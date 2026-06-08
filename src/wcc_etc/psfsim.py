@@ -402,6 +402,35 @@ def howell_center(postage_stamp):
     return xc, yc
 
 
+def psf_center(image):
+    """
+    Measured center ``(xc, yc)`` of a PSF image for radial reducers.
+
+    Uses Howell centroiding so radii are measured from the actual light
+    distribution rather than a fixed grid index. This matters because
+    ``render_detector_psf`` forces an odd grid (peak on the exact center pixel)
+    and ``center_crop_or_pad`` then brings an even target grid back down, landing
+    the centroid on an integer pixel — a full pixel away from ``n//2`` and half a
+    pixel from the geometric center ``(n-1)/2``. It also tracks the centroid of
+    asymmetric defocused (DefocusPSF) bands, which are not guaranteed symmetric
+    about the grid center.
+
+    Falls back to the geometric center ``((nx-1)/2, (ny-1)/2)`` for an empty or
+    degenerate image where the centroid is undefined (zero/negative total flux or
+    a non-finite centroid, e.g. a flat field).
+    """
+    image = np.asarray(image, dtype=float)
+    ny, nx = image.shape
+    geom = ((nx - 1) / 2.0, (ny - 1) / 2.0)
+    if not np.isfinite(image).all() or image.sum() <= 0:
+        return geom
+    with np.errstate(invalid="ignore", divide="ignore"):
+        xc, yc = howell_center(image)  # may divide 0/0 on a flat field -> nan
+    if not (np.isfinite(xc) and np.isfinite(yc)):
+        return geom
+    return xc, yc
+
+
 
 
 def apply_jitter(data,jitter_mas,pixel_scale):
@@ -891,9 +920,9 @@ def _radial_cumulative(psf_norm, plate_scale_mas):
     if psf_norm.ndim != 2 or psf_norm.shape[0] != psf_norm.shape[1]:
         raise ValueError(f"psf_norm must be a square 2D array, got shape {psf_norm.shape}")
     npix = psf_norm.shape[0]
-    c = (npix - 1) / 2.0
+    xc, yc = psf_center(psf_norm)  # shared centroid convention (see psf_center)
     yy, xx = np.mgrid[0:npix, 0:npix]
-    r_pix = np.sqrt((xx - c) ** 2 + (yy - c) ** 2).ravel()
+    r_pix = np.sqrt((xx - xc) ** 2 + (yy - yc) ** 2).ravel()
     order = np.argsort(r_pix, kind="stable")
     r_sorted = r_pix[order]
     enclosed = np.cumsum(psf_norm.ravel()[order])
