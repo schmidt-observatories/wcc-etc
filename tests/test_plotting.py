@@ -303,3 +303,38 @@ def test_oned_plots_have_faint_gridlines():
     fig2, ax2, _ = plotting.plot_encircled_energy_mpl(s, units="pix")
     assert any(gl.get_visible() for gl in ax.get_xgridlines())
     assert any(gl.get_visible() for gl in ax2.get_xgridlines())
+
+
+def _ee_hline_at(ax, y, tol=1e-9):
+    """True if the axes has a horizontal line drawn at height `y` (the EE target marker)."""
+    for line in ax.get_lines():
+        yd = line.get_ydata()
+        # axhline renders as a 2-point line with constant y spanning x in [0, 1] axes coords
+        if len(yd) == 2 and abs(yd[0] - yd[1]) < tol and abs(yd[0] - y) < tol:
+            return True
+    return False
+
+
+def test_plot_ee_mpl_marks_90_percent_by_default():
+    # With no ee_target argument, the EE plot marks the 90% radius:
+    # a legend is present and a horizontal guide line is drawn at y=0.9.
+    s = _gaussian_simimg()
+    fig, ax, (r, ee) = plotting.plot_encircled_energy_mpl(s, units="pix")
+    assert ax.get_legend() is not None
+    assert _ee_hline_at(ax, 0.9)
+
+
+def test_plot_ee_mpl_none_disables_marker():
+    # Explicit ee_target=None opts out: no legend, no 0.9 guide line.
+    s = _gaussian_simimg()
+    fig, ax, (r, ee) = plotting.plot_encircled_energy_mpl(s, units="pix", ee_target=None)
+    assert ax.get_legend() is None
+    assert not _ee_hline_at(ax, 0.9)
+
+
+def test_simimg_plot_ee_marks_90_percent_by_default():
+    # The SimulatedImage convenience method inherits the 0.9 default.
+    s = _gaussian_simimg()
+    fig, ax, (r, ee) = s.plot_encircled_energy(backend="mpl", units="pix")
+    assert ax.get_legend() is not None
+    assert _ee_hline_at(ax, 0.9)

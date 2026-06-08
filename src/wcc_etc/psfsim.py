@@ -236,7 +236,8 @@ class SimulatedImage:
         raise ValueError("backend must be 'mpl' or 'bokeh'")
 
     def plot_encircled_energy(self, backend="mpl", **kwargs):
-        """Plot the encircled-energy curve."""
+        """Plot the encircled-energy curve (marks the 90% EE radius by default;
+        pass ee_target=None to disable or another fraction to override)."""
         from . import plotting
         if backend == "mpl":
             return plotting.plot_encircled_energy_mpl(self, **kwargs)

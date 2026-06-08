@@ -197,12 +197,14 @@ def plot_radial_mpl(source=None, *, noise=False, image_e=None, image_clean=None,
 def plot_encircled_energy_mpl(source=None, *, noise=False, image_e=None,
                               image_clean=None, saturation_mask=None,
                               pixel_scale_mas=None, units="mas",
-                              ee_target=None, title="", ax=None):
+                              ee_target=0.9, title="", ax=None):
     """Encircled-energy curve (normalized to 1) of the simulated image.
 
     Uses image_clean by default. units='mas' uses the mas radius from
     psf_to_encircled_energy; units='pix' divides by pixel_scale_mas. ee_target
-    (e.g. 0.8) draws the enclosing-radius marker. Returns (fig, ax, (radius, ee))."""
+    defaults to 0.9 (marks the 90% encircled-energy radius); pass ee_target=None
+    to disable the marker or another fraction to override. Returns
+    (fig, ax, (radius, ee))."""
     ie, ic, _, ps = _resolve_inputs(
         source, image_e=image_e, image_clean=image_clean,
         saturation_mask=saturation_mask, pixel_scale_mas=pixel_scale_mas)
@@ -333,9 +335,11 @@ def plot_radial_bokeh(source=None, *, noise=False, image_e=None, image_clean=Non
 
 def plot_encircled_energy_bokeh(source=None, *, noise=False, image_e=None,
                                 image_clean=None, saturation_mask=None,
-                                pixel_scale_mas=None, units="mas", ee_target=None,
+                                pixel_scale_mas=None, units="mas", ee_target=0.9,
                                 title="", width=500, height=350, return_="obj"):
-    """Bokeh encircled-energy curve. return_ selects the output form."""
+    """Bokeh encircled-energy curve. ee_target defaults to 0.9 (marks the 90%
+    encircled-energy radius); pass ee_target=None to disable. return_ selects the
+    output form."""
     from bokeh.plotting import figure
     ie, ic, _sat, ps = _resolve_inputs(
         source, image_e=image_e, image_clean=image_clean,
