@@ -395,7 +395,8 @@ def plot_lightcurve_mpl(source=None, *, show_noise=True, show_model=True,
     ax.set_xlabel("Time")
     ax.set_ylabel("Relative Flux")
     ax.set_title("Transit Light Curve")
-    ax.legend(loc="best", frameon=False)
+    if ax.get_legend_handles_labels()[0]:
+        ax.legend(loc="best", frameon=False)
     return fig, ax
 
 
@@ -412,12 +413,13 @@ def plot_lightcurve_bokeh(source=None, *, show_noise=True, show_model=True,
     if show_noise and flux is not None:
         p.scatter(time, flux, size=4, color="#595959", alpha=0.8,
                   legend_label="Simulated")
-        if flux_err:
+        if flux_err is not None:
             lower = np.asarray(flux) - flux_err
             upper = np.asarray(flux) + flux_err
             p.segment(time, lower, time, upper, color="#b3b3b3", line_width=0.8)
     if show_model and flux_clean is not None:
         p.line(time, flux_clean, color="crimson", line_width=2,
                legend_label="Model")
-    p.legend.location = "bottom_right"
+    if p.legend:
+        p.legend.location = "bottom_right"
     return _finish_bokeh(p, return_)
