@@ -1,0 +1,4 @@
+/* Minor tweaks on top of the Read the Docs theme. */
+.wy-nav-content { max-width: 960px; }
+.rst-content table.docutils td,
+.rst-content table.docutils th { white-space: normal; }

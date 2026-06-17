@@ -1,37 +1,63 @@
-name: Deploy docs
+name: Docs
 
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
+# Permissions required by the official GitHub Pages deploy actions.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment; don't cancel an in-progress run.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install pandoc (needed by nbsphinx to render notebooks)
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - name: Install the package and documentation dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f docs/requirements.txt ]; then
-            pip install -r docs/requirements.txt
-          else
-            pip install mkdocs mkdocs-material
-          fi
+          pip install -e .                              # so autodoc can import wcc_etc
+          pip install -r docs/sphinx/requirements.txt   # Sphinx + theme + nbsphinx
 
-      - name: Build site
-        run: mkdocs build --clean
+      - name: Build the Sphinx site
+        run: sphinx-build -W --keep-going -b html docs/sphinx docs/sphinx/_build/html
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Upload the built site as a Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site
-          publish_branch: gh-pages
+          path: docs/sphinx/_build/html
+
+  # Deploy only on pushes to main (not on PRs). Enable this job once the
+  # repository is public and GitHub Pages is turned on in repo settings
+  # (Settings → Pages → Source: GitHub Actions).
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
