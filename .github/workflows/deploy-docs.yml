@@ -38,7 +38,7 @@ jobs:
           pip install -r docs/sphinx/requirements.txt   # Sphinx + theme + nbsphinx
 
       - name: Build the Sphinx site
-        run: sphinx-build -b html docs/sphinx docs/sphinx/_build/html
+        run: sphinx-build -W --keep-going -b html docs/sphinx docs/sphinx/_build/html
 
       - name: Upload the built site as a Pages artifact
         uses: actions/upload-pages-artifact@v3
