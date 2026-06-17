@@ -1,0 +1,6 @@
+# Build output
+_build/
+# Notebooks are copied in from ../../notebooks at build time (conf.py)
+notebooks/
+# autosummary stubs (regenerated)
+api/_autosummary/

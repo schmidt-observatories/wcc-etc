@@ -256,7 +256,7 @@ def plot_image_bokeh(source=None, *, noise=True, image_e=None, image_clean=None,
                      return_="obj"):
     """Bokeh single-image plot with equal x/y scale (match_aspect=True).
 
-    return_ selects the output form (see _finish_bokeh)."""
+    ``return_`` selects the output form (see _finish_bokeh)."""
     from bokeh.plotting import figure
     ie, ic, _sat, ps = _resolve_inputs(
         source, image_e=image_e, image_clean=image_clean,
@@ -283,7 +283,7 @@ def plot_image_row_bokeh(source=None, *, image_e=None, image_clean=None,
                          width=300, height=300, return_="obj"):
     """Bokeh 3-panel row: PSF+noise, PSF (no noise), saturation mask.
 
-    return_ selects the output form (see _finish_bokeh)."""
+    ``return_`` selects the output form (see _finish_bokeh)."""
     from bokeh.plotting import figure
     from bokeh.layouts import row
     ie, ic, sat, ps = _resolve_inputs(
@@ -314,7 +314,7 @@ def plot_radial_bokeh(source=None, *, noise=False, image_e=None, image_clean=Non
                       saturation_mask=None, pixel_scale_mas=None, units="mas",
                       annulus_width=1, title="", width=500, height=350,
                       return_="obj"):
-    """Bokeh radial profile. return_ selects the output form (see _finish_bokeh)."""
+    """Bokeh radial profile. ``return_`` selects the output form (see _finish_bokeh)."""
     from bokeh.plotting import figure
     ie, ic, _sat, ps = _resolve_inputs(
         source, image_e=image_e, image_clean=image_clean,
@@ -338,7 +338,7 @@ def plot_encircled_energy_bokeh(source=None, *, noise=False, image_e=None,
                                 pixel_scale_mas=None, units="mas", ee_target=0.9,
                                 title="", width=500, height=350, return_="obj"):
     """Bokeh encircled-energy curve. ee_target defaults to 0.9 (marks the 90%
-    encircled-energy radius); pass ee_target=None to disable. return_ selects the
+    encircled-energy radius); pass ee_target=None to disable. ``return_`` selects the
     output form."""
     from bokeh.plotting import figure
     ie, ic, _sat, ps = _resolve_inputs(

@@ -64,25 +64,20 @@ See the `notebooks/` directory for example tutorials:
 # Notes
 Configuration files (.toml) are in the src/wcc_etc/data/config/ directory. Notebooks show that it is easy to change default configuration parameters on the fly.
 
-## Viewing Documentation Locally
+## Documentation
 
-To view the documentation locally, make sure you have MkDocs installed:
-
-```bash
-pip install mkdocs
-```
-
-Then, from the project root directory, run:
+The full documentation site (installation, a user guide, rendered tutorial
+notebooks, and an auto-generated API reference) is built with **Sphinx** and
+the *Read the Docs* theme. It lives under `docs/sphinx/`:
 
 ```bash
-mkdocs serve
+pip install -e .                              # so autodoc can import wcc_etc
+pip install -r docs/sphinx/requirements.txt   # Sphinx + theme + nbsphinx
+# plus a pandoc binary (conda install pandoc / brew install pandoc)
+cd docs/sphinx
+make html                                     # output in _build/html/index.html
 ```
 
-This will start a local web server. Open your browser and go to:
+A `.readthedocs.yaml` is included so the site builds automatically once the
+repository is connected to Read the Docs.
 
-    http://127.0.0.1:8000
-
-to view the documentation.
-
-Notes
-- The documentation site uses the markdown files in the `docs/` folder.
