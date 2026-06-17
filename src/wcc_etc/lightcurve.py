@@ -74,6 +74,10 @@ class LightCurve:
         self.exptime = float(exptime)
         self.snr = float(snr)
 
+    def __repr__(self):
+        return (f"LightCurve(n={self.time.size}, snr={self.snr:.1f}, "
+                f"flux_err={self.flux_err:.3g}, exptime={self.exptime:g}s)")
+
     def plot(self, backend="mpl", **kw):
         """Plot this light curve. Wired to plotting.py (lazy import to avoid
         an import cycle, mirroring SimulatedImage)."""

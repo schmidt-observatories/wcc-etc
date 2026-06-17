@@ -50,3 +50,12 @@ def test_simulate_noise_statistics_match_sigma():
     resid = lc.flux - lc.flux_clean
     assert np.std(resid) == pytest.approx(1 / 50.0, rel=0.1)
     assert isinstance(lc, LightCurve)
+
+
+def test_lightcurve_repr_is_informative():
+    lc = LightCurveSimulator(_FakeSim(150.0), _ConstDip()).simulate(
+        np.linspace(0, 1, 40), exptime=30.0, seed=0)
+    r = repr(lc)
+    assert r.startswith("LightCurve(")
+    assert "n=40" in r
+    assert "snr=150.0" in r
