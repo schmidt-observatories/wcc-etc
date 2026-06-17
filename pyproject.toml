@@ -31,6 +31,8 @@ dependencies = [
   "photutils",
 ]
 
+[project.optional-dependencies]
+lightcurve = ["batman-package"]
 
 [project.urls]
 Homepage = "https://github.com/schmidt-observatories/wcc-etc"
