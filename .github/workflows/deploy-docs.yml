@@ -1,7 +1,9 @@
-name: Deploy docs
+name: Docs
 
 on:
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
@@ -45,7 +47,11 @@ jobs:
         with:
           path: docs/sphinx/_build/html
 
+  # Deploy only on pushes to main (not on PRs). Enable this job once the
+  # repository is public and GitHub Pages is turned on in repo settings
+  # (Settings → Pages → Source: GitHub Actions).
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:
