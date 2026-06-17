@@ -364,3 +364,60 @@ def plot_encircled_energy_bokeh(source=None, *, noise=False, image_e=None,
             p.add_layout(Span(location=ee_target, dimension="width",
                               line_color="gray", line_dash="dotted"))
     return _finish_bokeh(p, return_)
+
+
+def _resolve_lightcurve(source=None, *, time=None, flux=None,
+                        flux_clean=None, flux_err=None):
+    """Resolve (time, flux, flux_clean, flux_err) from a LightCurve or arrays."""
+    if source is not None and hasattr(source, "flux_clean"):
+        return source.time, source.flux, source.flux_clean, source.flux_err
+    return time, flux, flux_clean, flux_err
+
+
+def plot_lightcurve_mpl(source=None, *, show_noise=True, show_model=True,
+                        time=None, flux=None, flux_clean=None, flux_err=None,
+                        ax=None, **kw):
+    """Matplotlib light-curve plot: clean model line, noisy points with error
+    bars, or both. Accepts a LightCurve (positional) or raw arrays."""
+    time, flux, flux_clean, flux_err = _resolve_lightcurve(
+        source, time=time, flux=flux, flux_clean=flux_clean, flux_err=flux_err)
+    if ax is None:
+        fig, ax = plt.subplots(figsize=kw.pop("figsize", (7, 4)))
+    else:
+        fig = ax.figure
+    if show_noise and flux is not None:
+        ax.errorbar(time, flux, yerr=flux_err, fmt="o", ms=3, color="0.35",
+                    ecolor="0.7", elinewidth=0.8, capsize=0, zorder=1,
+                    label="Simulated")
+    if show_model and flux_clean is not None:
+        ax.plot(time, flux_clean, "-", color="C3", lw=1.8, zorder=2,
+                label="Model")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Relative Flux")
+    ax.set_title("Transit Light Curve")
+    ax.legend(loc="best", frameon=False)
+    return fig, ax
+
+
+def plot_lightcurve_bokeh(source=None, *, show_noise=True, show_model=True,
+                          time=None, flux=None, flux_clean=None, flux_err=None,
+                          width=600, height=350, return_="obj"):
+    """Bokeh light-curve plot. ``return_`` selects the output form (see
+    _finish_bokeh). Accepts a LightCurve (positional) or raw arrays."""
+    from bokeh.plotting import figure
+    time, flux, flux_clean, flux_err = _resolve_lightcurve(
+        source, time=time, flux=flux, flux_clean=flux_clean, flux_err=flux_err)
+    p = figure(width=width, height=height, title="Transit Light Curve",
+               x_axis_label="Time", y_axis_label="Relative Flux")
+    if show_noise and flux is not None:
+        p.scatter(time, flux, size=4, color="#595959", alpha=0.8,
+                  legend_label="Simulated")
+        if flux_err:
+            lower = np.asarray(flux) - flux_err
+            upper = np.asarray(flux) + flux_err
+            p.segment(time, lower, time, upper, color="#b3b3b3", line_width=0.8)
+    if show_model and flux_clean is not None:
+        p.line(time, flux_clean, color="crimson", line_width=2,
+               legend_label="Model")
+    p.legend.location = "bottom_right"
+    return _finish_bokeh(p, return_)
