@@ -777,6 +777,20 @@ class Simulation(_MetaHolder_):
                                        npix=npix, oversample=oversample)
         return peak_adu >= self.sensor.adc_max
 
+    def peak_pixel_fraction(self, psf=None, jitter_sigma_mas=None, npix=128, oversample=11):
+        """Fraction of total source flux in the brightest detector pixel for the
+        actual (possibly defocused) PSF.
+
+        PSF-aware replacement for the retired psf_profile['peak_pixel_fraction']
+        (which was in-focus-Airy only). `psf` defaults to _default_psf if set,
+        else AiryPSF().
+        """
+        if psf is None:
+            from .psfsim import AiryPSF
+            psf = self._default_psf if self._default_psf is not None else AiryPSF()
+        b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
+        return float(b["psf_norm"].max())
+
     def _image_render_bundle(self, psf, jitter_sigma_mas, npix, oversample):
         """
         Cached, time-independent inputs for the PSF-aware SNR/exptime path.
