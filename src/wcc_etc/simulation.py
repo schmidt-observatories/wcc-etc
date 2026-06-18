@@ -556,8 +556,17 @@ class Simulation(_MetaHolder_):
         return Observation(spec_at_mag, bandpass, force='extrap')
 
     def get_countrates(self, scene=None, band=None, units="adu/s", as_dict=True):
+        """DEPRECATED (Airy, in-aperture). Use _count_rate_components for the 2D
+        path or get_image_snr. Retained for the analytic Airy methods."""
+        import warnings
+        warnings.warn("get_countrates is deprecated (Airy in-aperture model); "
+                      "use get_image_snr / _count_rate_components.",
+                      DeprecationWarning, stacklevel=2)
+        return self._countrates_in_aperture(scene=scene, band=band, units=units, as_dict=as_dict)
+
+    def _countrates_in_aperture(self, scene=None, band=None, units="adu/s", as_dict=True):
         """
-        Get the countrates for each element in the scene.
+        Get the countrates for each element in the scene (Airy in-aperture).
 
         Parameters
         ----------
@@ -578,30 +587,30 @@ class Simulation(_MetaHolder_):
         if units not in ["adu/s", "e/s", "e-/s"]:
             raise ValueError(f"unknown countrate units. Should be 'adu/s' or 'e/s'. {units=} given")
 
-        
+
         # INFO: self.psf_profile is computed automatically if needed.
         if band is None:
             band = self.sensor.bandpass
 
         if scene is None:
             scene = self.scene
-            
-        
+
+
         # these are the countrate in e/s
         if np.any( scene.call_down("mag_is_surface_brightness")):
             area = self.psf_profile['psf_area'].value # area in arcsec**2
         else:
             area = None
-            
+
         scene_observations = scene.get_observation(band=band, area=area, as_dict=True)
 
         # loop over the scene elements and get the countrate for each.
         countrates = {}
         for element, observation in scene_observations.items():
             # - scene
-            count_rate_total = observation.countrate(area=self.telescope.surface) * u.electron/u.ct 
+            count_rate_total = observation.countrate(area=self.telescope.surface) * u.electron/u.ct
             count_rate = count_rate_total * self.psf_profile["ee_at_aper"]
-            
+
             if units in ["adu/s"]: # in [] enables short cut.
                 count_rate /= self.sensor.gain  #   ADU/s
 
@@ -668,6 +677,11 @@ class Simulation(_MetaHolder_):
         tuple
             (source_signal, total_variance)
         """
+        import warnings
+        warnings.warn("get_signal_and_variance is the analytic Airy approximation and is "
+                      "deprecated; use the PSF-aware 2D path (get_image_snr / "
+                      "get_image_exptime_for_snr / get_peak_pixel).",
+                      DeprecationWarning, stacklevel=2)
         if time is None:
             time = self._meta.get("time", None)
         if time is None:
@@ -680,7 +694,7 @@ class Simulation(_MetaHolder_):
         n_reads = self._resolve_n_reads(n_reads)
 
         # get the count rates in {adu,e-}/s
-        count_rates = self.get_countrates(units="e/s", as_dict=True) # this is an array
+        count_rates = self._countrates_in_aperture(units="e/s", as_dict=True) # this is an array
         
         #logging.info(f"Scene count rate: {count_rates:.2f} e/s")
         #logging.info(f"Background count rate: {sky_count_rate:.2f} e/s")
@@ -1092,6 +1106,11 @@ class Simulation(_MetaHolder_):
             If True (default), warn when the detector saturates at the solved
             exposure time.
         """
+        import warnings
+        warnings.warn("get_exptime_for_snr is the analytic Airy approximation and is "
+                      "deprecated; use the PSF-aware 2D path (get_image_snr / "
+                      "get_image_exptime_for_snr / get_peak_pixel).",
+                      DeprecationWarning, stacklevel=2)
         from .psfsim import solve_time_for_snr
         A, B, C = self._snr_coefficients(n_reads=n_reads)
         t = solve_time_for_snr(snr, A, B, C) * u.second
@@ -1120,7 +1139,7 @@ class Simulation(_MetaHolder_):
         A = source rate; B = total scene rate + n_pix*dark; C = n_pix*N*RN**2.
         """
         n_reads = self._resolve_n_reads(n_reads)
-        count_rates = self.get_countrates(units="e/s", as_dict=True)
+        count_rates = self._countrates_in_aperture(units="e/s", as_dict=True)
         A = count_rates["source"].to(u.electron / u.s).value
         all_rates = float(np.nansum([r.to(u.electron / u.s).value
                                      for r in count_rates.values()]))
@@ -1150,24 +1169,15 @@ class Simulation(_MetaHolder_):
         
         return SpectralElement.from_filter(bandpass)
         
-    def compute_psf_profile(self):
-        """
-        Compute the PSF profile and associated metrics.
+    def _compute_psf_profile_impl(self):
+        """Internal implementation of the Airy PSF profile computation (no warning)."""
+        from .airy import get_airy_and_ee_curve
 
-        Returns
-        -------
-        dict
-            Dictionary containing 'wavelength', 'r_psf_mas', 'psf1d', 'ee',
-            'ee_at_aper', 'num_psf_pixels', 'psf_area', and
-            'peak_pixel_fraction'.
-        """
-        from .airy import get_airy_and_ee_curve, render_detector_psf
-        
         wavelength = self.sensor.wavelength.to("m")
-        r_psf_mas, psf1d, ee, ee_at_aper = get_airy_and_ee_curve(wavelength, 
-                                                                 r_aper_mas = self._meta["r_aper_mas"], # no default allower 
-                                                                 jitter_sigma_mas = self.telescope.jitter_sigma.to("mas"), 
-                                                                 fnum=self.telescope.f_num, 
+        r_psf_mas, psf1d, ee, ee_at_aper = get_airy_and_ee_curve(wavelength,
+                                                                 r_aper_mas = self._meta["r_aper_mas"], # no default allower
+                                                                 jitter_sigma_mas = self.telescope.jitter_sigma.to("mas"),
+                                                                 fnum=self.telescope.f_num,
                                                                  D=self.telescope.diameter_primary.value,
                                                                  pixel_size=self.sensor.pixel_size.value,
                                                                  verbose=False)
@@ -1180,21 +1190,10 @@ class Simulation(_MetaHolder_):
         # area of the psf in angular units
         psf_area = num_psf_pixels * plate_scale **2 # in arcsec**2
 
-        
         #logging.info(f"PSF profile computed:")
         #logging.info(f"EE={ee_at_aper:.2f} at {self.meta['r_aper_mas']} mas aperture")
         #logging.info(f"num_psf_pixels={num_psf_pixels:.1f} pixels")
         #logging.info(f"PSF area={psf_area:.2f} arcsec^2")
-
-        # brightest-pixel energy fraction on the detector grid
-        psf_detector, _ = render_detector_psf(
-            wavelength=wavelength,
-            fnum=self.telescope.f_num,
-            D=self.telescope.diameter_primary.value,
-            pixel_size=self.sensor.pixel_size.value,
-            jitter_sigma_mas=self.telescope.jitter_sigma.to("mas").value,
-            verbose=False)
-        peak_pixel_fraction = float(psf_detector.max())
 
         return {"wavelength": wavelength,
                 "r_psf_mas": r_psf_mas,
@@ -1203,8 +1202,27 @@ class Simulation(_MetaHolder_):
                 "ee_at_aper": ee_at_aper,
                 "num_psf_pixels": num_psf_pixels,
                 "psf_area": psf_area,
-                "peak_pixel_fraction": peak_pixel_fraction
                 }
+
+    def compute_psf_profile(self):
+        """
+        Compute the PSF profile and associated metrics.
+
+        DEPRECATED: use psf_profile (the cached property) or the PSF-aware 2D
+        path (get_image_snr / get_image_exptime_for_snr / get_peak_pixel).
+
+        Returns
+        -------
+        dict
+            Dictionary containing 'wavelength', 'r_psf_mas', 'psf1d', 'ee',
+            'ee_at_aper', 'num_psf_pixels', and 'psf_area'.
+        """
+        import warnings
+        warnings.warn("compute_psf_profile is the analytic Airy approximation and is "
+                      "deprecated; use the PSF-aware 2D path (get_image_snr / "
+                      "get_image_exptime_for_snr / get_peak_pixel).",
+                      DeprecationWarning, stacklevel=2)
+        return self._compute_psf_profile_impl()
 
     def has_element(self, which):
         """
@@ -1274,7 +1292,7 @@ class Simulation(_MetaHolder_):
         The calculated PSF profile.
         """
         if not hasattr(self,"_psf_profile") or self._psf_profile is None or len(self._psf_profile) == 0 : # like {}
-            self._psf_profile = self.compute_psf_profile()
+            self._psf_profile = self._compute_psf_profile_impl()
             
         return self._psf_profile
 
