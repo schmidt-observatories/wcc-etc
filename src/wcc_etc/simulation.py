@@ -715,30 +715,16 @@ class Simulation(_MetaHolder_):
             
         return source_signal, total_variance
 
-    def get_peak_pixel(self, time=None, units="adu", n_reads=None):
-        """
-        Get the brightest-pixel value for a given exposure time.
+    def get_peak_pixel(self, time=None, units="adu", n_reads=None, *,
+                       psf=None, jitter_sigma_mas=None, npix=128, oversample=11):
+        """Brightest-pixel value for the actual (possibly defocused) PSF.
 
-        The peak pixel combines the source PSF peak, the per-pixel sky
-        background, the per-pixel dark current, and (for ADU) the additive bias
-        level. Used to test ADC-clip saturation against ``sensor.adc_max``.
-        Saturation is per-frame: with ``n_reads`` coadded frames spanning the
-        total ``time``, the peak is evaluated for a single ``time / n_reads`` frame.
-
-        Parameters
-        ----------
-        time : float or Quantity or array_like, optional
-            Exposure time(s) in seconds. Defaults to self.meta['time'].
-        units : str, optional
-            'adu' (default, includes bias) or 'e-'/'e'/'electron' (excludes bias).
-        n_reads : int, optional
-            Number of coadded frames; the per-frame integration is time/n_reads.
-            Defaults to self.meta['n_reads'] (or 1).
-
-        Returns
-        -------
-        Quantity
-            The peak-pixel value, in ADU (u.ct) or electrons.
+        Peak = source_rate_total * peak_pixel_fraction + sky_per_pix + dark,
+        where peak_pixel_fraction is the brightest pixel of the *rendered* PSF
+        (psf_norm.max()), so defocused configs are handled correctly. `psf`
+        defaults to _default_psf (set by from_sensorfilter), else AiryPSF.
+        Saturation is per-frame (per-frame time = time / n_reads). Linear in
+        time, so scalar or array `time` both work.
         """
         if time is None:
             time = self._meta.get("time", None)
@@ -747,63 +733,34 @@ class Simulation(_MetaHolder_):
         if not isinstance(time, u.Quantity):
             time = time * u.second
         n_reads = self._resolve_n_reads(n_reads)
-        time = time / n_reads          # per-frame integration; saturation is per-frame
+        tf = (time / n_reads).to(u.second).value  # per-frame seconds (scalar or array)
 
-        profile = self.psf_profile
-        peak_fraction = profile["peak_pixel_fraction"]
-        ee_at_aper = profile["ee_at_aper"]
-        num_psf_pixels = profile["num_psf_pixels"]
-        n_pix = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
+        if psf is None:
+            from .psfsim import AiryPSF
+            psf = self._default_psf if self._default_psf is not None else AiryPSF()
+        b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
 
-        if ee_at_aper == 0:
-            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
-
-        # count rates within the aperture, in electron/s
-        count_rates = self.get_countrates(units="e/s", as_dict=True)
-
-        # source: recover total flux (divide out aperture EE), take peak fraction
-        source_peak = (count_rates["source"] / ee_at_aper * peak_fraction * time).to(u.electron)
-
-        # sky background per pixel (uniform across the aperture); 0 if absent.
-        # Only the background contributes here; host elements are excluded by
-        # design (the approved saturation budget is source + background + dark).
-        if "background" in count_rates:
-            bkg_peak = (count_rates["background"] * time / n_pix).to(u.electron)
-        else:
-            bkg_peak = 0 * u.electron
-
-        # dark current per pixel (dark_current is electron/(s*pix))
-        dark_peak = (self.sensor.dark_current * time).to(u.electron / u.pix).value * u.electron
-
-        peak_e = source_peak + bkg_peak + dark_peak  # electrons in the brightest pixel
+        dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
+        peak_rate = (b["source_rate_total"] * float(b["psf_norm"].max())
+                     + b["background_rate_per_pix"]
+                     + dark_rate_per_pix)  # electron / s in the brightest pixel
+        # host/diffuse elements are excluded from the saturation budget by design
+        # (matches _per_frame_clean_image_e and get_image_snr saturation check)
+        peak_e = (peak_rate * tf) * u.electron
 
         if units in ["e", "e-", "electron"]:
             return peak_e
-
         if units.lower() == "adu":
             return (peak_e / self.sensor.gain).to(u.ct) + self.sensor.bias_level
-
         raise ValueError(f"unknown units {units=}. 'adu' or electron/'e-' expected.")
 
-    def is_saturated(self, time=None, n_reads=None):
-        """
-        Whether the brightest pixel reaches the ADC full scale (ADU clip).
-
-        Parameters
-        ----------
-        time : float or Quantity or array_like, optional
-            Exposure time(s) in seconds. Defaults to self.meta['time'].
-        n_reads : int, optional
-            Number of coadded reads. The total time is split into n_reads
-            frames; saturation is evaluated on the per-frame time t/n_reads.
-            Defaults to self.meta['n_reads'] or 1.
-
-        Returns
-        -------
-        bool or ndarray of bool
-            True where the peak pixel (in ADU) >= sensor.adc_max.
-        """
-        peak_adu = self.get_peak_pixel(time, units="adu", n_reads=n_reads)
+    def is_saturated(self, time=None, n_reads=None, *,
+                     psf=None, jitter_sigma_mas=None, npix=128, oversample=11):
+        """Whether the brightest pixel (ADU) reaches sensor.adc_max, per frame,
+        for the actual (possibly defocused) PSF. See get_peak_pixel."""
+        peak_adu = self.get_peak_pixel(time, units="adu", n_reads=n_reads, psf=psf,
+                                       jitter_sigma_mas=jitter_sigma_mas,
+                                       npix=npix, oversample=oversample)
         return peak_adu >= self.sensor.adc_max
 
     def _image_render_bundle(self, psf, jitter_sigma_mas, npix, oversample):
