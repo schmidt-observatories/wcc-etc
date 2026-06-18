@@ -335,6 +335,10 @@ class ImageSimulator:
         source_image = source_e_total * psf_norm
         background_per_pix = comps["background_rate_per_pix"] * time.to(u.s).value
         diffuse_per_pix = comps["diffuse_rate_per_pix"] * time.to(u.s).value
+        # The rendered image includes diffuse/host flux; the saturation budget
+        # (get_peak_pixel / is_saturated / _per_frame_clean_image_e) deliberately
+        # does NOT (approved budget = source + background + dark, host excluded).
+        # Do not "align" these — the difference is intentional.
         bkg_per_pix = background_per_pix + diffuse_per_pix
         # dark current per pixel (uniform)
         dark_per_pix = (sim.sensor.dark_current * time).to(u.electron / u.pix).value

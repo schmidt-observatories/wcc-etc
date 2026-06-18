@@ -771,7 +771,14 @@ class Simulation(_MetaHolder_):
     def is_saturated(self, time=None, n_reads=None, *,
                      psf=None, jitter_sigma_mas=None, npix=128, oversample=11):
         """Whether the brightest pixel (ADU) reaches sensor.adc_max, per frame,
-        for the actual (possibly defocused) PSF. See get_peak_pixel."""
+        for the actual (possibly defocused) PSF. See get_peak_pixel.
+
+        Note: this tests the ADC clip (peak ADU incl. bias >= adc_max). The
+        image-based saturation_mask_from_image_e additionally flags well-depth
+        (electron) saturation and does not add bias; the two agree when the ADC
+        limit binds and bias is small (the usual case). A full reconciliation of
+        the two criteria (well-depth + bias handling) is a known follow-up.
+        """
         peak_adu = self.get_peak_pixel(time, units="adu", n_reads=n_reads, psf=psf,
                                        jitter_sigma_mas=jitter_sigma_mas,
                                        npix=npix, oversample=oversample)
