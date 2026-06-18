@@ -24,6 +24,23 @@ def test_bundle_rates_match_components():
     b = sim._image_render_bundle(wcc_etc.AiryPSF(), None, 128, 11)
     assert b["source_rate_total"] == __import__("pytest").approx(comp["source_rate_total"], rel=1e-6)
     assert b["background_rate_per_pix"] == __import__("pytest").approx(comp["background_rate_per_pix"], rel=1e-6)
+    assert b["diffuse_rate_per_pix"] == __import__("pytest").approx(comp["diffuse_rate_per_pix"], rel=1e-6)
+
+
+def test_bundle_background_higher_than_legacy_airy():
+    import astropy.units as u
+    sim = _sim()
+    b = sim._image_render_bundle(wcc_etc.AiryPSF(), None, 128, 11)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        legacy = sim.get_countrates(units="e/s", as_dict=True)
+    prof = sim.psf_profile
+    n_psf = prof["num_psf_pixels"].value if hasattr(prof["num_psf_pixels"], "value") else prof["num_psf_pixels"]
+    ee = prof["ee_at_aper"]
+    legacy_bkg_per_pix = (legacy["background"] / n_psf).to(u.electron / u.s).value
+    # migration removed the spurious x ee_at_aper on sky -> bundle sky is higher by ~1/ee
+    assert b["background_rate_per_pix"] > legacy_bkg_per_pix
+    assert b["background_rate_per_pix"] == __import__("pytest").approx(legacy_bkg_per_pix / ee, rel=1e-4)
 
 
 def test_bright_source_snr_essentially_unchanged():
