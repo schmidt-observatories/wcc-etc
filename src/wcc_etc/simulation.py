@@ -612,6 +612,42 @@ class Simulation(_MetaHolder_):
 
         return list_of_quantity_to_array(countrates.values())
 
+    def _count_rate_components(self, band=None):
+        """PSF-independent count-rate primitives for the 2D path (electron/s).
+
+        Returns total source rate (point source, no aperture) and per-pixel
+        sky/diffuse rates (surface brightness evaluated at one detector pixel).
+        Unlike get_countrates, this does NOT apply the Airy ee_at_aper, so it is
+        independent of compute_psf_profile and correct for any PSF. The rendered
+        PSF (in _image_render_bundle) handles spatial distribution.
+        """
+        if band is None:
+            band = self.sensor.bandpass
+        plate_scale_arcsec = self.sensor.get_plate_scale(self.telescope).to(u.arcsec / u.pix).value
+        pixel_area_arcsec2 = plate_scale_arcsec ** 2  # one detector pixel, arcsec^2
+        surf = self.telescope.surface
+
+        # One call at one-pixel area: non-surface-brightness elements (the point
+        # source) ignore `area` -> total rate; surface-brightness elements (sky)
+        # use it -> per-pixel rate.
+        obs = self.scene.get_observation(band=band, area=pixel_area_arcsec2, as_dict=True)
+
+        source_rate_total = 0.0
+        background_rate_per_pix = 0.0
+        diffuse_rate_per_pix = 0.0
+        for name, o in obs.items():
+            if o is None:
+                continue
+            rate = (o.countrate(area=surf) * u.electron / u.ct).to(u.electron / u.s).value
+            if name == "source":
+                source_rate_total = rate
+            elif name == "background":
+                background_rate_per_pix = rate
+            else:
+                diffuse_rate_per_pix += rate
+        return {"source_rate_total": source_rate_total,
+                "background_rate_per_pix": background_rate_per_pix,
+                "diffuse_rate_per_pix": diffuse_rate_per_pix}
 
     def get_signal_and_variance(self, time=None, units="e-", n_reads=None):
         """
