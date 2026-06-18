@@ -830,24 +830,10 @@ class Simulation(_MetaHolder_):
         ctx = imsim._context(jitter_sigma_mas=jitter_sigma_mas)
         psf_norm = psf.render(ctx)
 
-        profile = self.psf_profile
-        ee_at_aper = profile["ee_at_aper"]
-        if ee_at_aper == 0:
-            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
-        num_psf_pixels = profile["num_psf_pixels"]
-        n_psf = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
-
-        count_rates = self.get_countrates(units="e/s", as_dict=True)
-        source_rate_total = (count_rates["source"] / ee_at_aper).to(u.electron / u.s).value
-        diffuse_rate_per_pix = 0.0
-        for name, rate in count_rates.items():
-            if name == "source":
-                continue
-            diffuse_rate_per_pix += (rate / n_psf).to(u.electron / u.s).value
-
-        background_rate_per_pix = 0.0
-        if "background" in count_rates:
-            background_rate_per_pix = (count_rates["background"] / n_psf).to(u.electron / u.s).value
+        comps = self._count_rate_components()
+        source_rate_total = comps["source_rate_total"]
+        diffuse_rate_per_pix = comps["diffuse_rate_per_pix"]
+        background_rate_per_pix = comps["background_rate_per_pix"]
 
         bundle = {"psf_norm": psf_norm,
                   "plate_scale_mas": ctx.plate_scale_mas,
