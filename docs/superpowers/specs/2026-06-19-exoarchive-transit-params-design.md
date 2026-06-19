@@ -121,7 +121,7 @@ Holds the classes currently in `wcc_etc/lightcurve.py`:
 Lazy batman import hint string (verbatim, kept from current code):
 > `TransitModel requires the 'batman' package. Install it with: pip install lazuli-transit[batman]`
 
-#### `TransitModel.from_planet(name, df=None, limb_dark="quadratic", u=(0.1, 0.3)) -> TransitModel`
+#### `TransitModel.from_planet(name, df=None, require_transit=True, limb_dark="quadratic", u=(0.1, 0.3)) -> TransitModel`
 
 - If `df is None`, call `load_exoplanet_archive()` from `.archive` (raises with
   a hint if the cache is missing — the constructor never silently hits the
@@ -129,6 +129,10 @@ Lazy batman import hint string (verbatim, kept from current code):
 - Look up the row by `pl_name`, tolerant of case and internal spacing
   (`"WASP-12 b"`, `"wasp-12b"` both resolve). Raise `ValueError` ("not found")
   if absent.
+- If `require_transit` (default True) and the row's `tran_flag == 0`, raise
+  `ValueError` ("not flagged as transiting") — a transit model is not
+  meaningful for a non-transiting planet. Pass `require_transit=False` to build
+  one anyway. When `tran_flag` is absent/NaN, the check is skipped.
 - Map archive columns → batman params:
 
   | batman param | archive column | fallback |
@@ -150,7 +154,12 @@ Lazy batman import hint string (verbatim, kept from current code):
 
 - `ARCHIVE_COLUMNS: list[str]` — `pl_name`, `hostname`, `pl_orbper`,
   `pl_ratror`, `pl_ratdor`, `pl_orbincl`, `pl_tranmid`, `pl_orbeccen`,
-  `pl_orblper`, `pl_radj`, `pl_orbsmax`, `st_rad`.
+  `pl_orblper`, `pl_radj`, `pl_orbsmax`, `tran_flag`, `st_rad`, `st_teff`,
+  `sy_gaiamag`, `sy_vmag`, `sy_tmag`, `sy_jmag`, `sy_hmag`, `sy_kmag`.
+  Brightness bands are the high-completeness (~95%) ones — Gaia G, Johnson V,
+  TESS T, 2MASS J/H/K; the Sloan ugriz bands the WCC filters map to are only
+  ~52–56% populated and are intentionally excluded. `tran_flag` is fully
+  populated and drives the `from_planet` transit check.
 - `default_archive_path() -> pathlib.Path` — `~/.lazuli_transit/exoplanet_archive_pscomppars.csv`
   (expanded).
 - `load_exoplanet_archive(path=None) -> pandas.DataFrame` — reads the cached

@@ -34,7 +34,8 @@ class TransitModel(FluxModel):
         self.limb_dark, self.u = limb_dark, list(u)
 
     @classmethod
-    def from_planet(cls, name, df=None, limb_dark="quadratic", u=(0.1, 0.3)):
+    def from_planet(cls, name, df=None, require_transit=True,
+                    limb_dark="quadratic", u=(0.1, 0.3)):
         """Build a TransitModel from a NASA Exoplanet Archive (PSCompPars) row.
 
         Looks up ``name`` in ``df`` (or the local cache via
@@ -42,6 +43,12 @@ class TransitModel(FluxModel):
         parameters. ``pl_orbper`` is required; other fields fall back to
         circular-orbit / direct-ratio defaults when missing. Limb-darkening is
         not in the archive, so it stays a user argument.
+
+        If ``require_transit`` is True (default), a planet flagged as
+        non-transiting in the archive (``tran_flag == 0``) raises ValueError —
+        a transit model is not meaningful for it. Pass ``require_transit=False``
+        to build one anyway. When ``tran_flag`` is absent/unknown, the check is
+        skipped.
 
         Note: ``t0`` is taken from ``pl_tranmid`` (absolute BJD). For a
         relative-time light curve, pass a ``time`` array spanning that epoch or
@@ -58,6 +65,17 @@ class TransitModel(FluxModel):
         if len(matches) == 0:
             raise ValueError(f"Planet {name!r} not found in archive table")
         row = matches.iloc[0]
+
+        if require_transit:
+            tran = row.get("tran_flag")
+            known = tran is not None and not (
+                isinstance(tran, float) and np.isnan(tran))
+            if known and int(tran) == 0:
+                raise ValueError(
+                    f"Planet {name!r} is not flagged as transiting "
+                    "(tran_flag=0); pass require_transit=False to build a "
+                    "model anyway"
+                )
 
         def _val(col, default):
             v = row.get(col)
