@@ -32,11 +32,11 @@ AU_RSUN = 215.03215567054764
 
 def _df():
     return pd.DataFrame([
-        dict(pl_name="WASP-12 b", pl_orbper=1.0914, pl_ratror=0.117,
+        dict(pl_name="WASP-12 b", tran_flag=1, pl_orbper=1.0914, pl_ratror=0.117,
              pl_ratdor=3.04, pl_orbincl=83.3, pl_tranmid=2456305.46,
              pl_orbeccen=0.0, pl_orblper=90.0, pl_radj=1.9, pl_orbsmax=0.0234,
              st_rad=1.66),
-        dict(pl_name="HD 209458 b", pl_orbper=3.5247, pl_ratror=np.nan,
+        dict(pl_name="HD 209458 b", tran_flag=1, pl_orbper=3.5247, pl_ratror=np.nan,
              pl_ratdor=np.nan, pl_orbincl=86.7, pl_tranmid=2451370.0,
              pl_orbeccen=np.nan, pl_orblper=np.nan, pl_radj=1.38,
              pl_orbsmax=0.0475, st_rad=1.19),
@@ -79,3 +79,23 @@ def test_from_planet_missing_period_raises():
     df.loc[df["pl_name"] == "WASP-12 b", "pl_orbper"] = np.nan
     with pytest.raises(ValueError, match="pl_orbper"):
         TransitModel.from_planet("WASP-12 b", df=df)
+
+
+def test_from_planet_non_transiting_raises():
+    df = _df()
+    df.loc[df["pl_name"] == "WASP-12 b", "tran_flag"] = 0
+    with pytest.raises(ValueError, match="not flagged as transiting"):
+        TransitModel.from_planet("WASP-12 b", df=df)
+
+
+def test_from_planet_non_transiting_override():
+    df = _df()
+    df.loc[df["pl_name"] == "WASP-12 b", "tran_flag"] = 0
+    m = TransitModel.from_planet("WASP-12 b", df=df, require_transit=False)
+    assert m.per == pytest.approx(1.0914)
+
+
+def test_from_planet_skips_check_when_tran_flag_absent():
+    df = _df().drop(columns=["tran_flag"])
+    m = TransitModel.from_planet("WASP-12 b", df=df)
+    assert m.per == pytest.approx(1.0914)

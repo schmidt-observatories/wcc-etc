@@ -10,10 +10,18 @@ from pathlib import Path
 import pandas as pd
 
 #: Identifier + transit columns we select and persist.
+#:
+#: Brightness/Teff columns chosen for high completeness (~95% populated in
+#: PSCompPars): Gaia G, Johnson V, TESS T, and 2MASS J/H/K. The Sloan ugriz
+#: bands that the WCC filters map to are only ~half-populated, so they are not
+#: included by default. ``tran_flag`` (1 = transiting, 0 = not) is fully
+#: populated and drives TransitModel.from_planet's transit check.
 ARCHIVE_COLUMNS = [
     "pl_name", "hostname", "pl_orbper", "pl_ratror", "pl_ratdor",
     "pl_orbincl", "pl_tranmid", "pl_orbeccen", "pl_orblper",
-    "pl_radj", "pl_orbsmax", "st_rad",
+    "pl_radj", "pl_orbsmax", "tran_flag",
+    "st_rad", "st_teff",
+    "sy_gaiamag", "sy_vmag", "sy_tmag", "sy_jmag", "sy_hmag", "sy_kmag",
 ]
 
 _ASTROQUERY_HINT = (
