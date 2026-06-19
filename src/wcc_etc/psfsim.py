@@ -330,26 +330,16 @@ class ImageSimulator:
         ctx = self._context(jitter_sigma_mas=jitter_sigma_mas, center=center)
         psf_norm = psf.render(ctx)  # sum = 1
 
-        profile = sim.psf_profile
-        ee_at_aper = profile["ee_at_aper"]
-        num_psf_pixels = profile["num_psf_pixels"]
-        n_pix = num_psf_pixels.value if isinstance(num_psf_pixels, u.Quantity) else num_psf_pixels
-
-        if ee_at_aper == 0:
-            raise ValueError("ee_at_aper is zero; aperture radius is degenerate.")
-
-        count_rates = sim.get_countrates(units="e/s", as_dict=True)
-        # total source electrons (recover total flux from the aperture EE), spread by the PSF
-        source_e_total = (count_rates["source"] / ee_at_aper * time).to(u.electron).value
+        comps = sim._count_rate_components()
+        source_e_total = comps["source_rate_total"] * time.to(u.s).value
         source_image = source_e_total * psf_norm
-
-        # Sky background per pixel: count_rates["background"] is the aperture-integrated
-        # sky rate, so dividing by the aperture pixel count gives the per-pixel sky level,
-        # which is uniform across the whole detector grid. 0 if no background element.
-        if "background" in count_rates:
-            bkg_per_pix = (count_rates["background"] * time / n_pix).to(u.electron).value
-        else:
-            bkg_per_pix = 0.0
+        background_per_pix = comps["background_rate_per_pix"] * time.to(u.s).value
+        diffuse_per_pix = comps["diffuse_rate_per_pix"] * time.to(u.s).value
+        # The rendered image includes diffuse/host flux; the saturation budget
+        # (get_peak_pixel / is_saturated / _per_frame_clean_image_e) deliberately
+        # does NOT (approved budget = source + background + dark, host excluded).
+        # Do not "align" these — the difference is intentional.
+        bkg_per_pix = background_per_pix + diffuse_per_pix
         # dark current per pixel (uniform)
         dark_per_pix = (sim.sensor.dark_current * time).to(u.electron / u.pix).value
 

@@ -65,11 +65,11 @@ def _bright_sim(mag=20, sensor="sony:r"):
     return wcc_etc.Simulation.from_sensor_and_scene(sensor, scene)
 
 
-def test_psf_profile_has_peak_pixel_fraction():
+def test_psf_profile_does_not_have_peak_pixel_fraction():
+    # peak_pixel_fraction was retired in Task 4; psf_profile no longer carries it
     sim = _bright_sim()
     profile = sim.psf_profile
-    assert "peak_pixel_fraction" in profile
-    assert 0.0 < profile["peak_pixel_fraction"] <= 1.0
+    assert "peak_pixel_fraction" not in profile
 
 
 def test_get_peak_pixel_increases_with_time():
@@ -327,9 +327,12 @@ def test_get_image_snr_scalar_still_dict_of_floats():
 
 def test_get_snr_airy_deprecated_matches_analytic():
     sim = _bright_sim(16)
+    import warnings
     with pytest.warns(DeprecationWarning):
         airy = sim.get_snr_airy(60)
-    signal, variance = sim.get_signal_and_variance(60)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        signal, variance = sim.get_signal_and_variance(60)
     assert float(airy.value) == pytest.approx(float((signal / np.sqrt(variance)).value), rel=1e-12)
 
 
