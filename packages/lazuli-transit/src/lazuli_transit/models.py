@@ -33,6 +33,69 @@ class TransitModel(FluxModel):
         self.inc, self.ecc, self.w = inc, ecc, w
         self.limb_dark, self.u = limb_dark, list(u)
 
+    @classmethod
+    def from_planet(cls, name, df=None, limb_dark="quadratic", u=(0.1, 0.3)):
+        """Build a TransitModel from a NASA Exoplanet Archive (PSCompPars) row.
+
+        Looks up ``name`` in ``df`` (or the local cache via
+        load_exoplanet_archive if None) and maps archive columns to batman
+        parameters. ``pl_orbper`` is required; other fields fall back to
+        circular-orbit / direct-ratio defaults when missing. Limb-darkening is
+        not in the archive, so it stays a user argument.
+
+        Note: ``t0`` is taken from ``pl_tranmid`` (absolute BJD). For a
+        relative-time light curve, pass a ``time`` array spanning that epoch or
+        set ``t0=0`` after construction.
+        """
+        if df is None:
+            from .archive import load_exoplanet_archive
+            df = load_exoplanet_archive()
+
+        def _norm(s):
+            return str(s).lower().replace(" ", "")
+
+        matches = df[df["pl_name"].map(_norm) == _norm(name)]
+        if len(matches) == 0:
+            raise ValueError(f"Planet {name!r} not found in archive table")
+        row = matches.iloc[0]
+
+        def _val(col, default):
+            v = row.get(col)
+            if v is None or (isinstance(v, float) and np.isnan(v)):
+                return default
+            return float(v)
+
+        per = row.get("pl_orbper")
+        if per is None or (isinstance(per, float) and np.isnan(per)):
+            raise ValueError(
+                f"Planet {name!r} has no pl_orbper; cannot build a transit model"
+            )
+
+        import astropy.units as units
+        import astropy.constants as const
+        rjup_rsun = float((const.R_jup / const.R_sun).decompose().value)
+        au_rsun = float((1 * units.au).to(units.R_sun).value)
+
+        rp = _val("pl_ratror", np.nan)
+        if np.isnan(rp):
+            rp = _val("pl_radj", np.nan) * rjup_rsun / _val("st_rad", np.nan)
+
+        a = _val("pl_ratdor", np.nan)
+        if np.isnan(a):
+            a = _val("pl_orbsmax", np.nan) * au_rsun / _val("st_rad", np.nan)
+
+        return cls(
+            t0=_val("pl_tranmid", 0.0),
+            per=float(per),
+            rp=rp,
+            a=a,
+            inc=_val("pl_orbincl", 90.0),
+            ecc=_val("pl_orbeccen", 0.0),
+            w=_val("pl_orblper", 90.0),
+            limb_dark=limb_dark,
+            u=u,
+        )
+
     def _params(self):
         try:
             import batman
