@@ -39,3 +39,39 @@ def load_exoplanet_archive(path=None):
             f"No archive cache at {path}. Run download_exoplanet_archive() first."
         )
     return pd.read_csv(path)
+
+
+def _query_pscomppars():
+    """Fetch the PSCompPars table via astroquery as a pandas DataFrame.
+
+    Isolated (and monkeypatchable) so download_exoplanet_archive's caching
+    logic can be tested without the network.
+    """
+    try:
+        from astroquery.ipac.nexsci.nasa_exoplanet_archive import (
+            NasaExoplanetArchive,
+        )
+    except ImportError as exc:  # pragma: no cover - exercised via hint test
+        raise ImportError(_ASTROQUERY_HINT) from exc
+
+    table = NasaExoplanetArchive.query_criteria(
+        table="pscomppars", select=",".join(ARCHIVE_COLUMNS)
+    )
+    return table.to_pandas()
+
+
+def download_exoplanet_archive(path=None, refresh=False):
+    """Download the PSCompPars table to a local CSV cache and return it.
+
+    If the cache file exists and ``refresh`` is False, load it from disk
+    instead of querying the archive. Otherwise query astroquery, write the CSV
+    (creating parent directories), and return the DataFrame.
+    """
+    path = Path(path) if path is not None else default_archive_path()
+    if path.exists() and not refresh:
+        return load_exoplanet_archive(path=path)
+
+    df = _query_pscomppars()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(path, index=False)
+    return df
