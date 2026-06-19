@@ -36,6 +36,7 @@ jobs:
       - name: Install the package and documentation dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install -e ./packages/lazuli-transit      # transit core (wcc_etc depends on it)
           pip install -e .                              # so autodoc can import wcc_etc
           pip install -r docs/sphinx/requirements.txt   # Sphinx + theme + nbsphinx
 
