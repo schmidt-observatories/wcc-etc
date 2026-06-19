@@ -11,6 +11,7 @@ __all__ = [
     "set_wcc_style", "WCC_STYLE",
     "FluxModel", "TransitModel", "LightCurveSimulator", "LightCurve",
     "plot_lightcurve_mpl", "plot_lightcurve_bokeh",
+    "download_exoplanet_archive", "load_exoplanet_archive",
 ]
 
 from .wcc_etc import *
@@ -33,6 +34,7 @@ from .plotting import (
     plot_lightcurve_mpl, plot_lightcurve_bokeh,
 )
 from .lightcurve import FluxModel, TransitModel, LightCurveSimulator, LightCurve
+from lazuli_transit import download_exoplanet_archive, load_exoplanet_archive
 #from .airy import *
 #from .psfsim import *
 #from .radial_data import *

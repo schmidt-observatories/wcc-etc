@@ -29,10 +29,12 @@ dependencies = [
   "toml",
   "tifffile",
   "photutils",
+  "lazuli-transit",
 ]
 
 [project.optional-dependencies]
-lightcurve = ["batman-package"]
+lightcurve = ["lazuli-transit[batman]"]
+exoarchive = ["lazuli-transit[archive]"]
 
 [project.urls]
 Homepage = "https://github.com/schmidt-observatories/wcc-etc"

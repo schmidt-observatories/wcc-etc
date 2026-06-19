@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lazuli-transit"
+version = "0.1.0"
+description = "Instrument-agnostic exoplanet transit models and NASA Exoplanet Archive helpers for Lazuli."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  {name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org"},
+]
+dependencies = [
+  "numpy",
+  "astropy",
+  "pandas",
+]
+
+[project.optional-dependencies]
+batman = ["batman-package"]
+archive = ["astroquery"]
+
+[tool.setuptools]
+packages = ["lazuli_transit"]
+package-dir = { "" = "src" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -18,6 +18,9 @@ python:
   install:
     # Sphinx + theme + nbsphinx
     - requirements: docs/sphinx/requirements.txt
+    # Transit core: wcc_etc depends on lazuli-transit, install it first
+    - method: pip
+      path: packages/lazuli-transit
     # Install the package itself so autodoc can import wcc_etc and its deps
     - method: pip
       path: .
