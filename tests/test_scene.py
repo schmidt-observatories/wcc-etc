@@ -370,3 +370,71 @@ def test_scene_get_elements_get_mag_and_update():
     updated = scene.update(source__mag=21)
     assert "source__mag" in updated
     assert scene.source.get_mag().value == 21
+
+
+from synphot import SourceSpectrum
+
+
+def _band_ab_vega_offset(band_name):
+    """AB - Vega magnitude offset for a band, derived from synphot's Vega spectrum."""
+    vega = SourceSpectrum.from_vega()
+    band = SpectralElement.from_filter(band_name)
+    obs = Observation(vega, band, force="extrap")
+    return obs.effstim(u.ABmag).value - obs.effstim(su.VEGAMAG, vegaspec=vega).value
+
+
+def _inband_flam(scene_element, band_name):
+    band = SpectralElement.from_filter(band_name)
+    return Observation(scene_element.get_spectrum(), band,
+                       force="extrap").effstim(su.FLAM).value
+
+
+def test_resolve_magsys_aliases_case_insensitive():
+    from wcc_etc.scene import _resolve_magsys
+    import pytest
+    assert _resolve_magsys("abmag") == u.ABmag
+    assert _resolve_magsys("ABMAG") == u.ABmag
+    assert _resolve_magsys("AbMag") == u.ABmag
+    assert _resolve_magsys("vegamag") == su.VEGAMAG
+    assert _resolve_magsys("VEGAMAG") == su.VEGAMAG
+    assert _resolve_magsys(u.ABmag) == u.ABmag          # unit object passthrough
+    with pytest.raises(ValueError):
+        _resolve_magsys("vega")                          # loose alias rejected
+    with pytest.raises(ValueError):
+        _resolve_magsys("nonsense")
+
+
+def test_vegamag_normalization_runs_and_differs_from_ab():
+    band_name = "johnson_r"
+    se_ab = SceneElement.from_config({"spectrum": "flat", "mag": 15,
+                                      "magsys": "abmag", "bandpass": band_name})
+    se_vg = SceneElement.from_config({"spectrum": "flat", "mag": 15,
+                                      "magsys": "vegamag", "bandpass": band_name})
+    ratio = _inband_flam(se_vg, band_name) / _inband_flam(se_ab, band_name)
+    expected = 10 ** (-0.4 * _band_ab_vega_offset(band_name))
+    assert np.isclose(ratio, expected, rtol=1e-6)
+
+
+def test_cross_system_offset_is_band_dependent():
+    off_v = _band_ab_vega_offset("johnson_v")
+    off_k = _band_ab_vega_offset("johnson_k")
+    assert abs(off_v) < 0.05          # V offset is ~0
+    assert off_k > 1.5                # K offset is ~1.9 mag, much larger
+    for band_name in ("johnson_v", "johnson_k"):
+        se_ab = SceneElement.from_config({"spectrum": "flat", "mag": 12,
+                                          "magsys": "abmag", "bandpass": band_name})
+        se_vg = SceneElement.from_config({"spectrum": "flat", "mag": 12,
+                                          "magsys": "vegamag", "bandpass": band_name})
+        ratio = _inband_flam(se_vg, band_name) / _inband_flam(se_ab, band_name)
+        expected = 10 ** (-0.4 * _band_ab_vega_offset(band_name))
+        assert np.isclose(ratio, expected, rtol=1e-6)
+
+
+def test_vegamag_roundtrips():
+    band_name = "johnson_r"
+    se = SceneElement.from_config({"spectrum": "flat", "mag": 14.0,
+                                   "magsys": "vegamag", "bandpass": band_name})
+    vega = SourceSpectrum.from_vega()
+    band = SpectralElement.from_filter(band_name)
+    obs = Observation(se.get_spectrum(), band, force="extrap")
+    assert abs(obs.effstim(su.VEGAMAG, vegaspec=vega).value - 14.0) < 0.01
