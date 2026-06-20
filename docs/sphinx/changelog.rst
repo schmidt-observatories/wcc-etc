@@ -7,6 +7,15 @@ and the design specs under ``docs/superpowers/``.
 v0.5.x
 ------
 
+- **Magnitude system is now selectable, and the default changed to Vega.**
+  :class:`~wcc_etc.scene.SceneElement` and :func:`~wcc_etc.get_scene` accept
+  ``magsys="vegamag"`` (new default) or ``magsys="abmag"`` (case-insensitive).
+  Vega normalization now works end-to-end (previously broken). **Breaking:**
+  any magnitude that does not pass ``magsys`` explicitly — including the
+  built-in ``zodi`` background (``mag=22.5``) — is now interpreted as a Vega
+  magnitude rather than AB. The offset is negligible in Johnson *V* (~0.002
+  mag) but grows toward the red (~0.26 mag in *R*, ~1.9 mag in *K*). Pass
+  ``magsys="abmag"`` to retain the previous behavior.
 - **2-D image SNR is now the default.** :meth:`~wcc_etc.Simulation.get_snr`
   delegates to :meth:`~wcc_etc.Simulation.get_image_snr` and returns a
   **dict** (index ``["snr"]``). The analytic Airy form remains as
