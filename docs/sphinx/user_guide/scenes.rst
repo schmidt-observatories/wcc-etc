@@ -29,6 +29,26 @@ Building a scene
 ``host_prop`` and ``background_prop`` are dictionaries of keyword arguments
 forwarded to the host and background elements, mirroring the source keywords.
 
+Magnitude systems
+-----------------
+
+Magnitudes are interpreted in the **Vega** system by default
+(``magsys="vegamag"``). Pass ``magsys="abmag"`` (case-insensitive) to use AB
+magnitudes instead. The setting applies per element, so source, ``host_prop``,
+and ``background_prop`` can each carry their own ``magsys``:
+
+.. code-block:: python
+
+   scene = get_scene(
+       "G5V", mag=15, magsys="abmag", bandpass="johnson_r",
+       background="zodi",
+       background_prop={"bandpass": "johnson_r", "mag": 22.5, "magsys": "abmag"},
+   )
+
+The AB\ :math:`-`\ Vega offset is negligible in Johnson *V* (~0.002 mag) but
+grows toward the red (~0.26 mag in *R*, ~1.9 mag in *K*), so the chosen system
+matters most for red bandpasses.
+
 Stellar and galaxy templates
 ----------------------------
 

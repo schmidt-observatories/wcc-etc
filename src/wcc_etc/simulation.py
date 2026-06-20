@@ -534,27 +534,6 @@ class Simulation(_MetaHolder_):
     # ------- #
     #  GETTER #
     # ------- #
-    @staticmethod
-    def _get_spectrum_observation(spectrum, abmag, bandpass):
-        """
-        Normalize a spectrum and return an observation.
-
-        Parameters
-        ----------
-        spectrum : SourceSpectrum
-            The spectrum to normalize.
-        abmag : float
-            The AB magnitude to normalize to.
-        bandpass : SpectralElement
-            The bandpass filter.
-
-        Returns
-        -------
-        Observation
-        """
-        spec_at_mag = spectrum.normalize(abmag * u.ABmag, bandpass, force='extrap')
-        return Observation(spec_at_mag, bandpass, force='extrap')
-
     def get_countrates(self, scene=None, band=None, units="adu/s", as_dict=True):
         """DEPRECATED (Airy, in-aperture). Use _count_rate_components for the 2D
         path or get_image_snr. Retained for the analytic Airy methods."""

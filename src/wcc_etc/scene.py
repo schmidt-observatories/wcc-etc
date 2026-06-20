@@ -11,6 +11,51 @@ from .meta import _MetaHolder_
 
 __all__ = ["get_scene", "get_scene_from_file", "get_scene_element", "Scene"]
 
+# Magnitude-system resolution: 'abmag' lives in astropy.units, 'vegamag' in
+# synphot.units. getattr(u, ...) cannot see VEGAMAG, so resolve explicitly.
+_MAGSYS = {"abmag": u.ABmag, "vegamag": su.VEGAMAG}
+
+
+def _resolve_magsys(magsys):
+    """Resolve a magnitude-system spec to an astropy/synphot unit.
+
+    Parameters
+    ----------
+    magsys : str or Unit
+        Case-insensitive ``'abmag'`` or ``'vegamag'``, or a unit object
+        (anything exposing ``is_equivalent``), which is returned unchanged.
+
+    Returns
+    -------
+    Unit
+        ``astropy.units.ABmag`` or ``synphot.units.VEGAMAG``.
+
+    Raises
+    ------
+    ValueError
+        If ``magsys`` is an unrecognized string.
+    """
+    if hasattr(magsys, "is_equivalent"):
+        return magsys
+    try:
+        return _MAGSYS[str(magsys).lower()]
+    except KeyError:
+        raise ValueError(
+            f"unknown magsys {magsys!r}; expected one of {sorted(_MAGSYS)} "
+            "or an astropy/synphot magnitude unit"
+        )
+
+
+_VEGA = None
+
+
+def _get_vega():
+    """Lazily load and cache the Vega reference spectrum for VEGAMAG work."""
+    global _VEGA
+    if _VEGA is None:
+        _VEGA = SourceSpectrum.from_vega()
+    return _VEGA
+
 
 # ===================== #
 #  Parametric spectra   #
@@ -340,8 +385,8 @@ class SceneElement(_MetaHolder_):
     # creation. Type-specific shape parameters are added in mutable_parameters.
     _mutable_parameters = ["mag", "magsys", "bandpass", "surface_brightness"]
     
-    def __init__(self, spectrum, mag, 
-                 magsys="ABmag", bandpass="johnson_v", 
+    def __init__(self, spectrum, mag,
+                 magsys="vegamag", bandpass="johnson_v",
                  surface_brightness=False,
                  meta={}):
         """
@@ -354,7 +399,8 @@ class SceneElement(_MetaHolder_):
         mag : float
             The magnitude of the element.
         magsys : str, optional
-            The magnitude system (e.g., 'ABmag'). Default is "ABmag".
+            The magnitude system: 'vegamag' or 'abmag' (case-insensitive).
+            Default is "vegamag".
         bandpass : str or SpectralElement, optional
             The bandpass filter. Default is "johnson_v".
         surface_brightness : bool, optional
@@ -503,7 +549,11 @@ class SceneElement(_MetaHolder_):
         if isinstance(self.spectrum, SourceSpectrum):
             mag = self.get_mag(area=area) if apply_mag else None
             if apply_mag and mag is not None:
-                spectrum = self.spectrum.normalize(mag, band=self.band)
+                if mag.unit == su.VEGAMAG:
+                    spectrum = self.spectrum.normalize(mag, band=self.band,
+                                                       vegaspec=_get_vega())
+                else:
+                    spectrum = self.spectrum.normalize(mag, band=self.band)
             else:
                 # mag is None -> spectrum already carries absolute flux
                 # (e.g. emission-line sources); pass it through unchanged.
@@ -597,11 +647,7 @@ class SceneElement(_MetaHolder_):
 
         else:
             # make sure mag has the correct units.
-            magsys = self.meta.get("magsys", "ABmag")
-            # make sure it is an astropy units.
-            if not hasattr(magsys, "is_equivalent"):
-                magsys = getattr(u, magsys)
-            #         
+            magsys = _resolve_magsys(self.meta.get("magsys", "vegamag"))
             mag = mag * magsys
 
         return mag

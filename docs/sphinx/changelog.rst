@@ -4,6 +4,19 @@ Changelog
 This page summarizes notable changes. The authoritative history is the git log
 and the design specs under ``docs/superpowers/``.
 
+v0.6.0
+------
+
+- **Magnitude system is now selectable, and the default changed to Vega.**
+  :class:`~wcc_etc.scene.SceneElement` and :func:`~wcc_etc.get_scene` accept
+  ``magsys="vegamag"`` (new default) or ``magsys="abmag"`` (case-insensitive).
+  Vega normalization now works end-to-end (previously broken). **Breaking:**
+  any magnitude that does not pass ``magsys`` explicitly — including the
+  built-in ``zodi`` background (``mag=22.5``) — is now interpreted as a Vega
+  magnitude rather than AB. The offset is negligible in Johnson *V* (~0.002
+  mag) but grows toward the red (~0.26 mag in *R*, ~1.9 mag in *K*). Pass
+  ``magsys="abmag"`` to retain the previous behavior.
+
 v0.5.x
 ------
 
