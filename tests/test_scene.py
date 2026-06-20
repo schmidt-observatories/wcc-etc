@@ -3,8 +3,9 @@ import numpy as np
 import numpy as np
 import astropy.units as u
 from scipy.integrate import trapezoid
-from synphot import SpectralElement, Observation, units as su
+from synphot import SpectralElement, Observation, SourceSpectrum, units as su
 from wcc_etc.scene import broadcast_mapping, get_scene_from_file, SceneElement, Scene
+import pytest
 
 
 def _observed_abmag(spectrum, band_name="johnson_v"):
@@ -372,9 +373,6 @@ def test_scene_get_elements_get_mag_and_update():
     assert scene.source.get_mag().value == 21
 
 
-from synphot import SourceSpectrum
-
-
 def _band_ab_vega_offset(band_name):
     """AB - Vega magnitude offset for a band, derived from synphot's Vega spectrum."""
     vega = SourceSpectrum.from_vega()
@@ -391,7 +389,6 @@ def _inband_flam(scene_element, band_name):
 
 def test_resolve_magsys_aliases_case_insensitive():
     from wcc_etc.scene import _resolve_magsys
-    import pytest
     assert _resolve_magsys("abmag") == u.ABmag
     assert _resolve_magsys("ABMAG") == u.ABmag
     assert _resolve_magsys("AbMag") == u.ABmag
@@ -400,6 +397,8 @@ def test_resolve_magsys_aliases_case_insensitive():
     assert _resolve_magsys(u.ABmag) == u.ABmag          # unit object passthrough
     with pytest.raises(ValueError):
         _resolve_magsys("vega")                          # loose alias rejected
+    with pytest.raises(ValueError):
+        _resolve_magsys("AB")
     with pytest.raises(ValueError):
         _resolve_magsys("nonsense")
 
