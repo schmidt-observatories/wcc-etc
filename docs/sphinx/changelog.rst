@@ -4,7 +4,7 @@ Changelog
 This page summarizes notable changes. The authoritative history is the git log
 and the design specs under ``docs/superpowers/``.
 
-v0.5.x
+v0.6.0
 ------
 
 - **Magnitude system is now selectable, and the default changed to Vega.**
@@ -16,6 +16,10 @@ v0.5.x
   magnitude rather than AB. The offset is negligible in Johnson *V* (~0.002
   mag) but grows toward the red (~0.26 mag in *R*, ~1.9 mag in *K*). Pass
   ``magsys="abmag"`` to retain the previous behavior.
+
+v0.5.x
+------
+
 - **2-D image SNR is now the default.** :meth:`~wcc_etc.Simulation.get_snr`
   delegates to :meth:`~wcc_etc.Simulation.get_image_snr` and returns a
   **dict** (index ``["snr"]``). The analytic Airy form remains as
