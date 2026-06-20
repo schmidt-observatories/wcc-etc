@@ -9,12 +9,14 @@ def test_snrs_25p4_mag_60s():
 
     Allow a small tolerance.
     """
-    scene = wcc_etc.get_scene(name='G5V', 
-                          mag=25.4, 
-                          host=None, 
+    scene = wcc_etc.get_scene(name='G5V',
+                          mag=25.4,
+                          magsys="abmag",
+                          host=None,
                           background="zodi",
                           bandpass='johnson_r',
-                          background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+                          background_prop={"bandpass": 'johnson_r', "mag": 22.5,
+                                           "magsys": "abmag"})
 
     # Define the sensor and filter combination
     sensor_and_filter = 'sony:r'

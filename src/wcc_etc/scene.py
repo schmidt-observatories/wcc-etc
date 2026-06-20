@@ -385,8 +385,8 @@ class SceneElement(_MetaHolder_):
     # creation. Type-specific shape parameters are added in mutable_parameters.
     _mutable_parameters = ["mag", "magsys", "bandpass", "surface_brightness"]
     
-    def __init__(self, spectrum, mag, 
-                 magsys="ABmag", bandpass="johnson_v", 
+    def __init__(self, spectrum, mag,
+                 magsys="vegamag", bandpass="johnson_v",
                  surface_brightness=False,
                  meta={}):
         """
@@ -399,7 +399,8 @@ class SceneElement(_MetaHolder_):
         mag : float
             The magnitude of the element.
         magsys : str, optional
-            The magnitude system (e.g., 'ABmag'). Default is "ABmag".
+            The magnitude system: 'vegamag' or 'abmag' (case-insensitive).
+            Default is "vegamag".
         bandpass : str or SpectralElement, optional
             The bandpass filter. Default is "johnson_v".
         surface_brightness : bool, optional
@@ -646,7 +647,7 @@ class SceneElement(_MetaHolder_):
 
         else:
             # make sure mag has the correct units.
-            magsys = _resolve_magsys(self.meta.get("magsys", "ABmag"))
+            magsys = _resolve_magsys(self.meta.get("magsys", "vegamag"))
             mag = mag * magsys
 
         return mag

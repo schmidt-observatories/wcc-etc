@@ -16,6 +16,7 @@ def _observed_abmag(spectrum, band_name="johnson_v"):
 def test_name_and_config():
     """ """
     baseconfig = {"mag": 20,
+                  "magsys": "abmag",
                   "bandpass": "johnson_v"}
     config1 = {"spectrum": expand_path('astr_obj_models/stars/pickles_models/dat_uvk/pickles_uk_55.fits')}
     config2 = {"spectrum": "uk_55"}
@@ -40,7 +41,8 @@ def test_name_and_config():
 
 def test_blackbody_source_roundtrips_magnitude():
     se = SceneElement.from_config({"spectrum": "blackbody", "teff": 5777,
-                                   "mag": 15, "bandpass": "johnson_v"})
+                                   "mag": 15, "magsys": "abmag",
+                                   "bandpass": "johnson_v"})
     sp = se.get_spectrum()  # magnitude-normalized
     assert abs(_observed_abmag(sp) - 15) < 0.01
 
@@ -48,7 +50,8 @@ def test_blackbody_source_roundtrips_magnitude():
 def test_blackbody_shape_matches_get_blackbody_flux():
     from wcc_etc.wcc_etc import get_blackbody_flux
     se = SceneElement.from_config({"spectrum": "blackbody", "teff": 5777,
-                                   "mag": 15, "bandpass": "johnson_v"})
+                                   "mag": 15, "magsys": "abmag",
+                                   "bandpass": "johnson_v"})
     sp = se.get_spectrum()
     w = np.array([4000.0, 6000.0, 8000.0])
     flam = sp(w * u.AA, flux_unit=su.FLAM).value
@@ -59,7 +62,7 @@ def test_blackbody_shape_matches_get_blackbody_flux():
 
 def test_flat_source_is_constant_fnu_and_roundtrips_mag():
     se = SceneElement.from_config({"spectrum": "flat", "mag": 18,
-                                   "bandpass": "johnson_v"})
+                                   "magsys": "abmag", "bandpass": "johnson_v"})
     sp = se.get_spectrum()
     w = np.array([4000.0, 6000.0, 8000.0]) * u.AA
     fnu = sp(w, flux_unit=u.Jy).value
@@ -70,7 +73,8 @@ def test_flat_source_is_constant_fnu_and_roundtrips_mag():
 def test_powerlaw_source_slope():
     alpha = -1.0
     se = SceneElement.from_config({"spectrum": "powerlaw", "alpha": alpha,
-                                   "mag": 18, "bandpass": "johnson_v"})
+                                   "mag": 18, "magsys": "abmag",
+                                   "bandpass": "johnson_v"})
     sp = se.get_spectrum()
     w1, w2 = 4000.0, 8000.0
     f1 = sp(w1 * u.AA, flux_unit=su.FLAM).value
@@ -324,13 +328,13 @@ def test_broadcast_mapping_scalar_and_array():
 
 def test_sceneelement_get_mag_surface_brightness_and_units():
     # point source (not surface brightness)
-    se = SceneElement(spectrum=None, mag=20)
+    se = SceneElement(spectrum=None, mag=20, magsys="abmag")
     magq = se.get_mag()
     assert magq.value == 20
     assert magq.unit.is_equivalent(u.ABmag)
 
     # surface brightness: mag per arcsec^2
-    se_sb = SceneElement(spectrum=None, mag=22.0, surface_brightness=True)
+    se_sb = SceneElement(spectrum=None, mag=22.0, magsys="abmag", surface_brightness=True)
     # area as float (arcsec^2)
     area = 4.0
     mag_area = se_sb.get_mag(area=area)
@@ -344,9 +348,9 @@ def test_sceneelement_get_mag_surface_brightness_and_units():
 
 
 def test_scene_get_elements_get_mag_and_update():
-    src = SceneElement(spectrum=None, mag=20)
-    host = SceneElement(spectrum=None, mag=18)
-    bkg = SceneElement(spectrum=None, mag=23, surface_brightness=True)
+    src = SceneElement(spectrum=None, mag=20, magsys="abmag")
+    host = SceneElement(spectrum=None, mag=18, magsys="abmag")
+    bkg = SceneElement(spectrum=None, mag=23, magsys="abmag", surface_brightness=True)
 
     scene = Scene(source=src, host=host, background=bkg)
 
@@ -437,3 +441,13 @@ def test_vegamag_roundtrips():
     band = SpectralElement.from_filter(band_name)
     obs = Observation(se.get_spectrum(), band, force="extrap")
     assert abs(obs.effstim(su.VEGAMAG, vegaspec=vega).value - 14.0) < 0.01
+
+
+def test_default_magsys_is_vegamag():
+    import wcc_etc
+    se = SceneElement.from_config({"spectrum": "flat", "mag": 15,
+                                   "bandpass": "johnson_r"})
+    assert se.mag.unit == su.VEGAMAG
+    scene = wcc_etc.get_scene(name="G5V", mag=15, background="zodi")
+    assert scene.source.mag.unit == su.VEGAMAG
+    assert scene.background.mag.unit == su.VEGAMAG
