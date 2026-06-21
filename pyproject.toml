@@ -29,12 +29,12 @@ dependencies = [
   "toml",
   "tifffile",
   "photutils",
-  "lazuli-transit",
+  "lazuli-transit @ git+https://github.com/schmidt-observatories/lazuli-transit.git",
 ]
 
 [project.optional-dependencies]
-lightcurve = ["lazuli-transit[batman]"]
-exoarchive = ["lazuli-transit[archive]"]
+lightcurve = ["lazuli-transit[batman] @ git+https://github.com/schmidt-observatories/lazuli-transit.git"]
+exoarchive = ["lazuli-transit[archive] @ git+https://github.com/schmidt-observatories/lazuli-transit.git"]
 
 [project.urls]
 Homepage = "https://github.com/schmidt-observatories/wcc-etc"
