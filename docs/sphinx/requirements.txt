@@ -1,5 +1,7 @@
 # Documentation build requirements for the Sphinx site.
-# Install alongside the package itself:  pip install -e . && pip install -r docs/sphinx/requirements.txt
+# Build with:  pip install -r docs/sphinx/requirements.txt && pip install -e . --no-deps
+#
+# Sphinx toolchain
 sphinx>=7
 sphinx-rtd-theme>=2.0
 nbsphinx>=0.9
@@ -8,3 +10,19 @@ ipykernel
 myst-parser
 # nbsphinx also needs a `pandoc` binary on the build machine
 # (conda install pandoc  /  apt-get install pandoc  /  brew install pandoc)
+#
+# wcc_etc's third-party runtime deps, needed so autodoc can import the package.
+# This mirrors pyproject.toml's `dependencies` *minus* lazuli-transit, which is
+# mocked for the docs build (see conf.py: autodoc_mock_imports). Keep in sync
+# with pyproject.toml. Once lazuli-transit is public, the docs can install the
+# package with its deps directly and this block can be trimmed.
+numpy
+astropy
+synphot
+matplotlib
+pandas
+bokeh==3.6.2
+flask
+toml
+tifffile
+photutils

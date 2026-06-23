@@ -18,13 +18,27 @@ project = "wcc-etc"
 author = "Gudmundur Stefansson"
 copyright = "2026, Schmidt Sciences / Schmidt Observatory System"
 
-# Pull the version straight from the installed/importable package.
-try:
-    import wcc_etc
+# Pull the version from package *metadata* rather than importing wcc_etc here:
+# importing it would pull in lazuli_transit, which is mocked for the docs build
+# (see autodoc_mock_imports below). Fall back to pyproject.toml if the package
+# is not installed in the docs environment.
+def _detect_release():
+    try:
+        from importlib.metadata import version as _pkg_version
 
-    release = wcc_etc.__version__
-except Exception:  # pragma: no cover - docs should still build
-    release = "0.0.0"
+        return _pkg_version("wcc_etc")
+    except Exception:  # pragma: no cover
+        pass
+    try:
+        import tomllib
+
+        with open(REPO_ROOT / "pyproject.toml", "rb") as _fh:
+            return tomllib.load(_fh)["project"]["version"]
+    except Exception:  # pragma: no cover - docs should still build
+        return "0.0.0"
+
+
+release = _detect_release()
 version = ".".join(release.split(".")[:2])
 
 # -- General configuration ---------------------------------------------------
@@ -65,8 +79,12 @@ autodoc_default_options = {
     "show-inheritance": True,
 }
 # Heavy / optional third-party deps that need not be importable just to build
-# the docs locally. (On Read the Docs the package + deps are installed.)
-autodoc_mock_imports = []
+# the docs. lazuli_transit
+# (https://github.com/schmidt-observatories/lazuli-transit) is a separate,
+# currently *private* package that wcc_etc imports at top level; mocking it lets
+# autodoc import wcc_etc without cloning that private repo in CI. Once
+# lazuli-transit is public it can be installed normally and dropped from here.
+autodoc_mock_imports = ["lazuli_transit"]
 
 # -- napoleon ----------------------------------------------------------------
 napoleon_numpy_docstring = True

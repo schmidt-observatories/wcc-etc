@@ -4,6 +4,18 @@ Changelog
 This page summarizes notable changes. The authoritative history is the git log
 and the design specs under ``docs/superpowers/``.
 
+Unreleased
+----------
+
+- **Transit/light-curve core moved to a standalone package.** The
+  instrument-agnostic transit and exoplanet-archive code now lives in
+  `lazuli-transit <https://github.com/schmidt-observatories/lazuli-transit>`_
+  and is pulled in as a dependency rather than vendored under ``packages/``.
+  ``wcc_etc`` re-exports the familiar names (``FluxModel``, ``TransitModel``,
+  ``download_exoplanet_archive``, ``load_exoplanet_archive``), so user code is
+  unchanged. Optional extras ``[lightcurve]`` and ``[exoarchive]`` pull the
+  corresponding ``lazuli-transit`` extras.
+
 v0.6.0
 ------
 
