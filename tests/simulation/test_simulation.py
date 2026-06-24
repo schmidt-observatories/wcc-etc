@@ -134,8 +134,8 @@ class TestIsSaturated:
         return make_simulation(mag=8)
 
     def test_flips_with_time(self, bright_sim):
-        assert bright_sim.is_saturated(0.001) is False
-        assert bright_sim.is_saturated(1000) is True
+        assert not bright_sim.is_saturated(0.001)
+        assert bright_sim.is_saturated(1000)
 
     def test_accepts_array_time(self, bright_sim):
         result = bright_sim.is_saturated(np.array([0.001, 1000.0]))

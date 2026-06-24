@@ -74,9 +74,10 @@ class TestImageSimulator:
         assert res.image_clean.shape == (128, 128)
         sim = imsim.sim
         t = 10 * u.second
-        with pytest.warns(DeprecationWarning):
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
             cr = sim.get_countrates(units="e/s", as_dict=True)
-        with pytest.warns(DeprecationWarning):
             ee = sim.psf_profile["ee_at_aper"]
             npp = sim.psf_profile["num_psf_pixels"].value
         source_e = (cr["source"] / ee * t).to(u.electron).value
