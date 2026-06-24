@@ -2,14 +2,9 @@
 
 import warnings
 import pytest
-from tests.conftest import make_simulation
 
 
 class TestAnalyticDeprecation:
-    @pytest.fixture
-    def sim(self):
-        return make_simulation(name="G2V", bandpass="johnson_v")
-
     @pytest.mark.parametrize(
         "call",
         [
@@ -19,12 +14,12 @@ class TestAnalyticDeprecation:
             lambda s: s.get_exptime_for_snr(50.0),
         ],
     )
-    def test_method_warns(self, sim, call):
+    def test_method_warns(self, g2v_sim, call):
         with pytest.warns(DeprecationWarning):
-            call(sim)
+            call(g2v_sim)
 
-    def test_peak_pixel_fraction_retired(self, sim):
+    def test_peak_pixel_fraction_retired(self, g2v_sim):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            prof = sim.compute_psf_profile()
+            prof = g2v_sim.compute_psf_profile()
         assert "peak_pixel_fraction" not in prof

@@ -4,23 +4,12 @@ import warnings
 import numpy as np
 import pytest
 import astropy.units as u
-import wcc_etc
 from wcc_etc.psfsim import ImageSimulator, AiryPSF, saturation_mask_from_image_e
-
-
-def _sim(mag):
-    scene = wcc_etc.get_scene(
-        name="G5V",
-        mag=mag,
-        background="zodi",
-        bandpass="johnson_r",
-        background_prop={"bandpass": "johnson_r", "mag": 22.5},
-    )
-    return wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
+from tests.helpers import make_simulation
 
 
 def _adc_clip_setup():
-    sensor = _sim(12).sensor
+    sensor = make_simulation(mag=12).sensor
     gain = sensor.gain.to(u.electron / u.ct).value
     adc_max = sensor.adc_max.to(u.ct).value
     well_depth = sensor.meta.get("well_depth")
@@ -47,7 +36,7 @@ def _adc_clip_setup():
 
 class TestSaturationMask:
     def test_helper_matches_simulate_image_mask(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         imsim = ImageSimulator(sim, npix=128, oversample=11)
         res = imsim.simulate(time=60, psf=AiryPSF(), add_noise=False)
         expected = res.saturation_mask
@@ -70,81 +59,81 @@ class TestSaturationMask:
 
 class TestGetSnrSaturation:
     def test_faint_n_saturated_is_zero(self):
-        sim = _sim(25.4)
+        sim = make_simulation(mag=25.4)
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             res = sim.get_snr(time=60)
         assert res["n_saturated"] == 0
 
     def test_faint_saturated_flag_is_false(self):
-        sim = _sim(25.4)
+        sim = make_simulation(mag=25.4)
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             res = sim.get_snr(time=60)
         assert res["saturated"] is False
 
     def test_bright_n_saturated_is_positive(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         with pytest.warns(UserWarning, match="saturat"):
             res = sim.get_snr(time=60)
         assert res["n_saturated"] > 0
 
     def test_bright_saturated_flag_is_true(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         with pytest.warns(UserWarning, match="saturat"):
             res = sim.get_snr(time=60)
         assert res["saturated"] is True
 
     def test_warn_false_keeps_n_saturated(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             res = sim.get_snr(time=60, warn=False)
         assert res["n_saturated"] > 0
 
     def test_warn_false_keeps_saturated_flag(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             res = sim.get_snr(time=60, warn=False)
         assert res["saturated"] is True
 
     def test_array_time_count_shape(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         res = sim.get_snr(time=[30, 60, 120], warn=False)
         assert res["n_saturated"].shape == (3,)
 
     def test_array_time_count_dtype(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         res = sim.get_snr(time=[30, 60, 120], warn=False)
         assert res["n_saturated"].dtype.kind == "i"
 
     def test_array_time_saturated_dtype(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         res = sim.get_snr(time=[30, 60, 120], warn=False)
         assert res["saturated"].dtype == bool
 
     def test_array_time_count_monotonic(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         res = sim.get_snr(time=[30, 60, 120], warn=False)
         assert np.all(np.diff(res["n_saturated"]) >= 0)
 
     def test_values_unchanged_regression(self):
-        sim = _sim(25.4)
+        sim = make_simulation(mag=25.4)
         snr = sim.get_snr(time=60)["snr"]
         assert np.isclose(snr, sim.get_image_snr(time=60, warn=False)["snr"])
 
     def test_is_saturated_agrees_with_count(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         assert bool(sim.is_saturated(60))
 
     def test_count_is_positive_when_saturated(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         res = sim.get_snr(time=60, warn=False)
         assert res["n_saturated"] > 0
 
     def test_count_matches_rendered_image(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         res = sim.get_snr(time=60, n_reads=1, warn=False)
         img = ImageSimulator(sim, npix=128, oversample=11).simulate(
             time=60, psf=AiryPSF(), add_noise=False
@@ -154,46 +143,46 @@ class TestGetSnrSaturation:
 
 class TestExptimeSaturation:
     def test_reports_n_saturated_is_int(self):
-        sim = _sim(25.4)
+        sim = make_simulation(mag=25.4)
         res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
         assert isinstance(res["n_saturated"], int)
 
     def test_reports_saturated_is_false(self):
-        sim = _sim(25.4)
+        sim = make_simulation(mag=25.4)
         res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
         assert res["saturated"] is False
 
     def test_reports_n_saturated_is_zero(self):
-        sim = _sim(25.4)
+        sim = make_simulation(mag=25.4)
         res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
         assert res["n_saturated"] == 0
 
     def test_exptime_n_saturated_matches_snr(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
         chk = sim.get_image_snr(time=res["time_s"], r_aper_mas=70, warn=False)
         assert res["n_saturated"] == chk["n_saturated"]
 
     def test_exptime_saturated_flag_matches_snr(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
         chk = sim.get_image_snr(time=res["time_s"], r_aper_mas=70, warn=False)
         assert res["saturated"] == chk["saturated"]
 
     def test_warns_when_solved_time_saturates(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         with pytest.warns(UserWarning, match="saturat"):
             sim.get_image_exptime_for_snr(1e5, r_aper_mas=70)
 
     def test_get_snr_airy_returns_quantity(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
             val = sim.get_snr_airy(60)
         assert isinstance(val, u.Quantity)
 
     def test_get_snr_airy_warns_on_saturation(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             sim.get_snr_airy(60)
@@ -203,7 +192,7 @@ class TestExptimeSaturation:
         )
 
     def test_get_snr_airy_warn_false_no_saturation_warning(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             sim.get_snr_airy(60, warn=False)
@@ -213,14 +202,14 @@ class TestExptimeSaturation:
         )
 
     def test_get_exptime_returns_quantity(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
             t = sim.get_exptime_for_snr(1e5)
         assert isinstance(t, u.Quantity)
 
     def test_get_exptime_warns_on_saturation(self):
-        sim = _sim(12)
+        sim = make_simulation(mag=12)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             sim.get_exptime_for_snr(1e5)

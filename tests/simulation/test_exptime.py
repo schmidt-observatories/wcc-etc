@@ -2,14 +2,10 @@
 
 import numpy as np
 import pytest
-from tests.conftest import make_simulation
+from tests.helpers import make_simulation
 
 
 class TestNReads:
-    @pytest.fixture
-    def sim(self):
-        return make_simulation()
-
     def test_n_reads_default_is_one(self, sim):
         assert sim.meta.get("n_reads") == 1
 
@@ -42,10 +38,6 @@ class TestNReads:
 
 
 class TestExptimeForSnr:
-    @pytest.fixture
-    def sim(self):
-        return make_simulation()
-
     def test_roundtrips_snr(self, sim):
         for target in (20.0, 100.0):
             t = sim.get_exptime_for_snr(target)

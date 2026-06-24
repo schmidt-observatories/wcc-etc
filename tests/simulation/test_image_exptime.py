@@ -1,15 +1,9 @@
 """Tests for get_image_exptime_for_snr (PSF-aware exposure-time inverse)."""
 
 import numpy as np
-import pytest
-from tests.conftest import make_simulation
 
 
 class TestImageExptimeForSnr:
-    @pytest.fixture
-    def sim(self):
-        return make_simulation()
-
     def test_n_reads_one_matches_baseline(self, sim):
         base = sim.get_image_snr(time=60)["snr"]
         assert np.isclose(sim.get_image_snr(time=60, n_reads=1)["snr"], base)

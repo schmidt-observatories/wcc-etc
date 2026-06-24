@@ -7,14 +7,10 @@ import numpy as np
 import pytest
 import astropy.units as u
 import wcc_etc
-from tests.conftest import make_simulation
+from tests.helpers import make_simulation
 
 
 class TestTwodCountrateMigration:
-    @pytest.fixture
-    def sim(self):
-        return make_simulation()
-
     def test_bundle_uses_count_rate_components(self):
         src = inspect.getsource(wcc_etc.Simulation._image_render_bundle)
         assert "_count_rate_components" in src

@@ -3,30 +3,25 @@
 import warnings
 import astropy.units as u
 import pytest
-from tests.conftest import make_simulation
 
 
 class TestCountRateComponents:
-    @pytest.fixture
-    def sim(self):
-        return make_simulation(name="G2V", bandpass="johnson_v")
-
-    def _legacy(self, sim):
+    def _legacy(self, g2v_sim):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            return sim.get_countrates(units="e/s", as_dict=True)
+            return g2v_sim.get_countrates(units="e/s", as_dict=True)
 
-    def test_source_total_matches_pre_ee_countrate(self, sim):
-        comp = sim._count_rate_components()
-        legacy = self._legacy(sim)
-        ee = sim.psf_profile["ee_at_aper"]
+    def test_source_total_matches_pre_ee_countrate(self, g2v_sim):
+        comp = g2v_sim._count_rate_components()
+        legacy = self._legacy(g2v_sim)
+        ee = g2v_sim.psf_profile["ee_at_aper"]
         legacy_total = (legacy["source"] / ee).to(u.electron / u.s).value
         assert comp["source_rate_total"] == pytest.approx(legacy_total, rel=1e-6)
 
-    def test_background_per_pix_matches_legacy_corrected(self, sim):
-        comp = sim._count_rate_components()
-        legacy = self._legacy(sim)
-        prof = sim.psf_profile
+    def test_background_per_pix_matches_legacy_corrected(self, g2v_sim):
+        comp = g2v_sim._count_rate_components()
+        legacy = self._legacy(g2v_sim)
+        prof = g2v_sim.psf_profile
         n_psf = (
             prof["num_psf_pixels"].value
             if hasattr(prof["num_psf_pixels"], "value")
@@ -38,6 +33,6 @@ class TestCountRateComponents:
             legacy_bkg_per_pix / ee, rel=1e-4
         )
 
-    def test_background_per_pix_is_positive(self, sim):
-        comp = sim._count_rate_components()
+    def test_background_per_pix_is_positive(self, g2v_sim):
+        comp = g2v_sim._count_rate_components()
         assert comp["background_rate_per_pix"] > 0

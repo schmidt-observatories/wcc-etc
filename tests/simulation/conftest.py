@@ -1,7 +1,13 @@
 """Simulation-level fixtures."""
 
 import pytest
-from tests.conftest import make_simulation
+from tests.helpers import make_simulation
+
+
+@pytest.fixture
+def sim():
+    """G5V mag=15 on sony:r — the standard simulation used across simulation tests."""
+    return make_simulation()
 
 
 @pytest.fixture

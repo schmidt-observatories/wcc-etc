@@ -14,17 +14,7 @@ from wcc_etc.psfsim import (
     aperture_snr_radial,
     select_aperture,
 )
-
-
-def _scene(mag=15):
-    return wcc_etc.get_scene(
-        name="G5V",
-        mag=mag,
-        host=None,
-        background="zodi",
-        bandpass="johnson_r",
-        background_prop={"bandpass": "johnson_r", "mag": 22.5},
-    )
+from tests.helpers import make_scene
 
 
 def _make_simimg():
@@ -73,12 +63,12 @@ class TestSimulatedImage:
 
 class TestImageSimulator:
     def test_clean_flux_shape(self):
-        imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=128)
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=15), npix=128)
         res = imsim.simulate(time=10, add_noise=False)
         assert res.image_clean.shape == (128, 128)
 
     def test_clean_flux_conservation(self):
-        imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=128)
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=15), npix=128)
         res = imsim.simulate(time=10, add_noise=False)
         sim = imsim.sim
         t = 10 * u.second
@@ -95,71 +85,71 @@ class TestImageSimulator:
         assert res.image_clean.sum() == pytest.approx(expected, rel=0.02)
 
     def test_source_scales_with_time(self):
-        imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=128)
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=15), npix=128)
         peak10 = imsim.simulate(time=10, add_noise=False).image_clean.max()
         peak100 = imsim.simulate(time=100, add_noise=False).image_clean.max()
         assert peak100 > peak10
 
     def test_same_seed_gives_same_noise(self):
-        imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=64)
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=15), npix=64)
         a = imsim.simulate(time=10, add_noise=True, seed=1).image_e
         b = imsim.simulate(time=10, add_noise=True, seed=1).image_e
         assert np.array_equal(a, b)
 
     def test_different_seed_gives_different_noise(self):
-        imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=64)
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=15), npix=64)
         a = imsim.simulate(time=10, add_noise=True, seed=1).image_e
         c = imsim.simulate(time=10, add_noise=True, seed=2).image_e
         assert not np.array_equal(a, c)
 
     def test_read_noise_in_blank_corner(self):
-        imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(20), npix=128)
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=20), npix=128)
         res = imsim.simulate(time=1, add_noise=True, seed=0)
         corner = res.image_e[:16, :16]
         rn = imsim.sim.sensor.read_noise.to(u.electron / u.pix).value
         assert np.std(corner) == pytest.approx(rn, rel=0.2)
 
     def test_faint_star_not_saturated(self):
-        faint = ImageSimulator.from_sensor_and_scene("sony:r", _scene(20), npix=64)
+        faint = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=20), npix=64)
         assert not faint.simulate(time=1, add_noise=False).saturation_mask.any()
 
     def test_bright_star_is_saturated(self):
-        bright = ImageSimulator.from_sensor_and_scene("sony:r", _scene(6), npix=64)
+        bright = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=6), npix=64)
         assert bright.simulate(time=100, add_noise=False).saturation_mask.any()
 
     def test_sensor_pixel_scales_differ(self):
-        sony = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=64)
-        hwk = ImageSimulator.from_sensor_and_scene("qcmos:r", _scene(15), npix=64)
+        sony = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=15), npix=64)
+        hwk = ImageSimulator.from_sensor_and_scene("qcmos:r", make_scene(mag=15), npix=64)
         rs = sony.simulate(time=10, add_noise=False)
         rh = hwk.simulate(time=10, add_noise=False)
         assert rs.pixel_scale_mas != pytest.approx(rh.pixel_scale_mas)
 
     def test_defocus_psf_output_shape(self):
-        imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=300)
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=15), npix=300)
         res = imsim.simulate(
             time=10, psf=DefocusPSF(DEFOCUS_2WAVE_PATH), add_noise=False
         )
         assert res.image_clean.shape == (300, 300)
 
     def test_defocus_psf_output_is_finite(self):
-        imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=300)
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=15), npix=300)
         res = imsim.simulate(
             time=10, psf=DefocusPSF(DEFOCUS_2WAVE_PATH), add_noise=False
         )
         assert np.isfinite(res.image_clean).all()
 
     def test_saturation_mask_dtype(self):
-        bright = ImageSimulator.from_sensor_and_scene("sony:r", _scene(6), npix=64)
+        bright = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=6), npix=64)
         res = bright.simulate(time=100, add_noise=True, seed=0)
         assert res.saturation_mask.dtype == bool
 
     def test_saturation_mask_shape(self):
-        bright = ImageSimulator.from_sensor_and_scene("sony:r", _scene(6), npix=64)
+        bright = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=6), npix=64)
         res = bright.simulate(time=100, add_noise=True, seed=0)
         assert res.saturation_mask.shape == (64, 64)
 
     def test_saturation_mask_has_saturated_pixels(self):
-        bright = ImageSimulator.from_sensor_and_scene("sony:r", _scene(6), npix=64)
+        bright = ImageSimulator.from_sensor_and_scene("sony:r", make_scene(mag=6), npix=64)
         res = bright.simulate(time=100, add_noise=True, seed=0)
         assert res.saturation_mask.any()
 

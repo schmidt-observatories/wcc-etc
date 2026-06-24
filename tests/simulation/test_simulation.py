@@ -8,7 +8,7 @@ import pytest
 import astropy.units as u
 import wcc_etc
 from wcc_etc.simulation import calculate_bg_normalization_magnitude, Simulation
-from tests.conftest import make_simulation, make_scene
+from tests.helpers import make_simulation, make_scene
 
 
 # ---------------------------------------------------------------------------
