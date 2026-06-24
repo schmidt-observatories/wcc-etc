@@ -920,7 +920,11 @@ class Simulation(_MetaHolder_):
 
         def _snr_at(t_sec, source_scale=1.0):
             source_e_total = b["source_rate_total"] * source_scale * t_sec
-            diffuse_per_pix = b["diffuse_rate_per_pix"] * t_sec
+            # Sky (background) + host (diffuse) both contribute per-pixel shot noise.
+            # The sky term lives in background_rate_per_pix and MUST be included here
+            # (it is what makes faint sources sky-limited); omitting it overstates SNR.
+            diffuse_per_pix = (b["diffuse_rate_per_pix"]
+                               + b["background_rate_per_pix"]) * t_sec
             dark_per_pix = dark_rate_per_pix * t_sec
             prof = aperture_snr_radial(b["psf_norm"], b["plate_scale_mas"],
                                        source_e_total, diffuse_per_pix, dark_per_pix, read_noise)
@@ -1009,8 +1013,11 @@ class Simulation(_MetaHolder_):
         if not optimize and r_aper_mas is None and ee_frac is None:
             r_aper_mas = self._meta.get("r_aper_mas")
 
+        # Sky (background) + host (diffuse) both contribute per-pixel shot noise;
+        # the sky term must be included or the solved exposure time is too short.
+        diffuse_rate_per_pix = b["diffuse_rate_per_pix"] + b["background_rate_per_pix"]
         result = aperture_time_for_snr(b["psf_norm"], b["plate_scale_mas"],
-                                       b["source_rate_total"], b["diffuse_rate_per_pix"],
+                                       b["source_rate_total"], diffuse_rate_per_pix,
                                        dark_rate_per_pix, read_noise,
                                        n_reads=n_reads, snr=snr,
                                        r_aper_mas=r_aper_mas, ee_frac=ee_frac,
