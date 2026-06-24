@@ -19,6 +19,32 @@ def _sim(mag):
     return wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
 
 
+def _adc_clip_setup():
+    sensor = _sim(12).sensor
+    gain = sensor.gain.to(u.electron / u.ct).value
+    adc_max = sensor.adc_max.to(u.ct).value
+    well_depth = sensor.meta.get("well_depth")
+    adc_threshold_e = adc_max * gain
+    lower_limit = (
+        min(adc_threshold_e, well_depth)
+        if well_depth is not None
+        else adc_threshold_e
+    )
+    clearly_below = lower_limit / 2.0
+    clearly_above_adc = adc_threshold_e + 1.0
+    at_adc = adc_threshold_e
+    image_e = np.array(
+        [[clearly_below, at_adc, clearly_above_adc, clearly_above_adc + 100.0]]
+    )
+    adc_mask = (image_e / gain) >= adc_max
+    if well_depth is not None:
+        well_mask = image_e >= well_depth
+        expected = adc_mask | well_mask
+    else:
+        expected = adc_mask
+    return sensor, image_e, adc_mask, expected
+
+
 class TestSaturationMask:
     def test_helper_matches_simulate_image_mask(self):
         sim = _sim(12)
@@ -28,68 +54,79 @@ class TestSaturationMask:
         got = saturation_mask_from_image_e(sim.sensor, res.image_e)
         assert np.array_equal(got, expected)
 
-    def test_helper_thresholds_adc_clip(self):
-        sensor = _sim(12).sensor
-        gain = sensor.gain.to(u.electron / u.ct).value
-        adc_max = sensor.adc_max.to(u.ct).value
-        well_depth = sensor.meta.get("well_depth")
-        adc_threshold_e = adc_max * gain
-
-        lower_limit = (
-            min(adc_threshold_e, well_depth)
-            if well_depth is not None
-            else adc_threshold_e
-        )
-        clearly_below = lower_limit / 2.0
-        clearly_above_adc = adc_threshold_e + 1.0
-        at_adc = adc_threshold_e
-        image_e = np.array(
-            [[clearly_below, at_adc, clearly_above_adc, clearly_above_adc + 100.0]]
-        )
-
-        adc_mask = (image_e / gain) >= adc_max
-        if well_depth is not None:
-            well_mask = image_e >= well_depth
-            expected = adc_mask | well_mask
-        else:
-            expected = adc_mask
-
+    def test_below_threshold_not_saturated(self):
+        sensor, image_e, adc_mask, expected = _adc_clip_setup()
         assert not adc_mask[0, 0]
+
+    def test_at_threshold_is_saturated(self):
+        sensor, image_e, adc_mask, expected = _adc_clip_setup()
         assert adc_mask[0, 1]
+
+    def test_saturation_mask_matches_expected(self):
+        sensor, image_e, adc_mask, expected = _adc_clip_setup()
         got = saturation_mask_from_image_e(sensor, image_e)
         assert np.array_equal(got, expected)
 
 
 class TestGetSnrSaturation:
-    def test_faint_no_saturation_no_warning(self):
+    def test_faint_n_saturated_is_zero(self):
         sim = _sim(25.4)
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             res = sim.get_snr(time=60)
         assert res["n_saturated"] == 0
+
+    def test_faint_saturated_flag_is_false(self):
+        sim = _sim(25.4)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            res = sim.get_snr(time=60)
         assert res["saturated"] is False
 
-    def test_bright_counts_and_warns(self):
+    def test_bright_n_saturated_is_positive(self):
         sim = _sim(12)
         with pytest.warns(UserWarning, match="saturat"):
             res = sim.get_snr(time=60)
         assert res["n_saturated"] > 0
+
+    def test_bright_saturated_flag_is_true(self):
+        sim = _sim(12)
+        with pytest.warns(UserWarning, match="saturat"):
+            res = sim.get_snr(time=60)
         assert res["saturated"] is True
 
-    def test_warn_false_silences_but_keeps_count(self):
+    def test_warn_false_keeps_n_saturated(self):
         sim = _sim(12)
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             res = sim.get_snr(time=60, warn=False)
         assert res["n_saturated"] > 0
+
+    def test_warn_false_keeps_saturated_flag(self):
+        sim = _sim(12)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            res = sim.get_snr(time=60, warn=False)
         assert res["saturated"] is True
 
-    def test_array_time_returns_count_array(self):
+    def test_array_time_count_shape(self):
         sim = _sim(12)
         res = sim.get_snr(time=[30, 60, 120], warn=False)
         assert res["n_saturated"].shape == (3,)
+
+    def test_array_time_count_dtype(self):
+        sim = _sim(12)
+        res = sim.get_snr(time=[30, 60, 120], warn=False)
         assert res["n_saturated"].dtype.kind == "i"
+
+    def test_array_time_saturated_dtype(self):
+        sim = _sim(12)
+        res = sim.get_snr(time=[30, 60, 120], warn=False)
         assert res["saturated"].dtype == bool
+
+    def test_array_time_count_monotonic(self):
+        sim = _sim(12)
+        res = sim.get_snr(time=[30, 60, 120], warn=False)
         assert np.all(np.diff(res["n_saturated"]) >= 0)
 
     def test_values_unchanged_regression(self):
@@ -97,10 +134,13 @@ class TestGetSnrSaturation:
         snr = sim.get_snr(time=60)["snr"]
         assert np.isclose(snr, sim.get_image_snr(time=60, warn=False)["snr"])
 
-    def test_count_superset_of_is_saturated(self):
+    def test_is_saturated_agrees_with_count(self):
+        sim = _sim(12)
+        assert bool(sim.is_saturated(60))
+
+    def test_count_is_positive_when_saturated(self):
         sim = _sim(12)
         res = sim.get_snr(time=60, warn=False)
-        assert bool(sim.is_saturated(60))
         assert res["n_saturated"] > 0
 
     def test_count_matches_rendered_image(self):
@@ -113,18 +153,31 @@ class TestGetSnrSaturation:
 
 
 class TestExptimeSaturation:
-    def test_reports_count_keys(self):
+    def test_reports_n_saturated_is_int(self):
         sim = _sim(25.4)
         res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
         assert isinstance(res["n_saturated"], int)
+
+    def test_reports_saturated_is_false(self):
+        sim = _sim(25.4)
+        res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
         assert res["saturated"] is False
+
+    def test_reports_n_saturated_is_zero(self):
+        sim = _sim(25.4)
+        res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
         assert res["n_saturated"] == 0
 
-    def test_count_consistent_with_get_image_snr(self):
+    def test_exptime_n_saturated_matches_snr(self):
         sim = _sim(12)
         res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
         chk = sim.get_image_snr(time=res["time_s"], r_aper_mas=70, warn=False)
         assert res["n_saturated"] == chk["n_saturated"]
+
+    def test_exptime_saturated_flag_matches_snr(self):
+        sim = _sim(12)
+        res = sim.get_image_exptime_for_snr(50.0, r_aper_mas=70, warn=False)
+        chk = sim.get_image_snr(time=res["time_s"], r_aper_mas=70, warn=False)
         assert res["saturated"] == chk["saturated"]
 
     def test_warns_when_solved_time_saturates(self):
@@ -132,12 +185,18 @@ class TestExptimeSaturation:
         with pytest.warns(UserWarning, match="saturat"):
             sim.get_image_exptime_for_snr(1e5, r_aper_mas=70)
 
-    def test_get_snr_airy_warns_on_saturation_and_keeps_type(self):
+    def test_get_snr_airy_returns_quantity(self):
         sim = _sim(12)
-        with warnings.catch_warnings(record=True) as caught:
+        with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
             val = sim.get_snr_airy(60)
         assert isinstance(val, u.Quantity)
+
+    def test_get_snr_airy_warns_on_saturation(self):
+        sim = _sim(12)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            sim.get_snr_airy(60)
         assert any(
             issubclass(w.category, UserWarning) and "saturat" in str(w.message)
             for w in caught
@@ -153,12 +212,18 @@ class TestExptimeSaturation:
             for w in caught
         )
 
-    def test_get_exptime_for_snr_warns_when_solved_time_saturates(self):
+    def test_get_exptime_returns_quantity(self):
         sim = _sim(12)
-        with warnings.catch_warnings(record=True) as caught:
+        with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
             t = sim.get_exptime_for_snr(1e5)
         assert isinstance(t, u.Quantity)
+
+    def test_get_exptime_warns_on_saturation(self):
+        sim = _sim(12)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            sim.get_exptime_for_snr(1e5)
         assert any(
             issubclass(w.category, UserWarning) and "saturat" in str(w.message)
             for w in caught

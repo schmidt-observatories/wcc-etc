@@ -56,20 +56,36 @@ def _ccd_equation_noise(sim, time_s, n_pix):
 # ---------------------------------------------------------------------------
 # 1. Closed-form CCD equation (sky-dominated): the reported noise must match.
 # ---------------------------------------------------------------------------
-def test_get_snr_noise_matches_ccd_equation_with_sky():
-    sim = _sim(source_mag=24.0, sky_mag=18.0)   # bright sky -> sky dominates
+def test_ccd_equation_sky_dominated_scene():
+    sim = _sim(source_mag=24.0, sky_mag=18.0)
     t = 300.0
     res = sim.get_snr(time=t, r_aper_mas=70, warn=False)
-
-    # Sanity: this configuration really is sky-dominated, so the bug (if present)
-    # would be large -> the test is meaningful.
     comps = sim._count_rate_components()
     sky_e = comps["background_rate_per_pix"] * t * res["n_pix"]
     assert sky_e > res["signal_e"], "test scene is not sky-dominated; tighten it"
 
+
+def test_ccd_equation_signal_matches():
+    sim = _sim(source_mag=24.0, sky_mag=18.0)
+    t = 300.0
+    res = sim.get_snr(time=t, r_aper_mas=70, warn=False)
     signal, noise_ccd = _ccd_equation_noise(sim, t, res["n_pix"])
     assert res["signal_e"] == pytest.approx(signal, rel=1e-9)
+
+
+def test_ccd_equation_noise_matches():
+    sim = _sim(source_mag=24.0, sky_mag=18.0)
+    t = 300.0
+    res = sim.get_snr(time=t, r_aper_mas=70, warn=False)
+    signal, noise_ccd = _ccd_equation_noise(sim, t, res["n_pix"])
     assert res["noise_e"] == pytest.approx(noise_ccd, rel=1e-6)
+
+
+def test_ccd_equation_snr_matches():
+    sim = _sim(source_mag=24.0, sky_mag=18.0)
+    t = 300.0
+    res = sim.get_snr(time=t, r_aper_mas=70, warn=False)
+    signal, noise_ccd = _ccd_equation_noise(sim, t, res["n_pix"])
     assert res["snr"] == pytest.approx(signal / noise_ccd, rel=1e-6)
 
 

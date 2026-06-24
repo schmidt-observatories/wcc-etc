@@ -27,10 +27,16 @@ class TestSensorRegistry:
         assert "r_defocus" not in SENSORS["zwo"]
         assert "bb_defocus" not in SENSORS["zwo"]
 
-    def test_zwo_has_new_bands(self):
+    def test_zwo_has_r_plus1(self):
         assert "r+1" in SENSORS["zwo"]
+
+    def test_zwo_has_r_minus1(self):
         assert "r-1" in SENSORS["zwo"]
+
+    def test_zwo_has_bb2(self):
         assert "bb2" in SENSORS["zwo"]
+
+    def test_zwo_has_hbeta(self):
         assert "hbeta" in SENSORS["zwo"]
 
     def test_zwo_r_variants_share_throughput(self):
@@ -47,12 +53,16 @@ class TestSensorRegistry:
         all_sf = {entry["sensorfilter"] for entry in sensor_info.values()}
         assert all_sf == set(_SENSORFILTER_FOCUS.keys())
 
-    def test_sensorfilter_focus_0wave_in_focus(self):
+    def test_zwo_r_is_0wave(self):
         assert _SENSORFILTER_FOCUS["zwo:r"] == "0wave"
+
+    def test_qcmos_bb_is_0wave(self):
         assert _SENSORFILTER_FOCUS["qcmos:bb"] == "0wave"
 
-    def test_sensorfilter_focus_1wave(self):
+    def test_zwo_r_plus1_is_1wave(self):
         assert _SENSORFILTER_FOCUS["zwo:r+1"] == "1wave"
+
+    def test_zwo_r_minus1_is_1wave(self):
         assert _SENSORFILTER_FOCUS["zwo:r-1"] == "1wave"
 
     def test_sensorfilter_focus_2wave(self):
@@ -71,9 +81,11 @@ class TestSensorRegistry:
         with pytest.raises(ValueError, match="Unknown focus_level"):
             _psf_from_focus_level("3wave")
 
-    def test_sensorfilter_implemented_flags(self):
+    def test_narrowband_filters_not_implemented(self):
         for sf in ("zwo:nii", "zwo:halpha", "zwo:hbeta", "zwo:heii", "zwo:oiii"):
             assert _SENSORFILTER_IMPLEMENTED[sf] is False
+
+    def test_standard_filters_are_implemented(self):
         for sf in ("zwo:r", "zwo:r+1", "zwo:bb2", "qcmos:bb"):
             assert _SENSORFILTER_IMPLEMENTED[sf] is True
 
@@ -145,10 +157,14 @@ class TestFromSensorfilter:
         ).get_image_exptime_for_snr(10)["time_s"]
         assert abs(t_inf - t_def) > 0.01
 
-    def test_from_sensor_and_scene_default_psf_is_none_and_fallback_is_airy(self):
+    def test_from_sensor_and_scene_default_psf_is_none(self):
         scene = _make_scene()
         sim = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
         assert sim._default_psf is None
+
+    def test_from_sensor_and_scene_fallback_to_airy(self):
+        scene = _make_scene()
+        sim = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
         result = sim.get_image_snr(60)
         result_explicit = sim.get_image_snr(60, psf=AiryPSF())
         assert abs(result["snr"] - result_explicit["snr"]) < 1e-6
@@ -171,15 +187,24 @@ class TestImageSimulatorFromSensorfilter:
         with pytest.raises(ValueError, match="Unknown sensorfilter"):
             ImageSimulator.from_sensorfilter("zwo:nonexistent", _make_scene())
 
-    def test_passes_npix_and_oversample(self):
+    def test_passes_npix(self):
         imsim = ImageSimulator.from_sensorfilter(
             "zwo:r", _make_scene(), npix=128, oversample=5
         )
         assert imsim.npix == 128
+
+    def test_passes_oversample(self):
+        imsim = ImageSimulator.from_sensorfilter(
+            "zwo:r", _make_scene(), npix=128, oversample=5
+        )
         assert imsim.oversample == 5
 
-    def test_builds_working_imsim(self):
+    def test_builds_working_imsim_returns_result(self):
         imsim = ImageSimulator.from_sensorfilter("zwo:r", _make_scene(), npix=64)
         result = imsim.simulate(60, add_noise=False)
         assert result is not None
+
+    def test_builds_working_imsim_has_positive_signal(self):
+        imsim = ImageSimulator.from_sensorfilter("zwo:r", _make_scene(), npix=64)
+        result = imsim.simulate(60, add_noise=False)
         assert result.image_e.max() > 0

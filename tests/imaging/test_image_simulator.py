@@ -60,18 +60,26 @@ class TestSimulatedImage:
         s = _make_simimg()
         assert np.allclose(s.to_adu(), s.image_e / 2.0 + 100.0)
 
-    def test_to_fitsimg(self):
+    def test_to_fitsimg_returns_fitsimg(self):
         s = _make_simimg()
         f = s.to_fitsimg()
         assert isinstance(f, FitsImg)
+
+    def test_to_fitsimg_preserves_data(self):
+        s = _make_simimg()
+        f = s.to_fitsimg()
         assert np.allclose(f.data, s.image_e)
 
 
 class TestImageSimulator:
-    def test_clean_flux_conservation(self):
+    def test_clean_flux_shape(self):
         imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=128)
         res = imsim.simulate(time=10, add_noise=False)
         assert res.image_clean.shape == (128, 128)
+
+    def test_clean_flux_conservation(self):
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=128)
+        res = imsim.simulate(time=10, add_noise=False)
         sim = imsim.sim
         t = 10 * u.second
         import warnings
@@ -92,12 +100,16 @@ class TestImageSimulator:
         peak100 = imsim.simulate(time=100, add_noise=False).image_clean.max()
         assert peak100 > peak10
 
-    def test_noise_is_seed_reproducible(self):
+    def test_same_seed_gives_same_noise(self):
         imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=64)
         a = imsim.simulate(time=10, add_noise=True, seed=1).image_e
         b = imsim.simulate(time=10, add_noise=True, seed=1).image_e
-        c = imsim.simulate(time=10, add_noise=True, seed=2).image_e
         assert np.array_equal(a, b)
+
+    def test_different_seed_gives_different_noise(self):
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=64)
+        a = imsim.simulate(time=10, add_noise=True, seed=1).image_e
+        c = imsim.simulate(time=10, add_noise=True, seed=2).image_e
         assert not np.array_equal(a, c)
 
     def test_read_noise_in_blank_corner(self):
@@ -107,10 +119,12 @@ class TestImageSimulator:
         rn = imsim.sim.sensor.read_noise.to(u.electron / u.pix).value
         assert np.std(corner) == pytest.approx(rn, rel=0.2)
 
-    def test_saturation_flips_with_brightness(self):
+    def test_faint_star_not_saturated(self):
         faint = ImageSimulator.from_sensor_and_scene("sony:r", _scene(20), npix=64)
-        bright = ImageSimulator.from_sensor_and_scene("sony:r", _scene(6), npix=64)
         assert not faint.simulate(time=1, add_noise=False).saturation_mask.any()
+
+    def test_bright_star_is_saturated(self):
+        bright = ImageSimulator.from_sensor_and_scene("sony:r", _scene(6), npix=64)
         assert bright.simulate(time=100, add_noise=False).saturation_mask.any()
 
     def test_sensor_pixel_scales_differ(self):
@@ -120,19 +134,33 @@ class TestImageSimulator:
         rh = hwk.simulate(time=10, add_noise=False)
         assert rs.pixel_scale_mas != pytest.approx(rh.pixel_scale_mas)
 
-    def test_runs_with_defocus_psf(self):
+    def test_defocus_psf_output_shape(self):
         imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=300)
         res = imsim.simulate(
             time=10, psf=DefocusPSF(DEFOCUS_2WAVE_PATH), add_noise=False
         )
         assert res.image_clean.shape == (300, 300)
+
+    def test_defocus_psf_output_is_finite(self):
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", _scene(15), npix=300)
+        res = imsim.simulate(
+            time=10, psf=DefocusPSF(DEFOCUS_2WAVE_PATH), add_noise=False
+        )
         assert np.isfinite(res.image_clean).all()
 
-    def test_saturation_mask_with_noise_is_bool_array(self):
+    def test_saturation_mask_dtype(self):
         bright = ImageSimulator.from_sensor_and_scene("sony:r", _scene(6), npix=64)
         res = bright.simulate(time=100, add_noise=True, seed=0)
         assert res.saturation_mask.dtype == bool
+
+    def test_saturation_mask_shape(self):
+        bright = ImageSimulator.from_sensor_and_scene("sony:r", _scene(6), npix=64)
+        res = bright.simulate(time=100, add_noise=True, seed=0)
         assert res.saturation_mask.shape == (64, 64)
+
+    def test_saturation_mask_has_saturated_pixels(self):
+        bright = ImageSimulator.from_sensor_and_scene("sony:r", _scene(6), npix=64)
+        res = bright.simulate(time=100, add_noise=True, seed=0)
         assert res.saturation_mask.any()
 
     def test_public_exports_available(self):
@@ -147,8 +175,8 @@ class TestImageSimulator:
 
 
 class TestApertureSnr:
-    def test_enclosed_monotonic_to_one(self):
-        prof = aperture_snr_radial(
+    def _point_prof(self):
+        return aperture_snr_radial(
             _point_psf(21),
             plate_scale_mas=10.0,
             source_e_total=1e4,
@@ -156,12 +184,23 @@ class TestApertureSnr:
             dark_per_pix=0.0,
             read_noise=0.0,
         )
-        enc = prof["enclosed_fraction"]
+
+    def test_enclosed_fraction_is_monotonic(self):
+        enc = self._point_prof()["enclosed_fraction"]
         assert np.all(np.diff(enc) >= -1e-12)
+
+    def test_enclosed_fraction_reaches_one(self):
+        enc = self._point_prof()["enclosed_fraction"]
         assert enc[-1] == pytest.approx(1.0)
-        assert prof["n_pix"][0] == 1
-        assert prof["n_pix"][-1] == 21 * 21
-        assert np.all(np.diff(prof["r_mas"]) >= 0)
+
+    def test_n_pix_starts_at_one(self):
+        assert self._point_prof()["n_pix"][0] == 1
+
+    def test_n_pix_ends_at_full_array(self):
+        assert self._point_prof()["n_pix"][-1] == 21 * 21
+
+    def test_r_mas_is_monotonic(self):
+        assert np.all(np.diff(self._point_prof()["r_mas"]) >= 0)
 
     def test_point_source_noiseless_is_sqrt_signal(self):
         prof = aperture_snr_radial(

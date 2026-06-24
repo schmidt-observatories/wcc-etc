@@ -23,7 +23,7 @@ class TestCountRateComponents:
         legacy_total = (legacy["source"] / ee).to(u.electron / u.s).value
         assert comp["source_rate_total"] == pytest.approx(legacy_total, rel=1e-6)
 
-    def test_background_per_pix_removes_spurious_ee_factor(self, sim):
+    def test_background_per_pix_matches_legacy_corrected(self, sim):
         comp = sim._count_rate_components()
         legacy = self._legacy(sim)
         prof = sim.psf_profile
@@ -37,4 +37,7 @@ class TestCountRateComponents:
         assert comp["background_rate_per_pix"] == pytest.approx(
             legacy_bkg_per_pix / ee, rel=1e-4
         )
+
+    def test_background_per_pix_is_positive(self, sim):
+        comp = sim._count_rate_components()
         assert comp["background_rate_per_pix"] > 0

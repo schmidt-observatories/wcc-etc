@@ -8,7 +8,6 @@ the photometrically meaningful effective wavelength of the bandpass.
 """
 import warnings
 
-import numpy as np
 import pytest
 import astropy.units as u
 
@@ -24,13 +23,16 @@ def test_wavelength_is_pivot_not_wpeak(sensorfilter):
     assert s.wavelength.to(u.nm).value == pytest.approx(pivot, rel=1e-9)
 
 
-def test_wavelength_differs_from_wpeak_for_broadband():
-    # For the broadband filter wpeak and pivot are far apart (~17%); this is the
-    # case the old code got materially wrong, so pin that they are NOT equal.
+def test_wavelength_differs_significantly_from_wpeak():
     s = Sensor.from_name("sony:bb")
     pivot = s.bandpass.pivot().to(u.nm).value
     wpeak = s.bandpass.wpeak().to(u.nm).value
     assert abs(pivot - wpeak) / pivot > 0.1
+
+
+def test_wavelength_is_pivot_for_broadband():
+    s = Sensor.from_name("sony:bb")
+    pivot = s.bandpass.pivot().to(u.nm).value
     assert s.wavelength.to(u.nm).value == pytest.approx(pivot, rel=1e-9)
 
 

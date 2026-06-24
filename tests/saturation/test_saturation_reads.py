@@ -27,7 +27,10 @@ class TestSaturationWithReads:
         p2 = sim.get_peak_pixel(60, units="e-", n_reads=2).value
         assert np.isclose(p2, p1 / 2.0, rtol=1e-6)
 
-    def test_more_reads_can_unsaturate_bright_star(self):
+    def test_one_read_saturates(self):
         sim = _sim(17)
         assert sim.is_saturated(60, n_reads=1)
+
+    def test_many_reads_unsaturate(self):
+        sim = _sim(17)
         assert not sim.is_saturated(60, n_reads=100)

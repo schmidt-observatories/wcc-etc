@@ -36,11 +36,20 @@ class TestTransitModel:
 
         np.testing.assert_allclose(got, expected, rtol=0, atol=0)
 
-    def test_out_of_transit_is_unity_and_dip_present(self):
+    def _transit_flux(self):
         pytest.importorskip("batman")
         t = np.linspace(-0.25, 0.25, 400)
         model = TransitModel(t0=0.0, per=1.0, rp=0.1, a=15.0, inc=90.0, u=(0.0, 0.0))
-        flux = model.relative_flux(t)
+        return model.relative_flux(t)
+
+    def test_out_of_transit_is_unity(self):
+        flux = self._transit_flux()
         assert flux[0] == pytest.approx(1.0, abs=1e-6)
+
+    def test_dip_is_present(self):
+        flux = self._transit_flux()
         assert flux.min() < 1.0
+
+    def test_dip_depth_matches_rp_squared(self):
+        flux = self._transit_flux()
         assert flux.min() == pytest.approx(1 - 0.1**2, abs=2e-3)

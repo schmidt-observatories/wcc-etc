@@ -15,10 +15,14 @@ def _scene(mag=15.0):
 
 
 class TestPeakPixelFraction:
-    def test_in_unit_interval_and_matches_render(self):
+    def test_peak_pixel_fraction_in_unit_interval(self):
         sim = wcc_etc.Simulation.from_sensor_and_scene("sony:r", _scene())
         frac = sim.peak_pixel_fraction()
         assert 0.0 < frac <= 1.0
+
+    def test_peak_pixel_fraction_matches_render_bundle(self):
+        sim = wcc_etc.Simulation.from_sensor_and_scene("sony:r", _scene())
+        frac = sim.peak_pixel_fraction()
         b = sim._image_render_bundle(wcc_etc.AiryPSF(), None, 128, 11)
         assert frac == pytest.approx(float(b["psf_norm"].max()), rel=1e-9)
 

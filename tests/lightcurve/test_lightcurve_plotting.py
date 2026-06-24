@@ -25,15 +25,24 @@ def _lc():
 
 
 class TestLightCurvePlotting:
-    def test_mpl_returns_fig_ax_and_draws_both(self):
+    def test_mpl_has_data(self):
         fig, ax = plot_lightcurve_mpl(_lc())
         assert ax.has_data()
+
+    def test_mpl_draws_lines(self):
+        fig, ax = plot_lightcurve_mpl(_lc())
         assert len(ax.lines) >= 1
+
+    def test_mpl_draws_collections(self):
+        fig, ax = plot_lightcurve_mpl(_lc())
         assert len(ax.collections) >= 1
 
-    def test_mpl_show_model_only_has_no_errorbar_collection(self):
+    def test_mpl_show_model_only_has_lines(self):
         fig, ax = plot_lightcurve_mpl(_lc(), show_noise=False, show_model=True)
         assert len(ax.lines) >= 1
+
+    def test_mpl_show_model_only_has_no_collections(self):
+        fig, ax = plot_lightcurve_mpl(_lc(), show_noise=False, show_model=True)
         assert len(ax.collections) == 0
 
     def test_mpl_accepts_raw_arrays(self):
@@ -49,9 +58,12 @@ class TestLightCurvePlotting:
             fig, ax = plot_lightcurve_mpl(_lc(), show_noise=False, show_model=False)
         assert ax.get_legend() is None
 
-    def test_bokeh_components_returns_script_div(self):
+    def test_bokeh_components_returns_tuple(self):
         out = plot_lightcurve_bokeh(_lc(), return_="components")
         assert isinstance(out, tuple) and len(out) == 2
+
+    def test_bokeh_components_div_contains_html(self):
+        out = plot_lightcurve_bokeh(_lc(), return_="components")
         assert "<div" in out[1]
 
     def test_bokeh_both_off_does_not_raise(self):

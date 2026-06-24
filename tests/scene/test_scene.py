@@ -8,20 +8,32 @@ import pytest
 
 
 class TestBroadcastMapping:
-    def test_scalar_to_many(self):
+    def test_broadcast_scalar_to_many_is_ndarray(self):
         out = broadcast_mapping(5, 3)
         assert isinstance(out, np.ndarray)
+
+    def test_broadcast_scalar_to_many_shape(self):
+        out = broadcast_mapping(5, 3)
         assert out.shape == (3,)
+
+    def test_broadcast_scalar_to_many_values(self):
+        out = broadcast_mapping(5, 3)
         assert np.all(out == 5)
 
-    def test_1d_array(self):
+    def test_broadcast_1d_shape(self):
         out = broadcast_mapping([1, 2, 3], 3)
         assert out.shape == (3,)
+
+    def test_broadcast_1d_values(self):
+        out = broadcast_mapping([1, 2, 3], 3)
         assert np.all(out == np.array([1, 2, 3]))
 
-    def test_2d_broadcast(self):
+    def test_broadcast_2d_shape(self):
         out = broadcast_mapping([[1.0, 2.0]], 4)
         assert out.shape == (4, 2)
+
+    def test_broadcast_2d_values(self):
+        out = broadcast_mapping([[1.0, 2.0]], 4)
         assert np.all(out[0] == np.array([1.0, 2.0]))
 
 
@@ -35,18 +47,25 @@ class TestSceneClass:
         )
         return Scene(source=src, host=host, background=bkg)
 
-    def test_has_element_flags(self, scene):
+    def test_has_source(self, scene):
         assert scene.has_source()
+
+    def test_has_host(self, scene):
         assert scene.has_host()
+
+    def test_has_background(self, scene):
         assert scene.has_background()
 
     def test_get_elements_returns_all_keys(self, scene):
         elems = scene.get_elements(as_dict=True)
         assert set(elems.keys()) == {"source", "host", "background"}
 
-    def test_get_mag_point_sources(self, scene):
+    def test_get_mag_source(self, scene):
         mags = scene.get_mag(which=["source", "host"], as_dict=True)
         assert mags["source"].value == 20
+
+    def test_get_mag_host(self, scene):
+        mags = scene.get_mag(which=["source", "host"], as_dict=True)
         assert mags["host"].value == 18
 
     def test_get_mag_background_with_area(self, scene):

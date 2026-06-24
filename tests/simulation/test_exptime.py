@@ -10,11 +10,15 @@ class TestNReads:
     def sim(self):
         return make_simulation()
 
-    def test_n_reads_defaults_to_one_and_is_mutable(self, sim):
+    def test_n_reads_default_is_one(self, sim):
         assert sim.meta.get("n_reads") == 1
+
+    def test_n_reads_is_mutable_parameter(self, sim):
         assert any(
             k.endswith("n_reads") or k == "n_reads" for k in sim.mutable_parameters
         )
+
+    def test_n_reads_update(self, sim):
         sim.update(n_reads=4)
         assert sim.meta["n_reads"] == 4
 
@@ -28,9 +32,11 @@ class TestNReads:
         s9 = sim.get_snr(30, n_reads=9)["snr"]
         assert s9 < s1
 
-    def test_below_one_raises(self, sim):
+    def test_n_reads_zero_raises(self, sim):
         with pytest.raises(ValueError):
             sim.get_snr(60, n_reads=0)
+
+    def test_n_reads_negative_raises(self, sim):
         with pytest.raises(ValueError):
             sim.get_exptime_for_snr(50, n_reads=-1)
 
