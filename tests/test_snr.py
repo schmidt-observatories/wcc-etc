@@ -26,4 +26,9 @@ def test_snrs_25p4_mag_60s():
 
     print(f"SNR for 25.4 AB-mag star in 60s with {sensor_and_filter}: {snr_val:.2f}")
 
-    assert snr_val == pytest.approx(5.1, abs=0.1)
+    # AB-mag SNR (the scene pins magsys="abmag", so this is unaffected by the
+    # vegamag default). Expected ~4.95: the noise budget now includes the sky
+    # shot noise and the PSF is rendered at the pivot wavelength (not peak
+    # transmission). The independent closed-form/Monte-Carlo cross-checks of the
+    # sky term live in test_sky_background_noise.py.
+    assert snr_val == pytest.approx(4.95, abs=0.1)
