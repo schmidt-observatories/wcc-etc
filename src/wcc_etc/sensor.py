@@ -14,7 +14,7 @@ class Sensor(_MetaHolder_):
     bandpass : SpectralElement
         The total throughput (filter + sensor QE + telescope optics).
     wavelength : Quantity
-        The peak wavelength of the bandpass.
+        The effective (pivot) wavelength of the bandpass, used to render the PSF.
     area : Quantity
         The total area of the sensor.
     gain : Quantity
@@ -237,13 +237,22 @@ class Sensor(_MetaHolder_):
     @property
     def wavelength(self):
         """
-        The peak wavelength of the bandpass.
+        The effective (pivot) wavelength of the bandpass.
+
+        This is the representative wavelength used to render the monochromatic
+        diffraction PSF. We use the pivot wavelength rather than the
+        peak-transmission wavelength (``wpeak``): ``wpeak`` returns the
+        wavelength of maximum throughput, which for a roughly flat-topped filter
+        is essentially arbitrary within the band and biases the PSF size (the
+        Airy scale is linear in wavelength). The pivot wavelength is the
+        photometrically meaningful effective wavelength of the bandpass and is
+        independent of where the throughput happens to peak.
         """
         # store in memory as a bit slow
         if not hasattr(self, "_wavelength") or self._wavelength is None:
-            self._wavelength = self.bandpass.wpeak().to(u.nm)
-            
-        return self._wavelength 
+            self._wavelength = self.bandpass.pivot().to(u.nm)
+
+        return self._wavelength
 
     @property
     def area(self):
