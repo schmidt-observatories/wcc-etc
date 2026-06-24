@@ -36,9 +36,14 @@ jobs:
       - name: Install the package and documentation dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ./packages/lazuli-transit      # transit core (wcc_etc depends on it)
-          pip install -e .                              # so autodoc can import wcc_etc
-          pip install -r docs/sphinx/requirements.txt   # Sphinx + theme + nbsphinx
+          # wcc_etc depends on lazuli-transit, which currently lives in a
+          # separate *private* repo the CI token can't clone. For the docs we
+          # mock that import (docs/sphinx/conf.py: autodoc_mock_imports) and
+          # install wcc_etc WITHOUT its deps; the real third-party libraries
+          # autodoc needs come from docs/sphinx/requirements.txt. Once
+          # lazuli-transit is public this can become a plain `pip install -e .`.
+          pip install -r docs/sphinx/requirements.txt   # Sphinx + theme + wcc_etc's runtime deps
+          pip install -e . --no-deps                    # importable for autodoc; skips private git dep
 
       - name: Build the Sphinx site
         run: sphinx-build -W --keep-going -b html docs/sphinx docs/sphinx/_build/html
@@ -48,9 +53,10 @@ jobs:
         with:
           path: docs/sphinx/_build/html
 
-  # Deploy only on pushes to main (not on PRs). Enable this job once the
-  # repository is public and GitHub Pages is turned on in repo settings
-  # (Settings → Pages → Source: GitHub Actions).
+  # Deploy only on pushes to main (not on PRs). GitHub Pages is enabled with
+  # Source = GitHub Actions; the published site is public even though the repo
+  # is private (org is on the Team plan).
+  # Site: https://schmidt-observatories.github.io/wcc-etc/
   deploy:
     if: github.event_name != 'pull_request'
     needs: build

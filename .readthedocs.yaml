@@ -9,6 +9,15 @@ build:
   apt_packages:
     # nbsphinx renders the tutorial notebooks via pandoc
     - pandoc
+  jobs:
+    # wcc_etc depends on lazuli-transit, which currently lives in a separate
+    # *private* repo RTD can't clone. We mock that import for the docs (see
+    # docs/sphinx/conf.py: autodoc_mock_imports) and install the package WITHOUT
+    # its deps; its real third-party deps come from docs/sphinx/requirements.txt
+    # (installed via python.install below). Once lazuli-transit is public, drop
+    # this and add `- method: pip; path: .` under python.install instead.
+    post_install:
+      - pip install -e . --no-deps
 
 sphinx:
   configuration: docs/sphinx/conf.py
@@ -16,14 +25,8 @@ sphinx:
 
 python:
   install:
-    # Sphinx + theme + nbsphinx
+    # Sphinx + theme + nbsphinx + wcc_etc's third-party runtime deps
     - requirements: docs/sphinx/requirements.txt
-    # Transit core: wcc_etc depends on lazuli-transit, install it first
-    - method: pip
-      path: packages/lazuli-transit
-    # Install the package itself so autodoc can import wcc_etc and its deps
-    - method: pip
-      path: .
 
 formats:
   - htmlzip
