@@ -16,14 +16,18 @@ cd wcc-etc
 ```
 
 ## **2. Install the Package**
-Install the package itself:
+
+Core install:
 ```sh
 pip install -e .
 ```
 
-If you need to install additional dependencies, can run
+With optional extras:
 ```sh
-pip install -r requirements.txt
+pip install -e ".[dev]"    # development tools (pytest, ruff, mypy, pre-commit)
+pip install -e ".[docs]"   # documentation build (Sphinx, nbsphinx, etc.)
+pip install -e ".[lightcurve]"   # transit light-curve modelling (batman)
+pip install -e ".[exoarchive]"   # NASA Exoplanet Archive queries
 ```
 
 # Quick Start
@@ -71,11 +75,10 @@ notebooks, and an auto-generated API reference) is built with **Sphinx** and
 the *Read the Docs* theme. It lives under `docs/sphinx/`:
 
 ```bash
-pip install -e .                              # so autodoc can import wcc_etc
-pip install -r docs/sphinx/requirements.txt   # Sphinx + theme + nbsphinx
-# plus a pandoc binary (conda install pandoc / brew install pandoc)
+pip install -e ".[docs]"   # Sphinx + theme + nbsphinx (+ the package itself)
+brew install pandoc        # or: conda install pandoc / apt-get install pandoc
 cd docs/sphinx
-make html                                     # output in _build/html/index.html
+make html                  # output in _build/html/index.html
 ```
 
 A `.readthedocs.yaml` is included so the site builds automatically once the

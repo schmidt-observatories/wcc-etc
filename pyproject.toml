@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm", "wheel"]
-build-backend = "setuptools.build_meta" 
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "wcc_etc"
@@ -24,7 +24,7 @@ dependencies = [
   "astropy",
   "matplotlib",
   "pandas",
-  "bokeh==3.6.2",
+  "bokeh>=3.6",
   "flask",
   "toml",
   "tifffile",
@@ -35,15 +35,26 @@ dependencies = [
 [project.optional-dependencies]
 lightcurve = ["lazuli-transit[batman]"]
 exoarchive = ["lazuli-transit[archive]"]
+docs = [
+  "sphinx>=7",
+  "sphinx-rtd-theme>=2.0",
+  "nbsphinx>=0.9",
+  "ipykernel",
+  "myst-parser",
+]
+dev = [
+  "pytest",
+  "pre-commit",
+  "ruff",
+  "mypy",
+]
 
 [project.urls]
 Homepage = "https://github.com/schmidt-observatories/wcc-etc"
 Repository = "https://github.com/schmidt-observatories/wcc-etc"
 
-[tool.setuptools]
-packages = ["wcc_etc"]
-package-dir = { "" = "src" }
-include-package-data = true
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
 "wcc_etc" = [
@@ -51,17 +62,18 @@ include-package-data = true
   "data/astr_obj_models/galaxies/brown/*",
   "data/astrophysics/*",
   "data/config/*",
-  "data/sensors/*",
+  "data/sensors/**",
   "data/throughput/*",
   "data/flats/*",
   "data/psfs/*",
 ]
 
-
-
 [tool.pytest.ini_options]
-testpaths = [
-	"tests",
-]
+testpaths = ["tests"]
 
+[tool.ruff]
+src = ["src"]
+target-version = "py311"
 
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
