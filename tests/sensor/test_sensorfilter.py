@@ -16,6 +16,7 @@ from tests.helpers import make_scene
 class TestSensorRegistry:
     def test_zwo_no_legacy_defocus(self):
         assert "r_defocus" not in SENSORS["zwo"] and "bb_defocus" not in SENSORS["zwo"]
+
     def test_zwo_has_r_plus1(self):
         assert "r+1" in SENSORS["zwo"]
 

@@ -30,4 +30,6 @@ class TestLegacyWCCETC:
             snr, sim = fn(
                 mag=15, texp=60, source_type="file", source_file=str(specfile)
             )
-        assert np.isfinite(snr) and snr > 0 and sim.scene.source.meta["spectrum"] == "file"
+        assert (
+            np.isfinite(snr) and snr > 0 and sim.scene.source.meta["spectrum"] == "file"
+        )

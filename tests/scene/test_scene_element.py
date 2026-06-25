@@ -378,40 +378,49 @@ class TestFileSource:
 class TestMagnitudeSystem:
     def test_resolve_abmag_lowercase(self):
         from wcc_etc.scene import _resolve_magsys
+
         assert _resolve_magsys("abmag") == u.ABmag
 
     def test_resolve_abmag_uppercase(self):
         from wcc_etc.scene import _resolve_magsys
+
         assert _resolve_magsys("ABMAG") == u.ABmag
 
     def test_resolve_abmag_mixed_case(self):
         from wcc_etc.scene import _resolve_magsys
+
         assert _resolve_magsys("AbMag") == u.ABmag
 
     def test_resolve_vegamag_lowercase(self):
         from wcc_etc.scene import _resolve_magsys
+
         assert _resolve_magsys("vegamag") == su.VEGAMAG
 
     def test_resolve_vegamag_uppercase(self):
         from wcc_etc.scene import _resolve_magsys
+
         assert _resolve_magsys("VEGAMAG") == su.VEGAMAG
 
     def test_resolve_passes_through_abmag_unit(self):
         from wcc_etc.scene import _resolve_magsys
+
         assert _resolve_magsys(u.ABmag) == u.ABmag
 
     def test_resolve_raises_on_vega(self):
         from wcc_etc.scene import _resolve_magsys
+
         with pytest.raises(ValueError):
             _resolve_magsys("vega")
 
     def test_resolve_raises_on_ab(self):
         from wcc_etc.scene import _resolve_magsys
+
         with pytest.raises(ValueError):
             _resolve_magsys("AB")
 
     def test_resolve_raises_on_nonsense(self):
         from wcc_etc.scene import _resolve_magsys
+
         with pytest.raises(ValueError):
             _resolve_magsys("nonsense")
 
@@ -457,11 +466,13 @@ class TestMagnitudeSystem:
 
     def test_default_magsys_get_scene_source_is_vegamag(self):
         import wcc_etc
+
         scene = wcc_etc.get_scene(name="G5V", mag=15, background="zodi")
         assert scene.source.mag.unit == su.VEGAMAG
 
     def test_default_magsys_get_scene_background_is_vegamag(self):
         import wcc_etc
+
         scene = wcc_etc.get_scene(name="G5V", mag=15, background="zodi")
         assert scene.background.mag.unit == su.VEGAMAG
 

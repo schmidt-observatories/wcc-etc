@@ -399,6 +399,7 @@ class TestStyle:
     @pytest.fixture(autouse=True)
     def _restore_rcparams(self):
         import matplotlib as mpl
+
         saved = {k: mpl.rcParams[k] for k in plotting.WCC_STYLE}
         mpl.rcParams["axes.formatter.useoffset"] = True
         yield
@@ -407,77 +408,90 @@ class TestStyle:
     def test_wcc_style_mathtext_fontset(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["mathtext.fontset"] == "stix"
 
     def test_wcc_style_font_family(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["font.family"] == ["STIXGeneral"]
 
     def test_wcc_style_no_offset(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["axes.formatter.useoffset"] is False
 
     def test_wcc_style_figure_dpi(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["figure.dpi"] == 150
 
     def test_wcc_style_axes_labelsize(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["axes.labelsize"] == 13
 
     def test_wcc_style_xtick_minor_visible(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["xtick.minor.visible"] is True
 
     def test_wcc_style_ytick_minor_visible(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["ytick.minor.visible"] is True
 
     def test_wcc_style_xtick_direction(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["xtick.direction"] == "in"
 
     def test_wcc_style_ytick_direction(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["ytick.direction"] == "in"
 
     def test_wcc_style_axes_grid(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["axes.grid"] is True
 
     def test_wcc_style_grid_alpha(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["grid.alpha"] == 0.3
 
     def test_wcc_style_grid_linewidth(self):
         import matplotlib as mpl
         import wcc_etc
+
         wcc_etc.set_wcc_style()
         assert mpl.rcParams["grid.linewidth"] == 0.3
 
     def test_plot_image_disables_x_grid(self):
         import matplotlib as mpl
+
         s = _make_simimg()
         saved = mpl.rcParams["axes.grid"]
         try:
@@ -489,6 +503,7 @@ class TestStyle:
 
     def test_plot_image_disables_y_grid(self):
         import matplotlib as mpl
+
         s = _make_simimg()
         saved = mpl.rcParams["axes.grid"]
         try:
@@ -500,16 +515,13 @@ class TestStyle:
 
     def test_plot_image_row_disables_x_grid(self):
         import matplotlib as mpl
+
         s = _make_simimg()
         saved = mpl.rcParams["axes.grid"]
         try:
             mpl.rcParams["axes.grid"] = True
             fig2, axes = plotting.plot_image_row_mpl(s, stretch="linear")
-            assert all(
-                not gl.get_visible()
-                for a in axes
-                for gl in a.get_xgridlines()
-            )
+            assert all(not gl.get_visible() for a in axes for gl in a.get_xgridlines())
         finally:
             mpl.rcParams["axes.grid"] = saved
 

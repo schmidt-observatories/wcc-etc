@@ -15,9 +15,7 @@ def _adc_clip_setup():
     well_depth = sensor.meta.get("well_depth")
     adc_threshold_e = adc_max * gain
     lower_limit = (
-        min(adc_threshold_e, well_depth)
-        if well_depth is not None
-        else adc_threshold_e
+        min(adc_threshold_e, well_depth) if well_depth is not None else adc_threshold_e
     )
     clearly_below = lower_limit / 2.0
     clearly_above_adc = adc_threshold_e + 1.0

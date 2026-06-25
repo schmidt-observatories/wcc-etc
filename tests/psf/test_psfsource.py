@@ -312,12 +312,21 @@ class TestSolveTimeForSnr:
         plate, src_rate, diff_rate, dark_rate, rn = 50.0, 200.0, 0.5, 0.1, 3.0
         N, S = 3, 40.0
         res = aperture_time_for_snr(
-            psf, plate, src_rate, diff_rate, dark_rate, rn,
-            n_reads=N, snr=S, r_aper_mas=300.0,
+            psf,
+            plate,
+            src_rate,
+            diff_rate,
+            dark_rate,
+            rn,
+            n_reads=N,
+            snr=S,
+            r_aper_mas=300.0,
         )
         t = res["time_s"]
         r_mas, enclosed, n_pix = _radial_cumulative(psf, plate)
-        idx = int(np.clip(np.searchsorted(r_mas, 300.0, side="right") - 1, 0, r_mas.size - 1))
+        idx = int(
+            np.clip(np.searchsorted(r_mas, 300.0, side="right") - 1, 0, r_mas.size - 1)
+        )
         A = src_rate * enclosed[idx]
         B = A + (diff_rate + dark_rate) * n_pix[idx]
         C = N * rn**2 * n_pix[idx]
@@ -330,11 +339,25 @@ class TestSolveTimeForSnr:
         plate, src_rate, diff_rate, dark_rate, rn = 50.0, 200.0, 0.5, 0.1, 3.0
         S = 40.0
         res = aperture_time_for_snr(
-            psf, plate, src_rate, diff_rate, dark_rate, rn,
-            n_reads=3, snr=S, r_aper_mas=300.0,
+            psf,
+            plate,
+            src_rate,
+            diff_rate,
+            dark_rate,
+            rn,
+            n_reads=3,
+            snr=S,
+            r_aper_mas=300.0,
         )
         res1 = aperture_time_for_snr(
-            psf, plate, src_rate, diff_rate, dark_rate, rn,
-            n_reads=1, snr=S, r_aper_mas=300.0,
+            psf,
+            plate,
+            src_rate,
+            diff_rate,
+            dark_rate,
+            rn,
+            n_reads=1,
+            snr=S,
+            r_aper_mas=300.0,
         )
         assert res["time_s"] > res1["time_s"]

@@ -13,6 +13,7 @@ regime. The tests below pin the fix against three *independent* checks:
 None of these re-uses the get_image_snr noise expression, so they would all fail
 if the sky term were dropped again.
 """
+
 import warnings
 
 import numpy as np
@@ -24,15 +25,20 @@ from wcc_etc.psfsim import AiryPSF, ImageSimulator, psf_center
 
 warnings.simplefilter("ignore")
 
-NPIX, OVERSAMPLE = 128, 11   # match get_snr / get_image_snr defaults
+NPIX, OVERSAMPLE = 128, 11  # match get_snr / get_image_snr defaults
 
 
 def _sim(source_mag=24.0, sky_mag=18.0, sensor="sony:r"):
     """G5V point source on a (deliberately bright) zodi sky, AB mags."""
     scene = wcc_etc.get_scene(
-        name="G5V", mag=source_mag, magsys="abmag", host=None,
-        background="zodi", bandpass="johnson_r",
-        background_prop={"bandpass": "johnson_r", "mag": sky_mag, "magsys": "abmag"})
+        name="G5V",
+        mag=source_mag,
+        magsys="abmag",
+        host=None,
+        background="zodi",
+        bandpass="johnson_r",
+        background_prop={"bandpass": "johnson_r", "mag": sky_mag, "magsys": "abmag"},
+    )
     return wcc_etc.Simulation.from_sensor_and_scene(sensor, scene)
 
 
@@ -49,7 +55,7 @@ def _ccd_equation_noise(sim, time_s, n_pix):
     dark = sim.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
     rn = sim.sensor.read_noise.to(u.electron / u.pix).value
     signal = res["signal_e"]
-    noise = np.sqrt(signal + (sky * time_s + dark * time_s + rn ** 2) * n_pix)
+    noise = np.sqrt(signal + (sky * time_s + dark * time_s + rn**2) * n_pix)
     return signal, noise
 
 
@@ -105,7 +111,9 @@ def test_get_snr_noise_matches_ccd_equation_faint_readnoise_limited():
 def test_get_snr_noise_matches_monte_carlo_image_scatter():
     sim = _sim(source_mag=24.0, sky_mag=19.0)
     t = 120.0
-    res = sim.get_snr(time=t, r_aper_mas=70, warn=False, npix=NPIX, oversample=OVERSAMPLE)
+    res = sim.get_snr(
+        time=t, r_aper_mas=70, warn=False, npix=NPIX, oversample=OVERSAMPLE
+    )
     n_pix = res["n_pix"]
 
     # Reproduce get_snr's circular aperture: the n_pix pixels nearest the PSF
@@ -129,7 +137,8 @@ def test_get_snr_noise_matches_monte_carlo_image_scatter():
     # statistical error on an std from N samples ~ 1/sqrt(2N) ~ 2.9% here; allow 8%.
     assert mc_noise == pytest.approx(res["noise_e"], rel=0.08), (
         f"MC noise {mc_noise:.1f} e- vs reported {res['noise_e']:.1f} e- "
-        f"(sky term missing would make reported ~{np.sqrt(res['signal_e']):.1f})")
+        f"(sky term missing would make reported ~{np.sqrt(res['signal_e']):.1f})"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -138,11 +147,14 @@ def test_get_snr_noise_matches_monte_carlo_image_scatter():
 @pytest.mark.parametrize("sky_bright,sky_faint", [(18.0, 22.5), (19.0, 21.0)])
 def test_brighter_sky_lowers_snr(sky_bright, sky_faint):
     t = 200.0
-    snr_bright = _sim(24.0, sky_bright).get_snr(time=t, r_aper_mas=70, warn=False)["snr"]
+    snr_bright = _sim(24.0, sky_bright).get_snr(time=t, r_aper_mas=70, warn=False)[
+        "snr"
+    ]
     snr_faint = _sim(24.0, sky_faint).get_snr(time=t, r_aper_mas=70, warn=False)["snr"]
     assert snr_bright < snr_faint, (
         f"brighter sky (mag {sky_bright}) did not lower SNR "
-        f"({snr_bright:.2f}) vs fainter sky (mag {sky_faint}): {snr_faint:.2f}")
+        f"({snr_bright:.2f}) vs fainter sky (mag {sky_faint}): {snr_faint:.2f}"
+    )
 
 
 # ---------------------------------------------------------------------------
