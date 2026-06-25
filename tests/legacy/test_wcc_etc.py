@@ -16,8 +16,7 @@ class TestLegacyWCCETC:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             snr, sim = fn(mag=15, texp=60, source_type="blackbody", teff=5777)
-        assert np.isfinite(snr)
-        assert snr > 0
+        assert np.isfinite(snr) and snr > 0
 
     def test_file_source_returns_finite_snr(self, tmp_path):
         fn = self._import()
@@ -31,6 +30,4 @@ class TestLegacyWCCETC:
             snr, sim = fn(
                 mag=15, texp=60, source_type="file", source_file=str(specfile)
             )
-        assert np.isfinite(snr)
-        assert snr > 0
-        assert sim.scene.source.meta["spectrum"] == "file"
+        assert np.isfinite(snr) and snr > 0 and sim.scene.source.meta["spectrum"] == "file"

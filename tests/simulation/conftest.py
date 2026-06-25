@@ -19,4 +19,4 @@ def bright_sim():
 @pytest.fixture
 def faint_sim():
     """G5V mag=25.4 on sony:r — faint, reference SNR target."""
-    return make_simulation(mag=25)
+    return make_simulation(mag=25.4)

@@ -6,8 +6,7 @@ import wcc_etc
 
 class TestSNRReferenceValues:
     def test_sony_r_25p4_abmag_60s(self):
-        """
-        Verify SNR for a few ZWO and qCMOS sensors around a 25.4 AB-mag star in 60s.
+        """Verify reference SNR for a 25.4 AB-mag star in 60s on sony:r.
 
         Allow a small tolerance.
         """
