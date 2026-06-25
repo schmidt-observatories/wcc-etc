@@ -2,8 +2,7 @@ import warnings
 from copy import deepcopy
 
 
-
-class _MetaHolder_():
+class _MetaHolder_:
     """
     A base class to handle metadata and mutable parameters.
 
@@ -17,7 +16,6 @@ class _MetaHolder_():
 
     _mutable_parameters = []
 
-
     def __init__(self, meta={}):
         """
         Initialize the _MetaHolder_.
@@ -27,18 +25,18 @@ class _MetaHolder_():
         meta : dict, optional
             Initial metadata dictionary. Default is {}.
         """
-        self._meta = deepcopy(meta) # do not affect input dict.
-        self._meta_in = deepcopy(self._meta)        
+        self._meta = deepcopy(meta)  # do not affect input dict.
+        self._meta_in = deepcopy(self._meta)
 
     # ============== #
     #  Methods       #
-    # ============== # 
+    # ============== #
     def reset(self):
         """
         Revert the metadata to the initial input parameters.
         """
         self._meta = deepcopy(self._meta_in)
-        
+
     def update(self, reset=False, **kwargs):
         """
         Change any mutable parameter.
@@ -58,18 +56,16 @@ class _MetaHolder_():
         """
         updated_params = {}
         for key, value in kwargs.items():
-
             # this trick enables to pass update(a=None) while doing nothing on "a"
             if value is None:
                 continue
-            
+
             if key not in self.mutable_parameters:
                 warnings.warn(f"{key=} is not a mutable parameter. *ignored*")
                 continue
-            
+
             # looks good, let's udpate that.
             updated_params[key] = value
-
 
         # update the parameters. Should it be reset ?
         if reset:
@@ -94,11 +90,10 @@ class _MetaHolder_():
         The current metadata dictionary.
         """
         return self._meta
-            
+
     @property
     def mutable_parameters(self):
         """
         The list of parameters that are allowed to be updated.
         """
         return self._mutable_parameters
-

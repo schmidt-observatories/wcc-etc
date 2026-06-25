@@ -1,8 +1,14 @@
 import pytest
+
 import wcc_etc
-from wcc_etc.io import SENSORS, _SENSORFILTER_FOCUS, _SENSORFILTER_IMPLEMENTED, sensor_info
-from wcc_etc.simulation import Simulation, _psf_from_focus_level
+from wcc_etc.io import (
+    _SENSORFILTER_FOCUS,
+    _SENSORFILTER_IMPLEMENTED,
+    SENSORS,
+    sensor_info,
+)
 from wcc_etc.psfsim import AiryPSF, DefocusPSF, ImageSimulator
+from wcc_etc.simulation import Simulation, _psf_from_focus_level
 
 
 def test_sensors_zwo_no_legacy_defocus():
@@ -75,9 +81,13 @@ def test_simulation_default_psf_is_none_by_default():
 
 
 def _make_scene():
-    return wcc_etc.get_scene(name="G5V", mag=15, background="zodi",
-                              bandpass="johnson_r",
-                              background_prop={"bandpass": "johnson_r", "mag": 22.5})
+    return wcc_etc.get_scene(
+        name="G5V",
+        mag=15,
+        background="zodi",
+        bandpass="johnson_r",
+        background_prop={"bandpass": "johnson_r", "mag": 22.5},
+    )
 
 
 def test_from_sensorfilter_0wave_uses_airy():

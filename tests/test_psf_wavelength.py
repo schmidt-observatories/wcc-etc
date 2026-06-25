@@ -6,11 +6,11 @@ flat-topped filter is essentially arbitrary within the band and biases the PSF
 size (the Airy scale is linear in wavelength). It must be the pivot wavelength,
 the photometrically meaningful effective wavelength of the bandpass.
 """
+
 import warnings
 
-import numpy as np
-import pytest
 import astropy.units as u
+import pytest
 
 from wcc_etc.sensor import Sensor
 
@@ -40,8 +40,14 @@ def test_wavelength_drives_psf_scale():
     from wcc_etc import airy
 
     s = Sensor.from_name("sony:bb")
-    common = dict(fnum=15.0, D=3.065, pixel_size=s.pixel_size.value,
-                  jitter_sigma_mas=0, n_pixels=63, oversample=11)
+    common = dict(
+        fnum=15.0,
+        D=3.065,
+        pixel_size=s.pixel_size.value,
+        jitter_sigma_mas=0,
+        n_pixels=63,
+        oversample=11,
+    )
     psf_short, _ = airy.render_detector_psf(wavelength=400e-9, **common)
     psf_long, _ = airy.render_detector_psf(wavelength=800e-9, **common)
     assert psf_long.max() < psf_short.max()

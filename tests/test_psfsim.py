@@ -1,6 +1,7 @@
 import numpy as np
-from wcc_etc.psfsim import AiryPSF, CustomPSF, DefocusPSF
+
 from wcc_etc import DEFOCUS_1WAVE_PATH
+from wcc_etc.psfsim import AiryPSF, CustomPSF, DefocusPSF
 
 
 def test_airy_cache_key_is_constant():
@@ -12,7 +13,7 @@ def test_resampled_cache_key_stable_per_object():
     data = np.ones((9, 9))
     psf = CustomPSF(data, src_um_per_pix=4.0)
     key = psf.cache_key()
-    assert psf.cache_key() == key          # stable across calls
+    assert psf.cache_key() == key  # stable across calls
     assert key[0] == "CustomPSF"
     assert key[1] == 4.0
 

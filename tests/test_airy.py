@@ -1,12 +1,19 @@
 import numpy as np
 import pytest
-from wcc_etc.airy import render_detector_psf, psf_to_encircled_energy
+
+from wcc_etc.airy import psf_to_encircled_energy, render_detector_psf
 
 
 def test_render_detector_psf_shape_and_normalization():
     psf, pscale = render_detector_psf(
-        wavelength=0.6e-6, fnum=15, D=3, pixel_size=3.76,
-        jitter_sigma_mas=0, n_pixels=21, oversample=11)
+        wavelength=0.6e-6,
+        fnum=15,
+        D=3,
+        pixel_size=3.76,
+        jitter_sigma_mas=0,
+        n_pixels=21,
+        oversample=11,
+    )
     assert psf.shape == (21, 21)
     assert psf.sum() == pytest.approx(1.0, abs=1e-6)
     assert pscale > 0
@@ -14,33 +21,63 @@ def test_render_detector_psf_shape_and_normalization():
 
 def test_render_detector_psf_peak_is_centered():
     psf, _ = render_detector_psf(
-        wavelength=0.6e-6, fnum=15, D=3, pixel_size=3.76,
-        jitter_sigma_mas=0, n_pixels=21, oversample=11)
+        wavelength=0.6e-6,
+        fnum=15,
+        D=3,
+        pixel_size=3.76,
+        jitter_sigma_mas=0,
+        n_pixels=21,
+        oversample=11,
+    )
     center = (psf.shape[0] // 2, psf.shape[1] // 2)
     assert np.unravel_index(np.argmax(psf), psf.shape) == center
 
 
 def test_render_detector_psf_peak_fraction_in_unit_interval():
     psf, _ = render_detector_psf(
-        wavelength=0.6e-6, fnum=15, D=3, pixel_size=3.76,
-        jitter_sigma_mas=0, n_pixels=21, oversample=11)
+        wavelength=0.6e-6,
+        fnum=15,
+        D=3,
+        pixel_size=3.76,
+        jitter_sigma_mas=0,
+        n_pixels=21,
+        oversample=11,
+    )
     assert 0.0 < psf.max() <= 1.0
 
 
 def test_jitter_reduces_peak_fraction():
     psf0, _ = render_detector_psf(
-        wavelength=0.6e-6, fnum=15, D=3, pixel_size=3.76,
-        jitter_sigma_mas=0, n_pixels=21, oversample=11)
+        wavelength=0.6e-6,
+        fnum=15,
+        D=3,
+        pixel_size=3.76,
+        jitter_sigma_mas=0,
+        n_pixels=21,
+        oversample=11,
+    )
     psf_j, _ = render_detector_psf(
-        wavelength=0.6e-6, fnum=15, D=3, pixel_size=3.76,
-        jitter_sigma_mas=50, n_pixels=21, oversample=11)
+        wavelength=0.6e-6,
+        fnum=15,
+        D=3,
+        pixel_size=3.76,
+        jitter_sigma_mas=50,
+        n_pixels=21,
+        oversample=11,
+    )
     assert psf_j.max() < psf0.max()
 
 
 def test_render_detector_psf_peak_fraction_reference_value():
     psf, _ = render_detector_psf(
-        wavelength=0.6e-6, fnum=15, D=3, pixel_size=3.76,
-        jitter_sigma_mas=0, n_pixels=21, oversample=11)
+        wavelength=0.6e-6,
+        fnum=15,
+        D=3,
+        pixel_size=3.76,
+        jitter_sigma_mas=0,
+        n_pixels=21,
+        oversample=11,
+    )
     assert psf.max() == pytest.approx(0.1333, abs=0.001)
 
 
@@ -63,8 +100,14 @@ def test_psf_to_encircled_energy_centers_on_true_centroid():
     from wcc_etc.psfsim import center_crop_or_pad, howell_center
 
     psf, pscale = render_detector_psf(
-        wavelength=0.6e-6, fnum=15, D=3.0, pixel_size=3.74,
-        jitter_sigma_mas=0, n_pixels=256, oversample=11)
+        wavelength=0.6e-6,
+        fnum=15,
+        D=3.0,
+        pixel_size=3.74,
+        jitter_sigma_mas=0,
+        n_pixels=256,
+        oversample=11,
+    )
     psf = center_crop_or_pad(psf, 256)  # 257 -> 256; true centroid lands at 127.0
 
     # True centroid of the rendered PSF (howell_center returns (xc, yc)).
@@ -88,19 +131,27 @@ def test_psf_to_encircled_energy_centers_on_true_centroid():
         got = _ee_radius(r_mas, ee, frac)
         ref = _ee_radius(r_ref_centers, ee_ref, frac)
         assert abs(got - ref) < tol_mas, (
-            f"EE{int(frac*100)} radius {got:.4f} mas differs from centroid-based "
+            f"EE{int(frac * 100)} radius {got:.4f} mas differs from centroid-based "
             f"reference {ref:.4f} mas by more than {tol_mas:.4f} mas "
-            f"({abs(got-ref)/pscale:.3f} px) — reducer is centered off the PSF centroid")
+            f"({abs(got - ref) / pscale:.3f} px) — reducer is centered off the PSF centroid"
+        )
 
 
 def test_render_detector_psf_even_npix_no_warning():
     # Even n_pixels is rounded up to odd; this must NOT raise a UserWarning
     # (it used to warn on every call and flood notebooks). Treat any warning as an error.
     import warnings
+
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         psf, _ = render_detector_psf(
-            wavelength=0.6e-6, fnum=15, D=3, pixel_size=3.76,
-            jitter_sigma_mas=0, n_pixels=128, oversample=5)
+            wavelength=0.6e-6,
+            fnum=15,
+            D=3,
+            pixel_size=3.76,
+            jitter_sigma_mas=0,
+            n_pixels=128,
+            oversample=5,
+        )
     assert psf.shape == (129, 129)
     assert psf.sum() == pytest.approx(1.0, abs=1e-6)

@@ -31,4 +31,3 @@ snr = sim.get_snr(60)
 - SNR calculations
 - Choose different filters
 - Background and source spectrum support
-

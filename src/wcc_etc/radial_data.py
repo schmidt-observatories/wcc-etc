@@ -1,12 +1,13 @@
 import numpy as np
 from scipy.integrate import trapezoid
 
-def radial_data(data,annulus_width=1,working_mask=None,x=None,y=None,rmax=None):
+
+def radial_data(data, annulus_width=1, working_mask=None, x=None, y=None, rmax=None):
     """
     r = radial_data(data,annulus_width,working_mask,x,y)
-    
+
     A function to reduce an image to a radial cross-section.
-    
+
     :INPUT:
       data   - whatever data you are radially averaging.  Data is
               binned into a series of annuli of width 'annulus_width'
@@ -23,7 +24,7 @@ def radial_data(data,annulus_width=1,working_mask=None,x=None,y=None,rmax=None):
                integer meshgrids
 
       rmax -- maximum radial value over which to compute statistics
-    
+
     :OUTPUT:
         r - a data structure containing the following
                    statistics, computed across each annulus:
@@ -44,9 +45,9 @@ def radial_data(data,annulus_width=1,working_mask=None,x=None,y=None,rmax=None):
 
           .numel  - number of elements in the annulus
 
-    :EXAMPLE:        
+    :EXAMPLE:
       ::
-        
+
         import numpy as np
         import pylab as py
         import radial_data as rad
@@ -67,22 +68,22 @@ def radial_data(data,annulus_width=1,working_mask=None,x=None,y=None,rmax=None):
         py.xlabel('Radial coordinate')
         py.ylabel('Signal to Noise')
     """
-    
-# 2012-02-25 20:40 IJMC: Empty bins now have numel=0, not nan.
-# 2012-02-04 17:41 IJMC: Added "SUM" flag
-# 2010-11-19 16:36 IJC: Updated documentation for Sphinx
-# 2010-03-10 19:22 IJC: Ported to python from Matlab
-# 2005/12/19 Added 'working_region' option (IJC)
-# 2005/12/15 Switched order of outputs (IJC)
-# 2005/12/12 IJC: Removed decifact, changed name, wrote comments.
-# 2005/11/04 by Ian Crossfield at the Jet Propulsion Laboratory
- 
+
+    # 2012-02-25 20:40 IJMC: Empty bins now have numel=0, not nan.
+    # 2012-02-04 17:41 IJMC: Added "SUM" flag
+    # 2010-11-19 16:36 IJC: Updated documentation for Sphinx
+    # 2010-03-10 19:22 IJC: Ported to python from Matlab
+    # 2005/12/19 Added 'working_region' option (IJC)
+    # 2005/12/15 Switched order of outputs (IJC)
+    # 2005/12/12 IJC: Removed decifact, changed name, wrote comments.
+    # 2005/11/04 by Ian Crossfield at the Jet Propulsion Laboratory
+
     import numpy as ny
 
     class radialDat:
-        """Empty object container.
-        """
-        def __init__(self): 
+        """Empty object container."""
+
+        def __init__(self):
             self.mean = None
             self.std = None
             self.median = None
@@ -91,30 +92,32 @@ def radial_data(data,annulus_width=1,working_mask=None,x=None,y=None,rmax=None):
             self.min = None
             self.r = None
 
-    #---------------------
+    # ---------------------
     # Set up input parameters
-    #---------------------
+    # ---------------------
     data = ny.array(data)
-    
-    if working_mask==None:
-        working_mask = ny.ones(data.shape,bool)
-    
+
+    if working_mask == None:
+        working_mask = ny.ones(data.shape, bool)
+
     npix, npiy = data.shape
-    if x==None or y==None:
-        x1 = ny.arange(-npix/2.,npix/2.)
-        y1 = ny.arange(-npiy/2.,npiy/2.)
-        x,y = ny.meshgrid(y1,x1)
+    if x == None or y == None:
+        x1 = ny.arange(-npix / 2.0, npix / 2.0)
+        y1 = ny.arange(-npiy / 2.0, npiy / 2.0)
+        x, y = ny.meshgrid(y1, x1)
 
-    r = abs(x+1j*y)
+    r = abs(x + 1j * y)
 
-    if rmax==None:
+    if rmax == None:
         rmax = r[working_mask].max()
 
-    #---------------------
+    # ---------------------
     # Prepare the data container
-    #---------------------
-    dr = ny.abs(x[0,0] - x[0,1]) * annulus_width  # scalar (numpy 2 rejects 1-elem arrays in arange)
-    radial = ny.arange(rmax/dr)*dr + dr/2.
+    # ---------------------
+    dr = (
+        ny.abs(x[0, 0] - x[0, 1]) * annulus_width
+    )  # scalar (numpy 2 rejects 1-elem arrays in arange)
+    radial = ny.arange(rmax / dr) * dr + dr / 2.0
     nrad = len(radial)
     radialdata = radialDat()
     radialdata.mean = ny.zeros(nrad)
@@ -125,74 +128,77 @@ def radial_data(data,annulus_width=1,working_mask=None,x=None,y=None,rmax=None):
     radialdata.max = ny.zeros(nrad)
     radialdata.min = ny.zeros(nrad)
     radialdata.r = radial
-    
-    #---------------------
+
+    # ---------------------
     # Loop through the bins
-    #---------------------
-    for irad in range(nrad): #= 1:numel(radial)
-      minrad = irad*dr
-      maxrad = minrad + dr
-      thisindex = (r>=minrad) * (r<maxrad) * working_mask
-      #import pylab as py
-      #pdb.set_trace()
-      if not thisindex.ravel().any():
-        radialdata.mean[irad] = ny.nan
-        radialdata.sum[irad] = ny.nan
-        radialdata.std[irad]  = ny.nan
-        radialdata.median[irad] = ny.nan
-        radialdata.numel[irad] = 0
-        radialdata.max[irad] = ny.nan
-        radialdata.min[irad] = ny.nan
-      else:
-        radialdata.mean[irad] = data[thisindex].mean()
-        radialdata.sum[irad] = data[r<maxrad].sum()
-        radialdata.std[irad]  = data[thisindex].std()
-        radialdata.median[irad] = ny.median(data[thisindex])
-        radialdata.numel[irad] = data[thisindex].size
-        radialdata.max[irad] = data[thisindex].max()
-        radialdata.min[irad] = data[thisindex].min()
-    
-    #---------------------
+    # ---------------------
+    for irad in range(nrad):  # = 1:numel(radial)
+        minrad = irad * dr
+        maxrad = minrad + dr
+        thisindex = (r >= minrad) * (r < maxrad) * working_mask
+        # import pylab as py
+        # pdb.set_trace()
+        if not thisindex.ravel().any():
+            radialdata.mean[irad] = ny.nan
+            radialdata.sum[irad] = ny.nan
+            radialdata.std[irad] = ny.nan
+            radialdata.median[irad] = ny.nan
+            radialdata.numel[irad] = 0
+            radialdata.max[irad] = ny.nan
+            radialdata.min[irad] = ny.nan
+        else:
+            radialdata.mean[irad] = data[thisindex].mean()
+            radialdata.sum[irad] = data[r < maxrad].sum()
+            radialdata.std[irad] = data[thisindex].std()
+            radialdata.median[irad] = ny.median(data[thisindex])
+            radialdata.numel[irad] = data[thisindex].size
+            radialdata.max[irad] = data[thisindex].max()
+            radialdata.min[irad] = data[thisindex].min()
+
+    # ---------------------
     # Return with data
-    #---------------------
-    
+    # ---------------------
+
     return radialdata
 
-def calc_ee(df_data_r,hwhm,K,verbose=True,endpoint=3.):
+
+def calc_ee(df_data_r, hwhm, K, verbose=True, endpoint=3.0):
     """
     Calculate the encircled energy for a dataframe:
-    
+
     INPUT:
      - df_data_r with columns: ["r","mean"]
      - hwhm - in pixels
      - K - factor of hwhm to calculate EE
-     
+
     OUTPUT:
      - EE
     """
     df_data_r = df_data_r.dropna()
-    
 
-    mask_tot = df_data_r["r"]<endpoint*hwhm 
+    mask_tot = df_data_r["r"] < endpoint * hwhm
     # Total
-    #total_EE = trapezoid(df_data_r["mean"],df_data_r["r"])
-    total_EE  = trapezoid(df_data_r["mean"][mask_tot],df_data_r["r"][mask_tot]) # To have a fair comparison
-    
+    # total_EE = trapezoid(df_data_r["mean"],df_data_r["r"])
+    total_EE = trapezoid(
+        df_data_r["mean"][mask_tot], df_data_r["r"][mask_tot]
+    )  # To have a fair comparison
+
     # Masks
-    if type(K)==np.ndarray:
+    if type(K) == np.ndarray:
         ee_Kxfwhm = np.zeros(len(K))
         for i in range(len(K)):
-            mask = df_data_r["r"]<K[i]*hwhm 
-            
+            mask = df_data_r["r"] < K[i] * hwhm
+
             # Calc ee
-            ee_Kxfwhm[i] = trapezoid(df_data_r["mean"][mask],df_data_r["r"][mask])/total_EE
+            ee_Kxfwhm[i] = (
+                trapezoid(df_data_r["mean"][mask], df_data_r["r"][mask]) / total_EE
+            )
 
     else:
-        mask = df_data_r["r"]<K*hwhm 
+        mask = df_data_r["r"] < K * hwhm
         # Calc ee
-        ee_Kxfwhm = trapezoid(df_data_r["mean"][mask],df_data_r["r"][mask])/total_EE
-        if verbose==True:
-            print("EE @ "+str(K)+"xHWHM",ee_Kxfwhm)
-    
-    return ee_Kxfwhm
+        ee_Kxfwhm = trapezoid(df_data_r["mean"][mask], df_data_r["r"][mask]) / total_EE
+        if verbose == True:
+            print("EE @ " + str(K) + "xHWHM", ee_Kxfwhm)
 
+    return ee_Kxfwhm

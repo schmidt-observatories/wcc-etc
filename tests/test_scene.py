@@ -1,11 +1,12 @@
-from wcc_etc.io import expand_path
-import numpy as np
-import numpy as np
 import astropy.units as u
-from scipy.integrate import trapezoid
-from synphot import SpectralElement, Observation, SourceSpectrum, units as su
-from wcc_etc.scene import broadcast_mapping, get_scene_from_file, SceneElement, Scene
+import numpy as np
 import pytest
+from scipy.integrate import trapezoid
+from synphot import Observation, SourceSpectrum, SpectralElement
+from synphot import units as su
+
+from wcc_etc.io import expand_path
+from wcc_etc.scene import Scene, SceneElement, broadcast_mapping, get_scene_from_file
 
 
 def _observed_abmag(spectrum, band_name="johnson_v"):
@@ -15,10 +16,12 @@ def _observed_abmag(spectrum, band_name="johnson_v"):
 
 def test_name_and_config():
     """ """
-    baseconfig = {"mag": 20,
-                  "magsys": "abmag",
-                  "bandpass": "johnson_v"}
-    config1 = {"spectrum": expand_path('astr_obj_models/stars/pickles_models/dat_uvk/pickles_uk_55.fits')}
+    baseconfig = {"mag": 20, "magsys": "abmag", "bandpass": "johnson_v"}
+    config1 = {
+        "spectrum": expand_path(
+            "astr_obj_models/stars/pickles_models/dat_uvk/pickles_uk_55.fits"
+        )
+    }
     config2 = {"spectrum": "uk_55"}
     config3 = {"spectrum": "G5IV"}
 
@@ -37,21 +40,32 @@ def test_name_and_config():
     assert np.all(lbda1 == lbda3)
 
 
-
-
 def test_blackbody_source_roundtrips_magnitude():
-    se = SceneElement.from_config({"spectrum": "blackbody", "teff": 5777,
-                                   "mag": 15, "magsys": "abmag",
-                                   "bandpass": "johnson_v"})
+    se = SceneElement.from_config(
+        {
+            "spectrum": "blackbody",
+            "teff": 5777,
+            "mag": 15,
+            "magsys": "abmag",
+            "bandpass": "johnson_v",
+        }
+    )
     sp = se.get_spectrum()  # magnitude-normalized
     assert abs(_observed_abmag(sp) - 15) < 0.01
 
 
 def test_blackbody_shape_matches_get_blackbody_flux():
     from wcc_etc.wcc_etc import get_blackbody_flux
-    se = SceneElement.from_config({"spectrum": "blackbody", "teff": 5777,
-                                   "mag": 15, "magsys": "abmag",
-                                   "bandpass": "johnson_v"})
+
+    se = SceneElement.from_config(
+        {
+            "spectrum": "blackbody",
+            "teff": 5777,
+            "mag": 15,
+            "magsys": "abmag",
+            "bandpass": "johnson_v",
+        }
+    )
     sp = se.get_spectrum()
     w = np.array([4000.0, 6000.0, 8000.0])
     flam = sp(w * u.AA, flux_unit=su.FLAM).value
@@ -61,8 +75,9 @@ def test_blackbody_shape_matches_get_blackbody_flux():
 
 
 def test_flat_source_is_constant_fnu_and_roundtrips_mag():
-    se = SceneElement.from_config({"spectrum": "flat", "mag": 18,
-                                   "magsys": "abmag", "bandpass": "johnson_v"})
+    se = SceneElement.from_config(
+        {"spectrum": "flat", "mag": 18, "magsys": "abmag", "bandpass": "johnson_v"}
+    )
     sp = se.get_spectrum()
     w = np.array([4000.0, 6000.0, 8000.0]) * u.AA
     fnu = sp(w, flux_unit=u.Jy).value
@@ -72,9 +87,15 @@ def test_flat_source_is_constant_fnu_and_roundtrips_mag():
 
 def test_powerlaw_source_slope():
     alpha = -1.0
-    se = SceneElement.from_config({"spectrum": "powerlaw", "alpha": alpha,
-                                   "mag": 18, "magsys": "abmag",
-                                   "bandpass": "johnson_v"})
+    se = SceneElement.from_config(
+        {
+            "spectrum": "powerlaw",
+            "alpha": alpha,
+            "mag": 18,
+            "magsys": "abmag",
+            "bandpass": "johnson_v",
+        }
+    )
     sp = se.get_spectrum()
     w1, w2 = 4000.0, 8000.0
     f1 = sp(w1 * u.AA, flux_unit=su.FLAM).value
@@ -85,13 +106,17 @@ def test_powerlaw_source_slope():
 
 def test_emission_line_recovers_absolute_flux():
     flux = 1e-15
-    se = SceneElement.from_config({"spectrum": "emission",
-                                   "lines": [{"wave": 6563, "flux": flux, "fwhm": 3}],
-                                   "mag": None})
+    se = SceneElement.from_config(
+        {
+            "spectrum": "emission",
+            "lines": [{"wave": 6563, "flux": flux, "fwhm": 3}],
+            "mag": None,
+        }
+    )
     sp = se.get_spectrum()  # mag is None -> no normalization
     w = np.arange(6500, 6630, 0.05) * u.AA
     flam = sp(w, flux_unit=su.FLAM).value  # erg/s/cm^2/A
-    integral = trapezoid(flam, w.value)     # erg/s/cm^2
+    integral = trapezoid(flam, w.value)  # erg/s/cm^2
     assert np.isclose(integral, flux, rtol=1e-2)
     # line centroid sits at the requested wavelength
     centroid = trapezoid(flam * w.value, w.value) / integral
@@ -99,10 +124,16 @@ def test_emission_line_recovers_absolute_flux():
 
 
 def test_emission_lines_sum():
-    se = SceneElement.from_config({"spectrum": "emission",
-                                   "lines": [{"wave": 6563, "flux": 1e-15, "fwhm": 3},
-                                             {"wave": 6583, "flux": 4e-16, "fwhm": 3}],
-                                   "mag": None})
+    se = SceneElement.from_config(
+        {
+            "spectrum": "emission",
+            "lines": [
+                {"wave": 6563, "flux": 1e-15, "fwhm": 3},
+                {"wave": 6583, "flux": 4e-16, "fwhm": 3},
+            ],
+            "mag": None,
+        }
+    )
     sp = se.get_spectrum()
     w = np.arange(6400, 6700, 0.05) * u.AA
     flam = sp(w, flux_unit=su.FLAM).value
@@ -112,13 +143,11 @@ def test_emission_lines_sum():
 
 def test_file_source_reads_wavelength_and_flux_columns(tmp_path):
     specfile = tmp_path / "source.dat"
-    np.savetxt(specfile, [[6000.0, 3e-16],
-                          [4000.0, 1e-16],
-                          [5000.0, 2e-16]])
+    np.savetxt(specfile, [[6000.0, 3e-16], [4000.0, 1e-16], [5000.0, 2e-16]])
 
-    se = SceneElement.from_config({"spectrum": "file",
-                                   "source_file": str(specfile),
-                                   "mag": None})
+    se = SceneElement.from_config(
+        {"spectrum": "file", "source_file": str(specfile), "mag": None}
+    )
     sp = se.get_spectrum(apply_mag=False)
     w = np.array([4000.0, 5000.0, 6000.0]) * u.AA
     flam = sp(w, flux_unit=su.FLAM).value
@@ -129,13 +158,17 @@ def test_file_source_reads_named_csv_columns(tmp_path):
     specfile = tmp_path / "source.csv"
     specfile.write_text("wave_nm,flam\n400,1e-16\n500,2e-16\n600,3e-16\n")
 
-    se = SceneElement.from_config({"spectrum": "file",
-                                   "source_file": str(specfile),
-                                   "wave_column": "wave_nm",
-                                   "flux_column": "flam",
-                                   "wave_unit": "nm",
-                                   "flux_unit": "FLAM",
-                                   "mag": None})
+    se = SceneElement.from_config(
+        {
+            "spectrum": "file",
+            "source_file": str(specfile),
+            "wave_column": "wave_nm",
+            "flux_column": "flam",
+            "wave_unit": "nm",
+            "flux_unit": "FLAM",
+            "mag": None,
+        }
+    )
     sp = se.get_spectrum(apply_mag=False)
     flam = sp(np.array([4000.0, 5000.0, 6000.0]) * u.AA, flux_unit=su.FLAM).value
     assert np.allclose(flam, [1e-16, 2e-16, 3e-16])
@@ -143,15 +176,18 @@ def test_file_source_reads_named_csv_columns(tmp_path):
 
 def test_file_source_roundtrips_magnitude(tmp_path):
     specfile = tmp_path / "source.dat"
-    np.savetxt(specfile, [[4000.0, 1e-16],
-                          [5000.0, 2e-16],
-                          [6000.0, 3e-16],
-                          [7000.0, 2e-16]])
+    np.savetxt(
+        specfile, [[4000.0, 1e-16], [5000.0, 2e-16], [6000.0, 3e-16], [7000.0, 2e-16]]
+    )
 
-    se = SceneElement.from_config({"spectrum": "file",
-                                   "source_file": str(specfile),
-                                   "mag": 18,
-                                   "bandpass": "johnson_v"})
+    se = SceneElement.from_config(
+        {
+            "spectrum": "file",
+            "source_file": str(specfile),
+            "mag": 18,
+            "bandpass": "johnson_v",
+        }
+    )
     assert abs(_observed_abmag(se.get_spectrum()) - 18) < 0.01
 
 
@@ -159,12 +195,14 @@ def test_get_scene_from_file_preserves_absolute_flux(tmp_path):
     specfile = tmp_path / "source.csv"
     specfile.write_text("wavelength,flux\n4000,1e-16\n5000,2e-16\n6000,3e-16\n")
 
-    scene = get_scene_from_file(str(specfile),
-                                mag=None,
-                                wave_column="wavelength",
-                                flux_column="flux",
-                                names=True,
-                                background=None)
+    scene = get_scene_from_file(
+        str(specfile),
+        mag=None,
+        wave_column="wavelength",
+        flux_column="flux",
+        names=True,
+        background=None,
+    )
     sp = scene.source.get_spectrum(apply_mag=False)
     flam = sp(np.array([4000.0, 5000.0, 6000.0]) * u.AA, flux_unit=su.FLAM).value
     assert np.allclose(flam, [1e-16, 2e-16, 3e-16])
@@ -176,9 +214,9 @@ def test_update_file_source_rebuilds_spectrum(tmp_path):
     np.savetxt(specfile1, [[4000.0, 1e-16], [5000.0, 2e-16], [6000.0, 3e-16]])
     np.savetxt(specfile2, [[4000.0, 3e-16], [5000.0, 2e-16], [6000.0, 1e-16]])
 
-    se = SceneElement.from_config({"spectrum": "file",
-                                   "source_file": str(specfile1),
-                                   "mag": None})
+    se = SceneElement.from_config(
+        {"spectrum": "file", "source_file": str(specfile1), "mag": None}
+    )
     before = se.get_spectrum(apply_mag=False)(4000 * u.AA, flux_unit=su.FLAM).value
     se.update(source_file=str(specfile2))
     after = se.get_spectrum(apply_mag=False)(4000 * u.AA, flux_unit=su.FLAM).value
@@ -187,19 +225,23 @@ def test_update_file_source_rebuilds_spectrum(tmp_path):
 
 
 def test_get_spectrum_skips_normalization_when_mag_is_none():
-    se = SceneElement.from_config({"spectrum": "blackbody", "teff": 5777,
-                                   "mag": None, "bandpass": "johnson_v"})
+    se = SceneElement.from_config(
+        {"spectrum": "blackbody", "teff": 5777, "mag": None, "bandpass": "johnson_v"}
+    )
     raw = se.get_spectrum(apply_mag=False)
     out = se.get_spectrum(apply_mag=True)  # mag is None -> should be a no-op
     w = np.array([5000.0, 6000.0]) * u.AA
-    assert np.allclose(raw(w, flux_unit=su.FLAM).value,
-                       out(w, flux_unit=su.FLAM).value)
+    assert np.allclose(raw(w, flux_unit=su.FLAM).value, out(w, flux_unit=su.FLAM).value)
 
 
 def test_explicit_none_mag_does_not_warn(recwarn):
-    se = SceneElement.from_config({"spectrum": "emission",
-                                   "lines": [{"wave": 6563, "flux": 1e-15, "fwhm": 3}],
-                                   "mag": None})
+    se = SceneElement.from_config(
+        {
+            "spectrum": "emission",
+            "lines": [{"wave": 6563, "flux": 1e-15, "fwhm": 3}],
+            "mag": None,
+        }
+    )
     se.get_mag()
     assert not any("not mag in self.meta" in str(w.message) for w in recwarn.list)
 
@@ -210,18 +252,22 @@ def _flam_ratio(spectrum, l1, l2):
 
 
 def _planck_ratio(l1, l2, teff):
-    from astropy.constants import h, c, k_B
+    from astropy.constants import c, h, k_B
+
     def b(lam_AA):
         lam = (lam_AA * u.AA).to(u.m).value
-        return 1.0 / lam ** 5 / np.expm1((h.value * c.value) / (lam * k_B.value * teff))
+        return 1.0 / lam**5 / np.expm1((h.value * c.value) / (lam * k_B.value * teff))
+
     return b(l1) / b(l2)
 
 
 def test_mutable_parameters_are_type_specific_and_lock_the_type():
-    bb = SceneElement.from_config({"spectrum": "blackbody", "teff": 5777,
-                                   "mag": 15, "bandpass": "johnson_v"})
-    pl = SceneElement.from_config({"spectrum": "powerlaw", "alpha": -1.0,
-                                   "mag": 15, "bandpass": "johnson_v"})
+    bb = SceneElement.from_config(
+        {"spectrum": "blackbody", "teff": 5777, "mag": 15, "bandpass": "johnson_v"}
+    )
+    pl = SceneElement.from_config(
+        {"spectrum": "powerlaw", "alpha": -1.0, "mag": 15, "bandpass": "johnson_v"}
+    )
     assert "teff" in bb.mutable_parameters
     assert "alpha" not in bb.mutable_parameters
     assert {"alpha", "lambda_ref"} <= set(pl.mutable_parameters)
@@ -231,8 +277,9 @@ def test_mutable_parameters_are_type_specific_and_lock_the_type():
 
 
 def test_cannot_update_spectrum_type(recwarn):
-    bb = SceneElement.from_config({"spectrum": "blackbody", "teff": 5777,
-                                   "mag": 15, "bandpass": "johnson_v"})
+    bb = SceneElement.from_config(
+        {"spectrum": "blackbody", "teff": 5777, "mag": 15, "bandpass": "johnson_v"}
+    )
     before = _flam_ratio(bb.get_spectrum(apply_mag=False), 4500, 7500)
     bb.update(spectrum="powerlaw")
     assert any("not a mutable parameter" in str(w.message) for w in recwarn.list)
@@ -242,28 +289,49 @@ def test_cannot_update_spectrum_type(recwarn):
 
 
 def test_update_blackbody_teff_rebuilds_spectrum():
-    bb = SceneElement.from_config({"spectrum": "blackbody", "teff": 5777,
-                                   "mag": 15, "bandpass": "johnson_v"})
-    assert np.isclose(_flam_ratio(bb.get_spectrum(apply_mag=False), 4500, 7500),
-                      _planck_ratio(4500, 7500, 5777), rtol=1e-3)
+    bb = SceneElement.from_config(
+        {"spectrum": "blackbody", "teff": 5777, "mag": 15, "bandpass": "johnson_v"}
+    )
+    assert np.isclose(
+        _flam_ratio(bb.get_spectrum(apply_mag=False), 4500, 7500),
+        _planck_ratio(4500, 7500, 5777),
+        rtol=1e-3,
+    )
     bb.update(teff=3000)
-    assert np.isclose(_flam_ratio(bb.get_spectrum(apply_mag=False), 4500, 7500),
-                      _planck_ratio(4500, 7500, 3000), rtol=1e-3)
+    assert np.isclose(
+        _flam_ratio(bb.get_spectrum(apply_mag=False), 4500, 7500),
+        _planck_ratio(4500, 7500, 3000),
+        rtol=1e-3,
+    )
 
 
 def test_update_powerlaw_alpha_rebuilds_spectrum():
-    pl = SceneElement.from_config({"spectrum": "powerlaw", "alpha": -1.0,
-                                   "mag": 15, "bandpass": "johnson_v"})
-    assert np.isclose(_flam_ratio(pl.get_spectrum(apply_mag=False), 4500, 7500),
-                      (4500 / 7500) ** -1.0, rtol=1e-3)
+    pl = SceneElement.from_config(
+        {"spectrum": "powerlaw", "alpha": -1.0, "mag": 15, "bandpass": "johnson_v"}
+    )
+    assert np.isclose(
+        _flam_ratio(pl.get_spectrum(apply_mag=False), 4500, 7500),
+        (4500 / 7500) ** -1.0,
+        rtol=1e-3,
+    )
     pl.update(alpha=2.0)
-    assert np.isclose(_flam_ratio(pl.get_spectrum(apply_mag=False), 4500, 7500),
-                      (4500 / 7500) ** 2.0, rtol=1e-3)
+    assert np.isclose(
+        _flam_ratio(pl.get_spectrum(apply_mag=False), 4500, 7500),
+        (4500 / 7500) ** 2.0,
+        rtol=1e-3,
+    )
 
 
 def test_update_powerlaw_lambda_ref_rebuilds_spectrum():
-    pl = SceneElement.from_config({"spectrum": "powerlaw", "alpha": -1.0,
-                                   "lambda_ref": 5500, "mag": 15, "bandpass": "johnson_v"})
+    pl = SceneElement.from_config(
+        {
+            "spectrum": "powerlaw",
+            "alpha": -1.0,
+            "lambda_ref": 5500,
+            "mag": 15,
+            "bandpass": "johnson_v",
+        }
+    )
     # unnormalized amplitude is 1 FLAM at the pivot wavelength
     sp = pl.get_spectrum(apply_mag=False)
     assert np.isclose(sp(5500 * u.AA, flux_unit=su.FLAM).value, 1.0, rtol=1e-6)
@@ -273,10 +341,14 @@ def test_update_powerlaw_lambda_ref_rebuilds_spectrum():
 
 
 def test_update_flat_unit_rebuilds_spectrum():
-    fl = SceneElement.from_config({"spectrum": "flat", "flat_unit": "fnu",
-                                   "mag": 15, "bandpass": "johnson_v"})
+    fl = SceneElement.from_config(
+        {"spectrum": "flat", "flat_unit": "fnu", "mag": 15, "bandpass": "johnson_v"}
+    )
     sp = fl.get_spectrum(apply_mag=False)
-    assert sp(4000 * u.AA, flux_unit=su.FLAM).value > sp(8000 * u.AA, flux_unit=su.FLAM).value
+    assert (
+        sp(4000 * u.AA, flux_unit=su.FLAM).value
+        > sp(8000 * u.AA, flux_unit=su.FLAM).value
+    )
     fl.update(flat_unit="flam")
     sp = fl.get_spectrum(apply_mag=False)
     flam = sp(np.array([4000.0, 6000.0, 8000.0]) * u.AA, flux_unit=su.FLAM).value
@@ -284,9 +356,13 @@ def test_update_flat_unit_rebuilds_spectrum():
 
 
 def test_update_emission_lines_rebuilds_spectrum():
-    em = SceneElement.from_config({"spectrum": "emission",
-                                   "lines": [{"wave": 6563, "flux": 1e-15, "fwhm": 3}],
-                                   "mag": None})
+    em = SceneElement.from_config(
+        {
+            "spectrum": "emission",
+            "lines": [{"wave": 6563, "flux": 1e-15, "fwhm": 3}],
+            "mag": None,
+        }
+    )
     p0 = em.get_spectrum()(6563 * u.AA, flux_unit=su.FLAM).value
     em.update(lines=[{"wave": 6563, "flux": 5e-15, "fwhm": 3}])
     p1 = em.get_spectrum()(6563 * u.AA, flux_unit=su.FLAM).value
@@ -295,9 +371,15 @@ def test_update_emission_lines_rebuilds_spectrum():
 
 def test_scene_update_rebuilds_source_spectrum():
     import wcc_etc
-    scene = wcc_etc.get_scene(name="blackbody", mag=15, teff=5777, bandpass="johnson_r",
-                              background="zodi",
-                              background_prop={"bandpass": "johnson_r", "mag": 22.5})
+
+    scene = wcc_etc.get_scene(
+        name="blackbody",
+        mag=15,
+        teff=5777,
+        bandpass="johnson_r",
+        background="zodi",
+        background_prop={"bandpass": "johnson_r", "mag": 22.5},
+    )
     before = _flam_ratio(scene.source.get_spectrum(apply_mag=False), 4500, 7500)
     scene.update(source__teff=3000)
     after = _flam_ratio(scene.source.get_spectrum(apply_mag=False), 4500, 7500)
@@ -334,7 +416,9 @@ def test_sceneelement_get_mag_surface_brightness_and_units():
     assert magq.unit.is_equivalent(u.ABmag)
 
     # surface brightness: mag per arcsec^2
-    se_sb = SceneElement(spectrum=None, mag=22.0, magsys="abmag", surface_brightness=True)
+    se_sb = SceneElement(
+        spectrum=None, mag=22.0, magsys="abmag", surface_brightness=True
+    )
     # area as float (arcsec^2)
     area = 4.0
     mag_area = se_sb.get_mag(area=area)
@@ -387,20 +471,24 @@ def _band_ab_vega_offset(band_name):
 
 def _inband_flam(scene_element, band_name):
     band = SpectralElement.from_filter(band_name)
-    return Observation(scene_element.get_spectrum(), band,
-                       force="extrap").effstim(su.FLAM).value
+    return (
+        Observation(scene_element.get_spectrum(), band, force="extrap")
+        .effstim(su.FLAM)
+        .value
+    )
 
 
 def test_resolve_magsys_aliases_case_insensitive():
     from wcc_etc.scene import _resolve_magsys
+
     assert _resolve_magsys("abmag") == u.ABmag
     assert _resolve_magsys("ABMAG") == u.ABmag
     assert _resolve_magsys("AbMag") == u.ABmag
     assert _resolve_magsys("vegamag") == su.VEGAMAG
     assert _resolve_magsys("VEGAMAG") == su.VEGAMAG
-    assert _resolve_magsys(u.ABmag) == u.ABmag          # unit object passthrough
+    assert _resolve_magsys(u.ABmag) == u.ABmag  # unit object passthrough
     with pytest.raises(ValueError):
-        _resolve_magsys("vega")                          # loose alias rejected
+        _resolve_magsys("vega")  # loose alias rejected
     with pytest.raises(ValueError):
         _resolve_magsys("AB")
     with pytest.raises(ValueError):
@@ -409,10 +497,12 @@ def test_resolve_magsys_aliases_case_insensitive():
 
 def test_vegamag_normalization_runs_and_differs_from_ab():
     band_name = "johnson_r"
-    se_ab = SceneElement.from_config({"spectrum": "flat", "mag": 15,
-                                      "magsys": "abmag", "bandpass": band_name})
-    se_vg = SceneElement.from_config({"spectrum": "flat", "mag": 15,
-                                      "magsys": "vegamag", "bandpass": band_name})
+    se_ab = SceneElement.from_config(
+        {"spectrum": "flat", "mag": 15, "magsys": "abmag", "bandpass": band_name}
+    )
+    se_vg = SceneElement.from_config(
+        {"spectrum": "flat", "mag": 15, "magsys": "vegamag", "bandpass": band_name}
+    )
     ratio = _inband_flam(se_vg, band_name) / _inband_flam(se_ab, band_name)
     expected = 10 ** (-0.4 * _band_ab_vega_offset(band_name))
     assert np.isclose(ratio, expected, rtol=1e-6)
@@ -421,13 +511,15 @@ def test_vegamag_normalization_runs_and_differs_from_ab():
 def test_cross_system_offset_is_band_dependent():
     off_v = _band_ab_vega_offset("johnson_v")
     off_k = _band_ab_vega_offset("johnson_k")
-    assert abs(off_v) < 0.05          # V offset is ~0
-    assert off_k > 1.5                # K offset is ~1.9 mag, much larger
+    assert abs(off_v) < 0.05  # V offset is ~0
+    assert off_k > 1.5  # K offset is ~1.9 mag, much larger
     for band_name in ("johnson_v", "johnson_k"):
-        se_ab = SceneElement.from_config({"spectrum": "flat", "mag": 12,
-                                          "magsys": "abmag", "bandpass": band_name})
-        se_vg = SceneElement.from_config({"spectrum": "flat", "mag": 12,
-                                          "magsys": "vegamag", "bandpass": band_name})
+        se_ab = SceneElement.from_config(
+            {"spectrum": "flat", "mag": 12, "magsys": "abmag", "bandpass": band_name}
+        )
+        se_vg = SceneElement.from_config(
+            {"spectrum": "flat", "mag": 12, "magsys": "vegamag", "bandpass": band_name}
+        )
         ratio = _inband_flam(se_vg, band_name) / _inband_flam(se_ab, band_name)
         expected = 10 ** (-0.4 * _band_ab_vega_offset(band_name))
         assert np.isclose(ratio, expected, rtol=1e-6)
@@ -435,8 +527,9 @@ def test_cross_system_offset_is_band_dependent():
 
 def test_vegamag_roundtrips():
     band_name = "johnson_r"
-    se = SceneElement.from_config({"spectrum": "flat", "mag": 14.0,
-                                   "magsys": "vegamag", "bandpass": band_name})
+    se = SceneElement.from_config(
+        {"spectrum": "flat", "mag": 14.0, "magsys": "vegamag", "bandpass": band_name}
+    )
     vega = SourceSpectrum.from_vega()
     band = SpectralElement.from_filter(band_name)
     obs = Observation(se.get_spectrum(), band, force="extrap")
@@ -445,8 +538,10 @@ def test_vegamag_roundtrips():
 
 def test_default_magsys_is_vegamag():
     import wcc_etc
-    se = SceneElement.from_config({"spectrum": "flat", "mag": 15,
-                                   "bandpass": "johnson_r"})
+
+    se = SceneElement.from_config(
+        {"spectrum": "flat", "mag": 15, "bandpass": "johnson_r"}
+    )
     assert se.mag.unit == su.VEGAMAG
     scene = wcc_etc.get_scene(name="G5V", mag=15, background="zodi")
     assert scene.source.mag.unit == su.VEGAMAG

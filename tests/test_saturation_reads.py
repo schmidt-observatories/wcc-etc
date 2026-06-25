@@ -1,11 +1,16 @@
 import numpy as np
+
 import wcc_etc
 
 
 def _sim(mag):
-    scene = wcc_etc.get_scene(name="G5V", mag=mag, background="zodi",
-                              bandpass="johnson_r",
-                              background_prop={"bandpass": "johnson_r", "mag": 22.5})
+    scene = wcc_etc.get_scene(
+        name="G5V",
+        mag=mag,
+        background="zodi",
+        bandpass="johnson_r",
+        background_prop={"bandpass": "johnson_r", "mag": 22.5},
+    )
     return wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
 
 
@@ -26,5 +31,5 @@ def test_peak_pixel_scales_inverse_with_reads_above_bias():
 def test_more_reads_can_unsaturate_a_bright_star():
     # mag=17: saturates in a single 60-s frame; splits to under full-well at n_reads=100
     sim = _sim(17)
-    assert sim.is_saturated(60, n_reads=1)            # one long frame clips
-    assert not sim.is_saturated(60, n_reads=100)      # split -> per-frame under full well
+    assert sim.is_saturated(60, n_reads=1)  # one long frame clips
+    assert not sim.is_saturated(60, n_reads=100)  # split -> per-frame under full well

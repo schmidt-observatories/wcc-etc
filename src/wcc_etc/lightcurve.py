@@ -7,8 +7,8 @@ baseline brightness as the per-point error. The flux models themselves
 (`FluxModel`, `TransitModel`) live in the instrument-agnostic `lazuli_transit`
 package and are re-exported here for backward compatibility.
 """
-import numpy as np
 
+import numpy as np
 from lazuli_transit import FluxModel, TransitModel  # noqa: F401  (re-export)
 
 
@@ -34,13 +34,16 @@ class LightCurve:
         self.snr = float(snr)
 
     def __repr__(self):
-        return (f"LightCurve(n={self.time.size}, snr={self.snr:.1f}, "
-                f"flux_err={self.flux_err:.3g}, exptime={self.exptime:g}s)")
+        return (
+            f"LightCurve(n={self.time.size}, snr={self.snr:.1f}, "
+            f"flux_err={self.flux_err:.3g}, exptime={self.exptime:g}s)"
+        )
 
     def plot(self, backend="mpl", **kw):
         """Plot this light curve. Wired to plotting.py (lazy import to avoid
         an import cycle, mirroring SimulatedImage)."""
         from . import plotting
+
         if backend == "mpl":
             return plotting.plot_lightcurve_mpl(self, **kw)
         if backend == "bokeh":
@@ -55,13 +58,28 @@ class LightCurveSimulator:
         self.sim = sim
         self.model = model
 
-    def simulate(self, time, exptime, *, r_aper_mas=None, ee_frac=None,
-                 psf=None, jitter_sigma_mas=None, npix=128, seed=None):
+    def simulate(
+        self,
+        time,
+        exptime,
+        *,
+        r_aper_mas=None,
+        ee_frac=None,
+        psf=None,
+        jitter_sigma_mas=None,
+        npix=128,
+        seed=None,
+    ):
         time = np.asarray(time, dtype=float)
         result = self.sim.get_image_snr(
-            time=float(exptime), n_reads=1, r_aper_mas=r_aper_mas,
-            ee_frac=ee_frac, psf=psf, jitter_sigma_mas=jitter_sigma_mas,
-            npix=npix)
+            time=float(exptime),
+            n_reads=1,
+            r_aper_mas=r_aper_mas,
+            ee_frac=ee_frac,
+            psf=psf,
+            jitter_sigma_mas=jitter_sigma_mas,
+            npix=npix,
+        )
         snr = float(result["snr"])
         sigma = 1.0 / snr
         flux_clean = self.model.relative_flux(time)

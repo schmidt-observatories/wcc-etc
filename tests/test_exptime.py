@@ -1,13 +1,17 @@
 import numpy as np
-import astropy.units as u
 import pytest
+
 import wcc_etc
 
 
 def _sim(mag=15):
-    scene = wcc_etc.get_scene(name="G5V", mag=mag, background="zodi",
-                              bandpass="johnson_r",
-                              background_prop={"bandpass": "johnson_r", "mag": 22.5})
+    scene = wcc_etc.get_scene(
+        name="G5V",
+        mag=mag,
+        background="zodi",
+        bandpass="johnson_r",
+        background_prop={"bandpass": "johnson_r", "mag": 22.5},
+    )
     return wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
 
 
@@ -54,13 +58,14 @@ def test_exptime_for_snr_roundtrips_with_reads():
 def test_exptime_uses_meta_n_reads_when_unset():
     sim = _sim(mag=18)
     sim.update(n_reads=5)
-    t_meta = sim.get_exptime_for_snr(50.0)            # resolves n_reads=5 from meta
+    t_meta = sim.get_exptime_for_snr(50.0)  # resolves n_reads=5 from meta
     t_explicit = sim.get_exptime_for_snr(50.0, n_reads=5)
     assert np.isclose(t_meta.value, t_explicit.value, rtol=1e-9)
 
 
 def test_n_reads_below_one_raises():
     import pytest
+
     sim = _sim()
     with pytest.raises(ValueError):
         sim.get_snr(60, n_reads=0)

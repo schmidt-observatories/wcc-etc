@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
+
 from wcc_etc.simulation import (
-    calculate_bg_normalization_magnitude,
     Simulation,
+    calculate_bg_normalization_magnitude,
 )
 
 
@@ -53,15 +54,20 @@ def test_has_element_and_setting_attribute():
     assert sim.has_element("telescope") is True
 
 
-import wcc_etc
 import astropy.units as u
+
+import wcc_etc
 
 
 def _bright_sim(mag=20, sensor="sony:r"):
     scene = wcc_etc.get_scene(
-        name='G5V', mag=mag, host=None, background="zodi",
-        bandpass='johnson_r',
-        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+        name="G5V",
+        mag=mag,
+        host=None,
+        background="zodi",
+        bandpass="johnson_r",
+        background_prop={"bandpass": "johnson_r", "mag": 22.5},
+    )
     return wcc_etc.Simulation.from_sensor_and_scene(sensor, scene)
 
 
@@ -127,15 +133,24 @@ def test_get_peak_pixel_excludes_host():
     # host elements are intentionally excluded from the saturation budget,
     # so adding a host must not change the peak-pixel value.
     scene_no_host = wcc_etc.get_scene(
-        name='G5V', mag=15, host=None, background="zodi",
-        bandpass='johnson_r',
-        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+        name="G5V",
+        mag=15,
+        host=None,
+        background="zodi",
+        bandpass="johnson_r",
+        background_prop={"bandpass": "johnson_r", "mag": 22.5},
+    )
     sim_no_host = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene_no_host)
 
     scene_host = wcc_etc.get_scene(
-        name='G5V', mag=15, host='G5V', host_prop={"mag": 16, "bandpass": 'johnson_r'},
-        background="zodi", bandpass='johnson_r',
-        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+        name="G5V",
+        mag=15,
+        host="G5V",
+        host_prop={"mag": 16, "bandpass": "johnson_r"},
+        background="zodi",
+        bandpass="johnson_r",
+        background_prop={"bandpass": "johnson_r", "mag": 22.5},
+    )
     sim_host = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene_host)
 
     no_host = sim_no_host.get_peak_pixel(100, units="e-").value
@@ -160,7 +175,14 @@ def test_is_saturated_accepts_array_time():
 def test_get_image_snr_returns_expected_keys():
     sim = _bright_sim(16)
     out = sim.get_image_snr(time=60)
-    assert set(out) >= {"snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas", "n_pix"}
+    assert set(out) >= {
+        "snr",
+        "signal_e",
+        "noise_e",
+        "enclosed_fraction",
+        "r_aper_mas",
+        "n_pix",
+    }
     assert 0 < out["enclosed_fraction"] <= 1
     assert out["n_pix"] >= 1
     assert out["snr"] > 0
@@ -194,16 +216,18 @@ def test_get_image_snr_optimize_at_least_default():
 def test_get_image_snr_defocus_lower_at_fixed_aperture():
     sim = _bright_sim(16)
     airy = sim.get_image_snr(time=60, r_aper_mas=70)["snr"]
-    defo = sim.get_image_snr(time=60, r_aper_mas=70,
-                             psf=wcc_etc.DefocusPSF(wcc_etc.DEFOCUS_2WAVE_PATH))["snr"]
+    defo = sim.get_image_snr(
+        time=60, r_aper_mas=70, psf=wcc_etc.DefocusPSF(wcc_etc.DEFOCUS_2WAVE_PATH)
+    )["snr"]
     assert defo < airy
 
 
 def test_get_image_snr_optimize_defocus_uses_larger_radius():
     sim = _bright_sim(16)
     r_airy = sim.get_image_snr(time=60, optimize=True)["r_aper_mas"]
-    r_defo = sim.get_image_snr(time=60, optimize=True,
-                               psf=wcc_etc.DefocusPSF(wcc_etc.DEFOCUS_2WAVE_PATH))["r_aper_mas"]
+    r_defo = sim.get_image_snr(
+        time=60, optimize=True, psf=wcc_etc.DefocusPSF(wcc_etc.DEFOCUS_2WAVE_PATH)
+    )["r_aper_mas"]
     assert r_defo > r_airy
 
 
@@ -214,37 +238,41 @@ def test_get_image_snr_runs_on_qcmos():
 
 def test_get_image_snr_no_background_runs():
     # scene with no background exercises the diffuse_per_pix == 0 path
-    scene = wcc_etc.get_scene(name='G5V', mag=16, host=None, background=None,
-                              bandpass='johnson_r')
-    sim = wcc_etc.Simulation.from_sensor_and_scene('sony:r', scene)
+    scene = wcc_etc.get_scene(
+        name="G5V", mag=16, host=None, background=None, bandpass="johnson_r"
+    )
+    sim = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
     out = sim.get_image_snr(time=60)
-    assert out['snr'] > 0
-    assert out['n_pix'] >= 1
+    assert out["snr"] > 0
+    assert out["n_pix"] >= 1
 
 
 def test_image_render_bundle_cached(monkeypatch):
     import wcc_etc.psfsim as psfsim
+
     sim = _bright_sim(16)
     calls = {"n": 0}
     orig = psfsim.AiryPSF.render
+
     def counting_render(self, ctx):
         calls["n"] += 1
         return orig(self, ctx)
+
     monkeypatch.setattr(psfsim.AiryPSF, "render", counting_render)
     a = sim.get_image_snr(time=30)["snr"]
     b = sim.get_image_snr(time=60)["snr"]
-    assert calls["n"] == 1                       # rendered once, reused
+    assert calls["n"] == 1  # rendered once, reused
     assert len(sim._image_render_bundle_cache) == 1
-    assert b > a                                 # longer exposure -> higher SNR
+    assert b > a  # longer exposure -> higher SNR
 
 
 def test_update_invalidates_render_cache():
     sim = _bright_sim(16)
     snr1 = sim.get_image_snr(time=60)["snr"]
     assert len(sim._image_render_bundle_cache) == 1
-    sim.update(source__mag=20)                   # fainter source
+    sim.update(source__mag=20)  # fainter source
     assert len(sim._image_render_bundle_cache) == 0
-    assert len(sim._psf_profile) == 0            # stale-PSF bug fix
+    assert len(sim._psf_profile) == 0  # stale-PSF bug fix
     snr2 = sim.get_image_snr(time=60)["snr"]
     assert snr2 < snr1
 
@@ -261,7 +289,7 @@ def test_set_sensor_clears_render_cache():
     sim = _bright_sim(16)
     sim.get_image_snr(time=60)
     assert len(sim._image_render_bundle_cache) == 1
-    sim.set_sensor(sim.sensor)            # re-setting must drop the render cache
+    sim.set_sensor(sim.sensor)  # re-setting must drop the render cache
     assert len(sim._image_render_bundle_cache) == 0
 
 
@@ -269,7 +297,7 @@ def test_set_telescope_clears_render_cache():
     sim = _bright_sim(16)
     sim.get_image_snr(time=60)
     assert len(sim._image_render_bundle_cache) == 1
-    sim.set_telescope(sim.telescope)      # re-setting must drop the render cache
+    sim.set_telescope(sim.telescope)  # re-setting must drop the render cache
     assert len(sim._image_render_bundle_cache) == 0
 
 
@@ -284,14 +312,14 @@ def test_reset_clears_render_cache():
 def test_render_cache_tracks_direct_telescope_jitter_change():
     sim = _bright_sim(16)
     snr1 = sim.get_image_snr(time=60)["snr"]
-    sim.telescope.update(jitter_sigma=80)   # direct mutation, bypasses Simulation.update
+    sim.telescope.update(jitter_sigma=80)  # direct mutation, bypasses Simulation.update
     snr2 = sim.get_image_snr(time=60)["snr"]
-    assert snr2 < snr1                       # more jitter -> lower fixed-aperture SNR, not a stale hit
+    assert snr2 < snr1  # more jitter -> lower fixed-aperture SNR, not a stale hit
 
 
 def test_get_image_snr_array_time():
     sim = _bright_sim(16)
-    times = np.array([30., 60., 120.])
+    times = np.array([30.0, 60.0, 120.0])
     out = sim.get_image_snr(time=times)
     assert np.shape(out["snr"]) == (3,)
     assert np.shape(out["n_pix"]) == (3,)
@@ -308,7 +336,7 @@ def test_get_image_snr_array_time():
 
 def test_get_image_snr_array_time_optimize():
     sim = _bright_sim(16)
-    times = np.array([30., 300., 3000.])
+    times = np.array([30.0, 300.0, 3000.0])
     out = sim.get_image_snr(time=times, optimize=True)
     assert np.shape(out["r_aper_mas"]) == (3,)
     # each element matches the corresponding scalar optimize call
@@ -328,25 +356,31 @@ def test_get_image_snr_scalar_still_dict_of_floats():
 def test_get_snr_airy_deprecated_matches_analytic():
     sim = _bright_sim(16)
     import warnings
+
     with pytest.warns(DeprecationWarning):
         airy = sim.get_snr_airy(60)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         signal, variance = sim.get_signal_and_variance(60)
-    assert float(airy.value) == pytest.approx(float((signal / np.sqrt(variance)).value), rel=1e-12)
+    assert float(airy.value) == pytest.approx(
+        float((signal / np.sqrt(variance)).value), rel=1e-12
+    )
 
 
 def test_get_snr_delegates_to_image_snr():
     sim = _bright_sim(16)
-    assert sim.get_snr(60)["snr"] == pytest.approx(sim.get_image_snr(time=60)["snr"], rel=1e-12)
+    assert sim.get_snr(60)["snr"] == pytest.approx(
+        sim.get_image_snr(time=60)["snr"], rel=1e-12
+    )
     # overrides are forwarded
     assert sim.get_snr(60, n_reads=3)["snr"] == pytest.approx(
-        sim.get_image_snr(time=60, n_reads=3)["snr"], rel=1e-12)
+        sim.get_image_snr(time=60, n_reads=3)["snr"], rel=1e-12
+    )
 
 
 def test_get_snr_array_time():
     sim = _bright_sim(16)
-    out = sim.get_snr(np.array([30., 60., 120.]))
+    out = sim.get_snr(np.array([30.0, 60.0, 120.0]))
     assert out["snr"][0] < out["snr"][1] < out["snr"][2]
 
 
@@ -363,14 +397,19 @@ def test_set_scene_clears_render_cache():
     sim = _bright_sim(15)
     snr1 = sim.get_snr(90)["snr"]
     assert len(sim._image_render_bundle_cache) == 1
-    faint = wcc_etc.get_scene(name='G5V', mag=22, host=None, background="zodi",
-                              bandpass='johnson_r',
-                              background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+    faint = wcc_etc.get_scene(
+        name="G5V",
+        mag=22,
+        host=None,
+        background="zodi",
+        bandpass="johnson_r",
+        background_prop={"bandpass": "johnson_r", "mag": 22.5},
+    )
     sim.set_scene(faint)
-    assert len(sim._image_render_bundle_cache) == 0   # scene drives count rates
+    assert len(sim._image_render_bundle_cache) == 0  # scene drives count rates
     assert len(sim._psf_profile) == 0
     snr2 = sim.get_snr(90)["snr"]
-    assert snr2 < snr1                                 # fainter scene -> lower SNR, not a stale hit
+    assert snr2 < snr1  # fainter scene -> lower SNR, not a stale hit
 
 
 def test_get_image_snr_mags_scalar_matches_rebuild():
@@ -396,10 +435,14 @@ def test_get_image_snr_mags_requires_set_magnitude():
     # a mag=None source (absolute-flux sentinel) must give a clear ValueError,
     # not a bare AttributeError, when a mags sweep is requested
     scene = wcc_etc.get_scene(
-        name='G5V', mag=None, host=None, background="zodi",
-        bandpass='johnson_r',
-        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
-    sim = wcc_etc.Simulation.from_sensor_and_scene('sony:r', scene)
+        name="G5V",
+        mag=None,
+        host=None,
+        background="zodi",
+        bandpass="johnson_r",
+        background_prop={"bandpass": "johnson_r", "mag": 22.5},
+    )
+    sim = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
     with pytest.raises(ValueError, match="set magnitude"):
         sim.get_image_snr(time=60, mags=20)
 
@@ -407,7 +450,7 @@ def test_get_image_snr_mags_requires_set_magnitude():
 def test_get_image_snr_mags_array_matches_rebuild():
     # the whole point: a mags sweep equals a per-magnitude rebuild, exactly
     sim = _bright_sim(20)
-    mags = np.array([10., 15., 20., 25., 28.])
+    mags = np.array([10.0, 15.0, 20.0, 25.0, 28.0])
     out = sim.get_image_snr(time=60, mags=mags)
     assert np.shape(out["snr"]) == (5,)
     assert np.shape(out["n_pix"]) == (5,)
@@ -423,7 +466,7 @@ def test_get_image_snr_mags_array_matches_rebuild():
 
 def test_get_image_snr_mags_array_length_one():
     sim = _bright_sim(20)
-    out = sim.get_image_snr(time=60, mags=[20.])
+    out = sim.get_image_snr(time=60, mags=[20.0])
     scalar = sim.get_image_snr(time=60)
     assert np.shape(out["snr"]) == (1,)
     assert out["snr"][0] == pytest.approx(scalar["snr"], rel=1e-12)
@@ -432,7 +475,7 @@ def test_get_image_snr_mags_array_length_one():
 def test_get_image_snr_mags_array_optimize_aperture_non_increasing():
     # under optimize, the SNR-optimal aperture should not grow as the source faints
     sim = _bright_sim(18)
-    mags = np.array([14., 18., 22., 26.])
+    mags = np.array([14.0, 18.0, 22.0, 26.0])
     out = sim.get_image_snr(time=60, mags=mags, optimize=True)
     r = out["r_aper_mas"]
     assert np.all(np.diff(r) <= 1e-9)
@@ -445,13 +488,18 @@ def test_get_image_snr_mags_array_optimize_aperture_non_increasing():
 def test_get_image_snr_time_and_mags_both_arrays_raises():
     sim = _bright_sim(20)
     with pytest.raises(ValueError, match="both be arrays"):
-        sim.get_image_snr(time=np.array([30., 60.]), mags=np.array([18., 20.]))
+        sim.get_image_snr(time=np.array([30.0, 60.0]), mags=np.array([18.0, 20.0]))
 
 
 def test_get_image_snr_mags_without_source_raises():
     scene = wcc_etc.get_scene(
-        name='G5V', mag=20, host=None, background="zodi", bandpass='johnson_r',
-        background_prop={"bandpass": 'johnson_r', "mag": 22.5})
+        name="G5V",
+        mag=20,
+        host=None,
+        background="zodi",
+        bandpass="johnson_r",
+        background_prop={"bandpass": "johnson_r", "mag": 22.5},
+    )
     sim = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
     sim.scene._source = None  # strip the source to hit the guard
     with pytest.raises(ValueError, match="requires a scene with a source"):

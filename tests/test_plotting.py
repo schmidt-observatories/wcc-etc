@@ -1,20 +1,28 @@
 # tests/test_plotting.py
+import matplotlib
 import numpy as np
 import pytest
-import matplotlib
+
 matplotlib.use("Agg")
 
-from wcc_etc.psfsim import SimulatedImage, AiryPSF
 from wcc_etc import plotting
+from wcc_etc.psfsim import AiryPSF, SimulatedImage
 
 
 def _make_simimg(npix=2):
     image_e = np.array([[100.0, 200.0], [300.0, 9e9]])
     clean = np.array([[100.0, 200.0], [300.0, 400.0]])
     sat = np.array([[False, False], [False, True]])
-    return SimulatedImage(image_e=image_e, image_clean=clean, saturation_mask=sat,
-                          gain=2.0, bias_level=100.0, npix=npix,
-                          pixel_scale_mas=20.0, psf=AiryPSF())
+    return SimulatedImage(
+        image_e=image_e,
+        image_clean=clean,
+        saturation_mask=sat,
+        gain=2.0,
+        bias_level=100.0,
+        npix=npix,
+        pixel_scale_mas=20.0,
+        psf=AiryPSF(),
+    )
 
 
 def test_resolve_inputs_from_simimg():
@@ -28,8 +36,11 @@ def test_resolve_inputs_from_simimg():
 
 def test_resolve_inputs_from_arrays():
     ie, ic, sat, ps = plotting._resolve_inputs(
-        image_e=np.zeros((2, 2)), image_clean=np.ones((2, 2)),
-        saturation_mask=np.zeros((2, 2), bool), pixel_scale_mas=5.0)
+        image_e=np.zeros((2, 2)),
+        image_clean=np.ones((2, 2)),
+        saturation_mask=np.zeros((2, 2), bool),
+        pixel_scale_mas=5.0,
+    )
     assert ps == 5.0
     assert np.array_equal(ic, np.ones((2, 2)))
 
@@ -48,14 +59,15 @@ def test_image_extent_mas_vs_pix():
 
 def test_make_norm_returns_expected_types():
     from astropy.visualization.mpl_normalize import ImageNormalize
+
     data = np.array([[1.0, 2.0], [3.0, 4.0]])
     assert plotting._make_norm(data, "linear") is None
     assert isinstance(plotting._make_norm(data, "log"), ImageNormalize)
     assert isinstance(plotting._make_norm(data, "hist"), ImageNormalize)
 
 
-import matplotlib.figure
 import matplotlib.axes
+import matplotlib.figure
 
 
 def test_plot_image_mpl_returns_fig_ax():
@@ -95,9 +107,12 @@ def test_plot_image_mpl_equal_aspect():
 
 def test_plot_image_mpl_accepts_raw_arrays():
     fig, ax = plotting.plot_image_mpl(
-        image_e=np.ones((4, 4)), image_clean=np.zeros((4, 4)),
-        saturation_mask=np.zeros((4, 4), bool), pixel_scale_mas=10.0,
-        stretch="linear")
+        image_e=np.ones((4, 4)),
+        image_clean=np.zeros((4, 4)),
+        saturation_mask=np.zeros((4, 4), bool),
+        pixel_scale_mas=10.0,
+        stretch="linear",
+    )
     assert isinstance(fig, matplotlib.figure.Figure)
 
 
@@ -115,8 +130,8 @@ def test_plot_image_row_mpl_panel_data():
     assert np.array_equal(axes[0].get_images()[0].get_array().data, s.image_e)
     assert np.array_equal(axes[1].get_images()[0].get_array().data, s.image_clean)
     assert np.array_equal(
-        np.asarray(axes[2].get_images()[0].get_array()).astype(bool),
-        s.saturation_mask)
+        np.asarray(axes[2].get_images()[0].get_array()).astype(bool), s.saturation_mask
+    )
 
 
 def test_plot_image_row_mpl_shared_color_scale():
@@ -129,11 +144,17 @@ def test_plot_image_row_mpl_shared_color_scale():
 def _gaussian_simimg(npix=41, sigma=4.0, scale=20.0):
     c = (npix - 1) / 2
     yy, xx = np.mgrid[0:npix, 0:npix]
-    g = np.exp(-(((xx - c) ** 2 + (yy - c) ** 2) / (2 * sigma ** 2)))
-    return SimulatedImage(image_e=g.copy(), image_clean=g.copy(),
-                          saturation_mask=np.zeros_like(g, bool),
-                          gain=1.0, bias_level=0.0, npix=npix,
-                          pixel_scale_mas=scale, psf=AiryPSF())
+    g = np.exp(-(((xx - c) ** 2 + (yy - c) ** 2) / (2 * sigma**2)))
+    return SimulatedImage(
+        image_e=g.copy(),
+        image_clean=g.copy(),
+        saturation_mask=np.zeros_like(g, bool),
+        gain=1.0,
+        bias_level=0.0,
+        npix=npix,
+        pixel_scale_mas=scale,
+        psf=AiryPSF(),
+    )
 
 
 def test_plot_radial_mpl_returns_fig_ax_and_decreasing():
@@ -159,8 +180,7 @@ def test_plot_ee_mpl_monotonic_to_one():
 
 def test_plot_ee_mpl_target_marker_returns_radius():
     s = _gaussian_simimg()
-    fig, ax, (r, ee) = plotting.plot_encircled_energy_mpl(
-        s, units="mas", ee_target=0.8)
+    fig, ax, (r, ee) = plotting.plot_encircled_energy_mpl(s, units="mas", ee_target=0.8)
     idx = np.searchsorted(ee, 0.8)
     assert 0 < idx < len(r)
 
@@ -189,9 +209,12 @@ def test_plot_image_bokeh_bad_return_raises():
 
 def test_plot_image_bokeh_accepts_raw_arrays():
     obj = plotting.plot_image_bokeh(
-        image_e=np.ones((8, 8)), image_clean=np.zeros((8, 8)),
-        saturation_mask=np.zeros((8, 8), bool), pixel_scale_mas=10.0,
-        return_="obj")
+        image_e=np.ones((8, 8)),
+        image_clean=np.zeros((8, 8)),
+        saturation_mask=np.zeros((8, 8), bool),
+        pixel_scale_mas=10.0,
+        return_="obj",
+    )
     assert isinstance(obj, Plot)
 
 
@@ -252,15 +275,25 @@ def test_simimg_method_bad_backend_raises():
 
 def test_plotting_functions_exported():
     import wcc_etc
-    for name in ["plot_image_mpl", "plot_image_bokeh", "plot_image_row_mpl",
-                 "plot_image_row_bokeh", "plot_radial_mpl", "plot_radial_bokeh",
-                 "plot_encircled_energy_mpl", "plot_encircled_energy_bokeh"]:
+
+    for name in [
+        "plot_image_mpl",
+        "plot_image_bokeh",
+        "plot_image_row_mpl",
+        "plot_image_row_bokeh",
+        "plot_radial_mpl",
+        "plot_radial_bokeh",
+        "plot_encircled_energy_mpl",
+        "plot_encircled_energy_bokeh",
+    ]:
         assert hasattr(wcc_etc, name), f"{name} not exported from wcc_etc"
 
 
 def test_set_wcc_style_updates_rcparams():
     import matplotlib as mpl
+
     import wcc_etc
+
     saved = {k: mpl.rcParams[k] for k in plotting.WCC_STYLE}
     try:
         mpl.rcParams["axes.formatter.useoffset"] = True
@@ -283,6 +316,7 @@ def test_set_wcc_style_updates_rcparams():
 
 def test_image_plots_disable_grid_even_when_global_grid_on():
     import matplotlib as mpl
+
     s = _make_simimg()
     saved = mpl.rcParams["axes.grid"]
     try:
@@ -327,7 +361,9 @@ def test_plot_ee_mpl_marks_90_percent_by_default():
 def test_plot_ee_mpl_none_disables_marker():
     # Explicit ee_target=None opts out: no legend, no 0.9 guide line.
     s = _gaussian_simimg()
-    fig, ax, (r, ee) = plotting.plot_encircled_energy_mpl(s, units="pix", ee_target=None)
+    fig, ax, (r, ee) = plotting.plot_encircled_energy_mpl(
+        s, units="pix", ee_target=None
+    )
     assert ax.get_legend() is None
     assert not _ee_hline_at(ax, 0.9)
 

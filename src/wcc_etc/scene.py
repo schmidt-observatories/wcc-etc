@@ -1,11 +1,17 @@
-import warnings
 import os
-import numpy as np
+import warnings
 
+import numpy as np
 from astropy import units as u
-from synphot import SourceSpectrum, SpectralElement, Observation, units as su
-from synphot.models import (BlackBodyNorm1D, ConstFlux1D, Empirical1D,
-                            PowerLawFlux1D, GaussianFlux1D)
+from synphot import Observation, SourceSpectrum, SpectralElement
+from synphot import units as su
+from synphot.models import (
+    BlackBodyNorm1D,
+    ConstFlux1D,
+    Empirical1D,
+    GaussianFlux1D,
+    PowerLawFlux1D,
+)
 
 from .meta import _MetaHolder_
 
@@ -63,6 +69,7 @@ def _get_vega():
 # Reserved spectrum names that build a synphot SourceSpectrum from parameters
 # carried in a SceneElement's meta (see SceneElement.set_spectrum).
 
+
 def _build_blackbody(meta):
     """Blackbody spectrum. Requires meta['teff'] in K."""
     teff = meta.get("teff")
@@ -99,8 +106,9 @@ def _build_powerlaw(meta):
     if alpha is None:
         raise ValueError("powerlaw source requires 'alpha'")
     lambda_ref = meta.get("lambda_ref", 5500.0)
-    return SourceSpectrum(PowerLawFlux1D, amplitude=1 * su.FLAM,
-                          x_0=lambda_ref * u.AA, alpha=-alpha)
+    return SourceSpectrum(
+        PowerLawFlux1D, amplitude=1 * su.FLAM, x_0=lambda_ref * u.AA, alpha=-alpha
+    )
 
 
 def _build_emission(meta):
@@ -115,10 +123,12 @@ def _build_emission(meta):
         raise ValueError("emission source requires a non-empty 'lines' list")
     spectrum = None
     for line in lines:
-        gauss = SourceSpectrum(GaussianFlux1D,
-                               total_flux=line["flux"] * u.erg / u.s / u.cm ** 2,
-                               mean=line["wave"] * u.AA,
-                               fwhm=line.get("fwhm", 2.0) * u.AA)
+        gauss = SourceSpectrum(
+            GaussianFlux1D,
+            total_flux=line["flux"] * u.erg / u.s / u.cm**2,
+            mean=line["wave"] * u.AA,
+            fwhm=line.get("fwhm", 2.0) * u.AA,
+        )
         spectrum = gauss if spectrum is None else spectrum + gauss
     return spectrum
 
@@ -139,7 +149,9 @@ def _get_file_column(data, column, label):
         return data[data.dtype.names[int(column)]]
 
     if isinstance(column, str):
-        raise ValueError(f"{label}_column={column!r} requires names=True or a named table")
+        raise ValueError(
+            f"{label}_column={column!r} requires names=True or a named table"
+        )
     return np.asarray(data)[:, int(column)]
 
 
@@ -166,18 +178,27 @@ def _build_file(meta):
     if names is False:
         names = None
 
-    data = np.genfromtxt(filename, delimiter=delimiter, names=names,
-                         comments=meta.get("comments", "#"), dtype=float)
+    data = np.genfromtxt(
+        filename,
+        delimiter=delimiter,
+        names=names,
+        comments=meta.get("comments", "#"),
+        dtype=float,
+    )
     wave = np.atleast_1d(_get_file_column(data, wave_column, "wave")).astype(float)
     flux = np.atleast_1d(_get_file_column(data, flux_column, "flux")).astype(float)
 
     if wave.size != flux.size:
-        raise ValueError("file source wavelength and flux columns must have the same length")
+        raise ValueError(
+            "file source wavelength and flux columns must have the same length"
+        )
     finite = np.isfinite(wave) & np.isfinite(flux)
     wave = wave[finite]
     flux = flux[finite]
     if wave.size < 2:
-        raise ValueError("file source requires at least two finite wavelength/flux rows")
+        raise ValueError(
+            "file source requires at least two finite wavelength/flux rows"
+        )
 
     order = np.argsort(wave)
     wave = wave[order] * _get_unit(meta.get("wave_unit", "AA"))
@@ -185,31 +206,44 @@ def _build_file(meta):
     return SourceSpectrum(Empirical1D, points=wave, lookup_table=flux)
 
 
-_SPECTRUM_BUILDERS = {"blackbody": _build_blackbody,
-                      "flat": _build_flat,
-                      "powerlaw": _build_powerlaw,
-                      "emission": _build_emission,
-                      "file": _build_file}
+_SPECTRUM_BUILDERS = {
+    "blackbody": _build_blackbody,
+    "flat": _build_flat,
+    "powerlaw": _build_powerlaw,
+    "emission": _build_emission,
+    "file": _build_file,
+}
 
 # Shape-defining parameters each parametric spectrum accepts. These become
 # updatable for a source of that type (see SceneElement.mutable_parameters);
 # changing one rebuilds the spectrum. The spectrum *type* itself is not here,
 # so it cannot be changed after creation.
-_SPECTRUM_PARAMS = {"blackbody": ["teff"],
-                    "flat": ["flat_unit"],
-                    "powerlaw": ["alpha", "lambda_ref"],
-                    "emission": ["lines"],
-                    "file": ["source_file", "file", "filename",
-                             "wave_column", "wavelength_column", "flux_column",
-                             "wave_unit", "flux_unit", "delimiter", "names",
-                             "comments"]}
+_SPECTRUM_PARAMS = {
+    "blackbody": ["teff"],
+    "flat": ["flat_unit"],
+    "powerlaw": ["alpha", "lambda_ref"],
+    "emission": ["lines"],
+    "file": [
+        "source_file",
+        "file",
+        "filename",
+        "wave_column",
+        "wavelength_column",
+        "flux_column",
+        "wave_unit",
+        "flux_unit",
+        "delimiter",
+        "names",
+        "comments",
+    ],
+}
 
 # Top level
 
-def get_scene(name, mag, 
-              host = None, host_prop={},
-              background = "zodi", background_prop={},
-              **kwargs):
+
+def get_scene(
+    name, mag, host=None, host_prop={}, background="zodi", background_prop={}, **kwargs
+):
     """
     Get a Scene object with a source, an optional host, and an optional background.
 
@@ -240,7 +274,7 @@ def get_scene(name, mag,
         host = None
     else:
         host = get_scene_element(host, **host_prop)
-        
+
     if background is None and not background_prop:
         background = None
     else:
@@ -249,12 +283,19 @@ def get_scene(name, mag,
     return Scene(source=source, host=host, background=background)
 
 
-def get_scene_from_file(source_file, mag=None,
-                        wave_column=0, flux_column=1,
-                        wave_unit="AA", flux_unit="FLAM",
-                        host=None, host_prop=None,
-                        background="zodi", background_prop=None,
-                        **kwargs):
+def get_scene_from_file(
+    source_file,
+    mag=None,
+    wave_column=0,
+    flux_column=1,
+    wave_unit="AA",
+    flux_unit="FLAM",
+    host=None,
+    host_prop=None,
+    background="zodi",
+    background_prop=None,
+    **kwargs,
+):
     """
     Build a Scene whose source spectrum is read from a wavelength/flux file.
 
@@ -280,16 +321,20 @@ def get_scene_from_file(source_file, mag=None,
     Scene
         A scene with a file-backed source spectrum.
     """
-    return get_scene("file", mag=mag,
-                     source_file=source_file,
-                     wave_column=wave_column,
-                     flux_column=flux_column,
-                     wave_unit=wave_unit,
-                     flux_unit=flux_unit,
-                     host=host, host_prop=host_prop,
-                     background=background,
-                     background_prop=background_prop,
-                     **kwargs)
+    return get_scene(
+        "file",
+        mag=mag,
+        source_file=source_file,
+        wave_column=wave_column,
+        flux_column=flux_column,
+        wave_unit=wave_unit,
+        flux_unit=flux_unit,
+        host=host,
+        host_prop=host_prop,
+        background=background,
+        background_prop=background_prop,
+        **kwargs,
+    )
 
 
 def get_scene_element(element=None, **kwargs):
@@ -324,18 +369,25 @@ def get_scene_element(element=None, **kwargs):
     # build default configuration given names.
     ## Zodi
     if name is not None and name in ["zodi", "zodiacal", "background"]:
-        default_config = {"mag": 22.5, "surface_brightness": True, "bandpass": "johnson_v"}
+        default_config = {
+            "mag": 22.5,
+            "surface_brightness": True,
+            "bandpass": "johnson_v",
+        }
     ## anything else
     else:
-        default_config = {"mag": 21, "surface_brightness": False, "bandpass": "johnson_v"}
+        default_config = {
+            "mag": 21,
+            "surface_brightness": False,
+            "bandpass": "johnson_v",
+        }
 
     return SceneElement.from_config((default_config | kwargs))
-    
 
 
 # ============= #
 #   Source      #
-# ============= # 
+# ============= #
 def broadcast_mapping(value, ntargets):
     """
     Broadcast a value to a given number of targets.
@@ -353,18 +405,19 @@ def broadcast_mapping(value, ntargets):
         The broadcasted values.
     """
     value = np.atleast_1d(value)
-    if np.ndim(value)>1:
+    if np.ndim(value) > 1:
         # squeeze drop useless dimensions.
-        broadcasted_values = np.broadcast_to(value, (ntargets, value.shape[-1]) )
+        broadcasted_values = np.broadcast_to(value, (ntargets, value.shape[-1]))
     else:
         broadcasted_values = np.broadcast_to(value, ntargets)
-        
+
     return broadcasted_values
 
 
 # ============= #
 #   Source      #
-# ============= # 
+# ============= #
+
 
 class SceneElement(_MetaHolder_):
     """
@@ -381,14 +434,20 @@ class SceneElement(_MetaHolder_):
     mag_is_surface_brightness : bool
         Whether the magnitude is defined per unit area.
     """
+
     # NOTE: "spectrum" is deliberately absent — the source *type* is fixed at
     # creation. Type-specific shape parameters are added in mutable_parameters.
     _mutable_parameters = ["mag", "magsys", "bandpass", "surface_brightness"]
-    
-    def __init__(self, spectrum, mag,
-                 magsys="vegamag", bandpass="johnson_v",
-                 surface_brightness=False,
-                 meta={}):
+
+    def __init__(
+        self,
+        spectrum,
+        mag,
+        magsys="vegamag",
+        bandpass="johnson_v",
+        surface_brightness=False,
+        meta={},
+    ):
         """
         Initialize a SceneElement.
 
@@ -408,14 +467,17 @@ class SceneElement(_MetaHolder_):
         meta : dict, optional
             Additional metadata. Default is {}.
         """
-        input_parameters = {key:value for key,value in locals().items()
-                             if key not in ["self", "meta"]
-                                and value is not None and not key.startswith("__")
-                           }
-        
+        input_parameters = {
+            key: value
+            for key, value in locals().items()
+            if key not in ["self", "meta"]
+            and value is not None
+            and not key.startswith("__")
+        }
+
         super().__init__(meta | input_parameters)
         self.set_spectrum(spectrum)
-        
+
     @classmethod
     def from_config(cls, config):
         """
@@ -435,13 +497,15 @@ class SceneElement(_MetaHolder_):
         # make sure these keys exist
         if "name" in config:
             config["spectrum"] = config.pop("name")
-            
-        input_kwargs = {key:config.get(key) for key in ["spectrum", "mag"]}
-        input_kwargs |= {key:config.get(key) for key in ["magsys", "bandpass", "surface_brightness"]
-                        if key in config} # else default as given by __init__
-        
-        return cls(meta=config, **input_kwargs)
 
+        input_kwargs = {key: config.get(key) for key in ["spectrum", "mag"]}
+        input_kwargs |= {
+            key: config.get(key)
+            for key in ["magsys", "bandpass", "surface_brightness"]
+            if key in config
+        }  # else default as given by __init__
+
+        return cls(meta=config, **input_kwargs)
 
     # =========== #
     #  methods    #
@@ -455,7 +519,7 @@ class SceneElement(_MetaHolder_):
         spec_or_file : str or SourceSpectrum or None
             The spectrum, a path to a spectrum file, or a spectral type name.
         """
-        
+
         # make sure you have a spectrum.
         if type(spec_or_file) in [str]:
             if spec_or_file.lower() in _SPECTRUM_BUILDERS:
@@ -466,11 +530,12 @@ class SceneElement(_MetaHolder_):
                 if not os.path.isfile(spec_or_file):
                     # may that is a spectral type:
                     from .io import get_any_astro_name
+
                     spec_or_file = get_any_astro_name(spec_or_file)
 
                 spectrum = SourceSpectrum.from_file(spec_or_file)
 
-        # the or None enables to switch of the host by setting it to None            
+        # the or None enables to switch of the host by setting it to None
         elif isinstance(spec_or_file, SourceSpectrum) or spec_or_file is None:
             spectrum = spec_or_file
 
@@ -488,7 +553,9 @@ class SceneElement(_MetaHolder_):
         """
         updated = super().update(reset=reset, **kwargs)
         name = self.meta.get("spectrum")
-        shape_params = _SPECTRUM_PARAMS.get(name.lower(), []) if isinstance(name, str) else []
+        shape_params = (
+            _SPECTRUM_PARAMS.get(name.lower(), []) if isinstance(name, str) else []
+        )
         if any(key in shape_params for key in updated):
             self.set_spectrum(name)
         return updated
@@ -513,21 +580,21 @@ class SceneElement(_MetaHolder_):
         if self.mag_is_surface_brightness:
             # must work in float (not astropy unit) because of mag and np.log.
             ## area should be in arcsec**2
-            if "astropy.units" in str(type(area)): 
+            if "astropy.units" in str(type(area)):
                 area_arcsec2 = area.to("arcsec**2").value
             else:
                 # if float, assuming it is in arcsec2
                 area_arcsec2 = area
-                
-            ## take the value of mag 
-            mag_per_arcsec2 = self.mag.value 
+
+            ## take the value of mag
+            mag_per_arcsec2 = self.mag.value
             mag_unit = self.mag.unit
             mag = (mag_per_arcsec2 - 2.5 * np.log10(area_arcsec2)) * mag_unit
         else:
             mag = self.mag
-            
+
         return mag
-            
+
     def get_spectrum(self, apply_mag=True, as_array=False, area=None):
         """
         Get the spectrum of the element.
@@ -550,8 +617,9 @@ class SceneElement(_MetaHolder_):
             mag = self.get_mag(area=area) if apply_mag else None
             if apply_mag and mag is not None:
                 if mag.unit == su.VEGAMAG:
-                    spectrum = self.spectrum.normalize(mag, band=self.band,
-                                                       vegaspec=_get_vega())
+                    spectrum = self.spectrum.normalize(
+                        mag, band=self.band, vegaspec=_get_vega()
+                    )
                 else:
                     spectrum = self.spectrum.normalize(mag, band=self.band)
             else:
@@ -566,7 +634,7 @@ class SceneElement(_MetaHolder_):
             spectrum = spectrum._get_arrays(None)
 
         return spectrum
-        
+
     def get_observation(self, band=None, area=None):
         """
         Get a synphot Observation of the element.
@@ -589,9 +657,9 @@ class SceneElement(_MetaHolder_):
         spectrum = self.get_spectrum(apply_mag=True, as_array=False, area=area)
         if spectrum is None:
             return None
-            
-        return Observation(spectrum, band, force='extrap')
-        
+
+        return Observation(spectrum, band, force="extrap")
+
     def show(self, ax=None, apply_mag=True, **kwargs):
         """
         Show the spectrum or host flux.
@@ -612,7 +680,8 @@ class SceneElement(_MetaHolder_):
         """
         if ax is None:
             import matplotlib.pyplot as plt
-            fig, ax = plt.subplots(figsize=(7,3))
+
+            fig, ax = plt.subplots(figsize=(7, 3))
         else:
             fig = ax.figure
 
@@ -621,13 +690,13 @@ class SceneElement(_MetaHolder_):
 
         # plot
         ax.plot(lbda, flux, **kwargs)
-        ax.set_xlabel('Wavelength [A]')
-        ax.set_ylabel('Flux')
+        ax.set_xlabel("Wavelength [A]")
+        ax.set_ylabel("Flux")
         return fig
-        
+
     # ------------ #
     #  internal    #
-    # ------------ # 
+    # ------------ #
     def _parse_mag_(self):
         """
         Parse the magnitude from metadata.
@@ -637,7 +706,7 @@ class SceneElement(_MetaHolder_):
         Quantity
             The parsed magnitude with units.
         """
-         # magnitude
+        # magnitude
         mag = self.meta.get("mag", None)
         if mag is None:
             # explicit None is a valid "no normalization" sentinel (e.g.
@@ -672,7 +741,7 @@ class SceneElement(_MetaHolder_):
             band = SpectralElement.from_filter(band)
         elif not isinstance(band, SpectralElement):
             raise ValueError(f"{band=} meta is neither a str nor a SpectralElement.")
-        
+
         return band
 
     # ============= #
@@ -698,7 +767,7 @@ class SceneElement(_MetaHolder_):
         The source spectrum.
         """
         return self._spectrum
-        
+
     @property
     def mag(self):
         """
@@ -720,6 +789,7 @@ class SceneElement(_MetaHolder_):
         """
         return self.meta.get("surface_brightness", False)
 
+
 class Scene(_MetaHolder_):
     """
     A collection of SceneElements (source, host, background) representing a full observation scene.
@@ -733,16 +803,13 @@ class Scene(_MetaHolder_):
     background : SceneElement
         The sky background.
     """
+
     # ZODI TO BE IMPLEMENTED
     # self.background = self.config['zodi']['zodi_mag_r']
 
     _mutable_parameters = []
-    
-    def __init__(self, source=None,
-                     host=None,
-                     background=None,
-                     meta={}
-                ):
+
+    def __init__(self, source=None, host=None, background=None, meta={}):
         """
         Initialize a Scene object.
 
@@ -762,7 +829,7 @@ class Scene(_MetaHolder_):
         self._background = background
 
         super().__init__(meta)
-        
+
     @classmethod
     def from_config(cls, config):
         """
@@ -780,28 +847,25 @@ class Scene(_MetaHolder_):
             The initialized Scene.
         """
         # Source
-        if (source_config := config.get("source", {})):
+        if source_config := config.get("source", {}):
             source = SceneElement.from_config(source_config)
         else:
             source = None
 
         # host
-        if (host_config := config.get("host", {})):
+        if host_config := config.get("host", {}):
             host = SceneElement.from_config(host_config)
         else:
-            host = None        
-            
+            host = None
+
         # background
-        if (background_config := config.get("background", {})):
+        if background_config := config.get("background", {}):
             background = SceneElement.from_config(background_config)
         else:
             background = None
 
         # And build it.
-        return cls(source=source,
-                   host=host,
-                   background=background,
-                   meta=config)
+        return cls(source=source, host=host, background=background, meta=config)
 
     # ============= #
     #   methods     #
@@ -812,7 +876,7 @@ class Scene(_MetaHolder_):
         """
         # reset each element
         _ = self.call_down("reset", which="all")
-        
+
     def update(self, reset=False, **kwargs):
         """
         Update scene elements using double-underscore prefixed keywords.
@@ -850,16 +914,16 @@ class Scene(_MetaHolder_):
                 warnings.warn("cannot parse {key=} ; should start by 'source__' etc.")
                 continue
             updated_key.append(key)
-            
+
         if self.has_source():
             self.source.update(**update_source)
         if self.has_host():
             self.host.update(**update_host)
         if self.has_background():
             self.background.update(**update_background)
-        
+
         return updated_key
-        
+
     def get_elements(self, which="*", as_dict=False):
         """
         Get specified scene elements.
@@ -877,14 +941,22 @@ class Scene(_MetaHolder_):
             The requested scene elements.
         """
         if which in ["*", "all"]:
-            which = [element_ for element_ in self.element_names if getattr(self, element_) is not None]
+            which = [
+                element_
+                for element_ in self.element_names
+                if getattr(self, element_) is not None
+            ]
         else:
             which = np.atleast_1d(which)
 
-        values = [element_obj for which_ in self.element_names if which_ in which and (element_obj:=getattr(self, which_)) is not None]
+        values = [
+            element_obj
+            for which_ in self.element_names
+            if which_ in which and (element_obj := getattr(self, which_)) is not None
+        ]
         if as_dict:
             return dict(zip(which, values))
-            
+
         return values
 
     def get_mag(self, area=None, which="*", as_dict=False):
@@ -927,9 +999,10 @@ class Scene(_MetaHolder_):
         list or dict
             The spectra.
         """
-        return self.call_down("get_spectrum", area=area, apply_mag=apply_mag, 
-                              which=which, as_dict=as_dict)
-    
+        return self.call_down(
+            "get_spectrum", area=area, apply_mag=apply_mag, which=which, as_dict=as_dict
+        )
+
     def get_observation(self, band=None, area=None, which="*", as_dict=False):
         """
         Get observation for specified scene elements.
@@ -950,8 +1023,10 @@ class Scene(_MetaHolder_):
         list or dict
             The observations.
         """
-        return self.call_down("get_observation", band=band, area=area, which=which, as_dict=as_dict)
-        
+        return self.call_down(
+            "get_observation", band=band, area=area, which=which, as_dict=as_dict
+        )
+
     def has_source(self):
         """
         Check if the scene has a source element.
@@ -981,15 +1056,17 @@ class Scene(_MetaHolder_):
         bool
         """
         return self._background is not None
-    
+
     # -------- #
     #  GETTER  #
     # -------- #
-    
+
     # ----------- #
     #  Internal   #
     # ----------- #
-    def call_down(self, what, mapargs=None, allow_call=True, which="*", as_dict=False, **kwargs):
+    def call_down(
+        self, what, mapargs=None, allow_call=True, which="*", as_dict=False, **kwargs
+    ):
         """
         Call a method on each target element in the collection.
 
@@ -1018,21 +1095,27 @@ class Scene(_MetaHolder_):
         if as_dict:
             element_names = elements.keys()
             elements = elements.values()
-        
+
         if mapargs is not None:
             mapargs = broadcast_mapping(mapargs, elements)
-            values = [getattr(element, what)(maparg_, **kwargs)
-                        for maparg_, element in zip(mapargs, elements)]
-        
+            values = [
+                getattr(element, what)(maparg_, **kwargs)
+                for maparg_, element in zip(mapargs, elements)
+            ]
+
         else:
-            values = [attr if not (callable(attr := getattr(element, what)) and allow_call) else attr(**kwargs) 
-                       for element in elements]
+            values = [
+                attr
+                if not (callable(attr := getattr(element, what)) and allow_call)
+                else attr(**kwargs)
+                for element in elements
+            ]
 
         if as_dict:
             return dict(zip(element_names, values))
-            
+
         return values
-        
+
     # -------- #
     # PLOTTER  #
     # -------- #
@@ -1069,17 +1152,20 @@ class Scene(_MetaHolder_):
         """
         Combined metadata for the scene and its elements.
         """
-        return self._meta | {element_name: element.meta
-                                 for element_name in self.element_names
-                                 if (element := getattr(self,element_name)) is not None
-                            }
+        return self._meta | {
+            element_name: element.meta
+            for element_name in self.element_names
+            if (element := getattr(self, element_name)) is not None
+        }
+
     @property
     def mutable_parameters(self):
         """
         List of parameters that can be updated.
         """
-        return self._mutable_parameters +  [f"{element_name}__{k}"
-                                                for element_name in self.element_names
-                                                if (element := getattr(self,element_name)) is not None
-                                                for k in element.mutable_parameters  
-                                            ]
+        return self._mutable_parameters + [
+            f"{element_name}__{k}"
+            for element_name in self.element_names
+            if (element := getattr(self, element_name)) is not None
+            for k in element.mutable_parameters
+        ]

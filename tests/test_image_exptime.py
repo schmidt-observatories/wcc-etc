@@ -1,11 +1,16 @@
 import numpy as np
+
 import wcc_etc
 
 
 def _sim(mag=15):
-    scene = wcc_etc.get_scene(name="G5V", mag=mag, background="zodi",
-                              bandpass="johnson_r",
-                              background_prop={"bandpass": "johnson_r", "mag": 22.5})
+    scene = wcc_etc.get_scene(
+        name="G5V",
+        mag=mag,
+        background="zodi",
+        bandpass="johnson_r",
+        background_prop={"bandpass": "johnson_r", "mag": 22.5},
+    )
     return wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene)
 
 
