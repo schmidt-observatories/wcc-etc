@@ -1,8 +1,9 @@
 """Tests for PSFSource cache_key stability and uniqueness."""
 
 import numpy as np
-from wcc_etc.psfsim import AiryPSF, CustomPSF, DefocusPSF
+
 from wcc_etc import DEFOCUS_1WAVE_PATH
+from wcc_etc.psfsim import AiryPSF, CustomPSF, DefocusPSF
 
 
 class TestPSFCacheKeys:

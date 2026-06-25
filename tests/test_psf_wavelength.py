@@ -9,8 +9,8 @@ the photometrically meaningful effective wavelength of the bandpass.
 
 import warnings
 
-import pytest
 import astropy.units as u
+import pytest
 
 from wcc_etc.sensor import Sensor
 

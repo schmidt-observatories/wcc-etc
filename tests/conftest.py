@@ -1,6 +1,7 @@
 """Top-level shared fixtures for the wcc_etc test suite."""
 
 import pytest
+
 from tests.helpers import make_scene, make_simulation
 
 

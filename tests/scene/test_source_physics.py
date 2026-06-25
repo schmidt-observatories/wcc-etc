@@ -6,10 +6,10 @@ Wien's law, the F_nu/F_lambda relation, Gaussian profiles, Pogson scaling).
 
 import warnings
 
+import astropy.units as u
 import numpy as np
 import pytest
-import astropy.units as u
-from astropy.constants import h, c, k_B
+from astropy.constants import c, h, k_B
 from scipy.integrate import trapezoid
 from synphot import units as su
 
@@ -161,6 +161,7 @@ class TestSourceCountrate:
     )
     def test_countrate_follows_pogson_scaling(self, name, extra):
         import warnings
+
         import wcc_etc
 
         rates = []

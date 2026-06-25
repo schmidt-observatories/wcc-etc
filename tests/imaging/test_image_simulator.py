@@ -1,20 +1,21 @@
 """Tests for SimulatedImage, ImageSimulator, and aperture SNR utilities."""
 
+import astropy.units as u
 import numpy as np
 import pytest
-import astropy.units as u
+
 import wcc_etc
+from tests.helpers import make_scene
 from wcc_etc.psfsim import (
-    SimulatedImage,
+    DEFOCUS_2WAVE_PATH,
     AiryPSF,
+    DefocusPSF,
     FitsImg,
     ImageSimulator,
-    DefocusPSF,
-    DEFOCUS_2WAVE_PATH,
+    SimulatedImage,
     aperture_snr_radial,
     select_aperture,
 )
-from tests.helpers import make_scene
 
 
 def _make_simimg():

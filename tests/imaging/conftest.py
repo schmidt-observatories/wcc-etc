@@ -1,6 +1,7 @@
 import pytest
-from wcc_etc.psfsim import ImageSimulator
+
 from tests.helpers import make_scene
+from wcc_etc.psfsim import ImageSimulator
 
 
 @pytest.fixture

@@ -3,13 +3,13 @@ get_image_snr, render cache, and magnitude sweeps."""
 
 import warnings
 
+import astropy.units as u
 import numpy as np
 import pytest
-import astropy.units as u
-import wcc_etc
-from wcc_etc.simulation import calculate_bg_normalization_magnitude, Simulation
-from tests.helpers import make_simulation, make_scene
 
+import wcc_etc
+from tests.helpers import make_scene, make_simulation
+from wcc_etc.simulation import Simulation, calculate_bg_normalization_magnitude
 
 # ---------------------------------------------------------------------------
 # Unit tests

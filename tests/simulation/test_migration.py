@@ -3,9 +3,11 @@ _count_rate_components (not get_countrates / psf_profile)."""
 
 import inspect
 import warnings
+
+import astropy.units as u
 import numpy as np
 import pytest
-import astropy.units as u
+
 import wcc_etc
 from tests.helpers import make_simulation
 

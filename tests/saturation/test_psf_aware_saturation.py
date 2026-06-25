@@ -1,9 +1,11 @@
 """Tests for PSF-aware saturation: defocus peak fraction and is_saturated consistency."""
 
 import warnings
+
+import astropy.units as u
 import numpy as np
 import pytest
-import astropy.units as u
+
 import wcc_etc
 from tests.helpers import make_scene
 

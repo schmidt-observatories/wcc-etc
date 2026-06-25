@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from wcc_etc.lightcurve import FluxModel, TransitModel
 
 

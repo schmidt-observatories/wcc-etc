@@ -1,12 +1,13 @@
 """Tests for plot_lightcurve_mpl and plot_lightcurve_bokeh."""
 
-import numpy as np
 import warnings
+
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")
 from wcc_etc.lightcurve import FluxModel, LightCurveSimulator
-from wcc_etc.plotting import plot_lightcurve_mpl, plot_lightcurve_bokeh
+from wcc_etc.plotting import plot_lightcurve_bokeh, plot_lightcurve_mpl
 
 
 class _Flat(FluxModel):

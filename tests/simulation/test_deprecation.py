@@ -1,6 +1,7 @@
 """Tests that legacy analytic methods emit DeprecationWarning."""
 
 import warnings
+
 import pytest
 
 

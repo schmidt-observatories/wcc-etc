@@ -1,16 +1,17 @@
 """Tests for the sensorfilter registry, focus-level dispatch, and ImageSimulator.from_sensorfilter."""
 
 import pytest
+
 import wcc_etc
+from tests.helpers import make_scene
 from wcc_etc.io import (
-    SENSORS,
     _SENSORFILTER_FOCUS,
     _SENSORFILTER_IMPLEMENTED,
+    SENSORS,
     sensor_info,
 )
-from wcc_etc.simulation import Simulation, _psf_from_focus_level
 from wcc_etc.psfsim import AiryPSF, DefocusPSF, ImageSimulator
-from tests.helpers import make_scene
+from wcc_etc.simulation import Simulation, _psf_from_focus_level
 
 
 class TestSensorRegistry:

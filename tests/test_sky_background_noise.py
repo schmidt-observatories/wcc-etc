@@ -16,9 +16,9 @@ if the sky term were dropped again.
 
 import warnings
 
+import astropy.units as u
 import numpy as np
 import pytest
-import astropy.units as u
 
 import wcc_etc
 from wcc_etc.psfsim import AiryPSF, ImageSimulator, psf_center

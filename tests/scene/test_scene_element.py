@@ -1,13 +1,14 @@
 """Tests for SceneElement: parametric spectra, magnitude systems, and mutability."""
 
-import numpy as np
 import astropy.units as u
+import numpy as np
+import pytest
 from scipy.integrate import trapezoid
-from synphot import SpectralElement, Observation, SourceSpectrum, units as su
+from synphot import Observation, SourceSpectrum, SpectralElement
+from synphot import units as su
+
 from wcc_etc.io import expand_path
 from wcc_etc.scene import SceneElement
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -25,7 +26,7 @@ def _flam_ratio(spectrum, l1, l2):
 
 
 def _planck_ratio(l1, l2, teff):
-    from astropy.constants import h, c, k_B
+    from astropy.constants import c, h, k_B
 
     def b(lam_AA):
         lam = (lam_AA * u.AA).to(u.m).value

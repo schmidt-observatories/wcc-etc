@@ -1,6 +1,7 @@
 """Tests for the legacy wcc_etc.wcc_etc module (deprecated interface)."""
 
 import warnings
+
 import numpy as np
 
 

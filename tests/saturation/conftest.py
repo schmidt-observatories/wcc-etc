@@ -1,4 +1,5 @@
 import pytest
+
 import wcc_etc
 from tests.helpers import make_scene
 

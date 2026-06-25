@@ -1,6 +1,7 @@
 """Tests for peak_pixel_fraction on Simulation objects."""
 
 import pytest
+
 import wcc_etc
 from tests.helpers import make_scene
 

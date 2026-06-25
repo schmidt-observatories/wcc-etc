@@ -1,11 +1,13 @@
 """Tests for saturation counting in get_snr, get_image_snr, and exptime methods."""
 
 import warnings
+
+import astropy.units as u
 import numpy as np
 import pytest
-import astropy.units as u
-from wcc_etc.psfsim import ImageSimulator, AiryPSF, saturation_mask_from_image_e
+
 from tests.helpers import make_simulation
+from wcc_etc.psfsim import AiryPSF, ImageSimulator, saturation_mask_from_image_e
 
 
 def _adc_clip_setup():

@@ -1,21 +1,23 @@
 """Tests for PSF utility functions, PSFSource render, DefocusPSF, and time-solver helpers."""
 
 import os
+
 import numpy as np
 import pytest
 from scipy.ndimage import zoom as _zoom
+
 from wcc_etc.psfsim import (
-    DetectorPSFContext,
-    center_crop_or_pad,
-    normalize_psf,
-    recenter,
-    load_huygens_psf,
     DEFOCUS_1WAVE_PATH,
     DEFOCUS_2WAVE_PATH,
-    PSFSource,
     AiryPSF,
-    DefocusPSF,
     CustomPSF,
+    DefocusPSF,
+    DetectorPSFContext,
+    PSFSource,
+    center_crop_or_pad,
+    load_huygens_psf,
+    normalize_psf,
+    recenter,
 )
 
 
@@ -306,7 +308,7 @@ class TestSolveTimeForSnr:
         return psf
 
     def test_n_reads_scaling_snr_equation(self):
-        from wcc_etc.psfsim import aperture_time_for_snr, _radial_cumulative
+        from wcc_etc.psfsim import _radial_cumulative, aperture_time_for_snr
 
         psf = self._make_gaussian_psf()
         plate, src_rate, diff_rate, dark_rate, rn = 50.0, 200.0, 0.5, 0.1, 3.0

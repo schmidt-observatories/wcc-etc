@@ -1,14 +1,15 @@
 """Tests for plotting utilities: image, radial, EE, Bokeh, style."""
 
+import matplotlib
 import numpy as np
 import pytest
-import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.figure
 import matplotlib.axes
-from wcc_etc.psfsim import SimulatedImage, AiryPSF
+import matplotlib.figure
+
 from wcc_etc import plotting
+from wcc_etc.psfsim import AiryPSF, SimulatedImage
 
 
 def _make_simimg(npix=2):
@@ -407,6 +408,7 @@ class TestStyle:
 
     def test_wcc_style_mathtext_fontset(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()
@@ -414,6 +416,7 @@ class TestStyle:
 
     def test_wcc_style_font_family(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()
@@ -421,6 +424,7 @@ class TestStyle:
 
     def test_wcc_style_no_offset(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()
@@ -428,6 +432,7 @@ class TestStyle:
 
     def test_wcc_style_figure_dpi(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()
@@ -435,6 +440,7 @@ class TestStyle:
 
     def test_wcc_style_axes_labelsize(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()
@@ -442,6 +448,7 @@ class TestStyle:
 
     def test_wcc_style_xtick_minor_visible(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()
@@ -449,6 +456,7 @@ class TestStyle:
 
     def test_wcc_style_ytick_minor_visible(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()
@@ -456,6 +464,7 @@ class TestStyle:
 
     def test_wcc_style_xtick_direction(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()
@@ -463,6 +472,7 @@ class TestStyle:
 
     def test_wcc_style_ytick_direction(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()
@@ -470,6 +480,7 @@ class TestStyle:
 
     def test_wcc_style_axes_grid(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()
@@ -477,6 +488,7 @@ class TestStyle:
 
     def test_wcc_style_grid_alpha(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()
@@ -484,6 +496,7 @@ class TestStyle:
 
     def test_wcc_style_grid_linewidth(self):
         import matplotlib as mpl
+
         import wcc_etc
 
         wcc_etc.set_wcc_style()

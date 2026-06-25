@@ -1,10 +1,11 @@
 """Tests for Scene, get_scene_from_file, and broadcast_mapping."""
 
-import numpy as np
 import astropy.units as u
-from synphot import units as su
-from wcc_etc.scene import Scene, SceneElement, broadcast_mapping, get_scene_from_file
+import numpy as np
 import pytest
+from synphot import units as su
+
+from wcc_etc.scene import Scene, SceneElement, broadcast_mapping, get_scene_from_file
 
 
 class TestBroadcastMapping:
@@ -121,8 +122,9 @@ class TestGetSceneFromFile:
 
 class TestSceneUpdate:
     def test_scene_update_rebuilds_source_spectrum(self):
-        import wcc_etc
         from synphot import units as su
+
+        import wcc_etc
 
         scene = wcc_etc.get_scene(
             name="blackbody",

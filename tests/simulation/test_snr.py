@@ -1,6 +1,7 @@
 """Reference SNR values for specific sensor/scene configurations."""
 
 import pytest
+
 import wcc_etc
 
 

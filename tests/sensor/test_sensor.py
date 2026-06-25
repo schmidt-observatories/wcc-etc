@@ -1,7 +1,8 @@
 """Tests for the Sensor class: property units, from_config, bit depth."""
 
-import pytest
 import astropy.units as u
+import pytest
+
 from wcc_etc.sensor import Sensor
 
 

@@ -2,7 +2,8 @@
 
 import numpy as np
 import pytest
-from wcc_etc.airy import render_detector_psf, psf_to_encircled_energy
+
+from wcc_etc.airy import psf_to_encircled_energy, render_detector_psf
 
 
 def _ee_radius(r_mas, ee, frac):

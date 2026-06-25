@@ -1,6 +1,7 @@
 """Tests for saturation behavior with n_reads splitting."""
 
 import numpy as np
+
 from tests.helpers import make_simulation
 
 

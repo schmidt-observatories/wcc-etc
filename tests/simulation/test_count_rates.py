@@ -1,6 +1,7 @@
 """Tests for _count_rate_components and its relationship to the legacy get_countrates."""
 
 import warnings
+
 import astropy.units as u
 import pytest
 
