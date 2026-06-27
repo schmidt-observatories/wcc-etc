@@ -2,13 +2,16 @@ import warnings
 
 import numpy as np
 from astropy import units as u
-from synphot import SpectralElement
-
-from .io import _SENSORFILTER_FOCUS, _SENSORFILTER_IMPLEMENTED, get_sensor_config
-from .meta import _MetaHolder_
-from .scene import Scene
-from .sensor import Sensor
+from .io import (
+    _SENSORFILTER_FOCUS,
+    _SENSORFILTER_IMPLEMENTED,
+    get_sensor_config,
+    resolve_bandpass,
+)
 from .telescope import Telescope
+from .sensor import Sensor
+from .scene import Scene
+from .meta import _MetaHolder_
 from .utils import list_of_quantity_to_array
 
 # import logging
@@ -1343,7 +1346,7 @@ class Simulation(_MetaHolder_):
         if bandpass == "sensor":
             return self.sensor.bandpass
 
-        return SpectralElement.from_filter(bandpass)
+        return resolve_bandpass(bandpass)
 
     def _compute_psf_profile_impl(self):
         """Internal implementation of the Airy PSF profile computation (no warning)."""

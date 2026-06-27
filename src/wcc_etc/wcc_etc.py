@@ -1297,7 +1297,8 @@ def get_blackbody_flux(
         f = get_blackbody_spectrum(w,Teff, mag,filter='johnson_v',plot=True)
     """
     sp = SourceSpectrum(BlackBodyNorm1D, temperature=teff)
-    bp = SpectralElement.from_filter(filter)
+    from .io import resolve_bandpass
+    bp = resolve_bandpass(filter)
     vega = SourceSpectrum.from_vega()  # For unit conversion
     sp_norm = sp.normalize(mag * units.VEGAMAG, bp, vegaspec=vega)
 
