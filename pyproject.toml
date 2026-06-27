@@ -64,6 +64,7 @@ where = ["src"]
   "data/config/*",
   "data/sensors/**",
   "data/throughput/*",
+  "data/throughput/other_filters/*",
   "data/flats/*",
   "data/psfs/*",
 ]
