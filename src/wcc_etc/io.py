@@ -21,7 +21,47 @@ ASTROFILE_DF = pandas.DataFrame({"basename": [os.path.basename(entry_) for entry
                                 "fullpath": _list_of_astropath})
 
 
-__all__ = ["read_config", "get_sensor_config"]
+__all__ = ["read_config", "get_sensor_config", "resolve_bandpass"]
+
+# Local filter files not known to synphot's built-in SpectralElement.from_filter.
+# Maps a user-facing bandpass name to a file under data/throughput/other_filters/.
+_LOCAL_FILTERS = {
+    "sdss_u": "SLOAN_SDSS.uprime_filter.dat",
+    "sdss_g": "SLOAN_SDSS.gprime_filter.dat",
+    "sdss_r": "SLOAN_SDSS.rprime_filter.dat",
+    "sdss_i": "SLOAN_SDSS.iprime_filter.dat",
+    "sdss_z": "SLOAN_SDSS.zprime_filter.dat",
+}
+_OTHER_FILTERS_DIR = os.path.join(PACKAGE_PATH, "throughput", "other_filters")
+
+
+def resolve_bandpass(bandpass):
+    """Resolve a bandpass to a synphot SpectralElement.
+
+    Local SDSS filters (``'sdss_u'``, ``'sdss_g'``, ``'sdss_r'``, ``'sdss_i'``,
+    ``'sdss_z'``; case-insensitive) are loaded from package data. Any other
+    string defers to synphot's built-in ``SpectralElement.from_filter`` (e.g.
+    ``'johnson_v'``). A ``SpectralElement`` is returned unchanged.
+
+    Parameters
+    ----------
+    bandpass : str or SpectralElement
+        The bandpass name or object.
+
+    Returns
+    -------
+    synphot.SpectralElement
+    """
+    from synphot import SpectralElement
+
+    if isinstance(bandpass, SpectralElement):
+        return bandpass
+
+    fname = _LOCAL_FILTERS.get(str(bandpass).lower())
+    if fname is not None:
+        return SpectralElement.from_file(os.path.join(_OTHER_FILTERS_DIR, fname),
+                                         wave_unit="Angstrom")
+    return SpectralElement.from_filter(bandpass)
 
 SENSORS = {"zwo": {"bb":     "wcc_imx_bb_throughput.csv",
                    "u":      "wcc_imx_u_throughput.csv",

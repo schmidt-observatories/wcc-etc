@@ -4,7 +4,7 @@ from synphot import SpectralElement, Observation
 
 import warnings
 
-from .io import get_sensor_config, _SENSORFILTER_FOCUS, _SENSORFILTER_IMPLEMENTED
+from .io import get_sensor_config, _SENSORFILTER_FOCUS, _SENSORFILTER_IMPLEMENTED, resolve_bandpass
 from .telescope import Telescope
 from .sensor import Sensor
 from .scene import Scene
@@ -1173,8 +1173,8 @@ class Simulation(_MetaHolder_):
         """
         if bandpass == "sensor":
             return self.sensor.bandpass
-        
-        return SpectralElement.from_filter(bandpass)
+
+        return resolve_bandpass(bandpass)
         
     def _compute_psf_profile_impl(self):
         """Internal implementation of the Airy PSF profile computation (no warning)."""
