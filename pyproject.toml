@@ -64,5 +64,6 @@ include-package-data = true
 testpaths = [
 	"tests",
 ]
+pythonpath = ["."]
 
 
