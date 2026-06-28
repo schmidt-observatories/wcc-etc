@@ -786,23 +786,6 @@ class WCCETC( object ):
 
         return int_time * u.electron / u.ct
 
-    def simulate_2D_psf(self,wavelength,exptime,npix=500,flat_scale=1,filename_psf=None,
-                        jitter_mas=0,center=None,src_micron_per_pixel=4):
-        """
-        Simulate PSF
-
-        INPUT:
-            wavelength - wavelength in nm
-            exptime - exposure time in seconds
-            npix - number of pixels for PSF simulation
-            flat_scale - flat field scale
-
-        """
-        raise NotImplementedError(
-            "simulate_psf has been removed from the deprecated wcc_etc module. "
-            "Use wcc_etc.ImageSimulator.from_sensor_and_scene(...).simulate(...) instead."
-        )
-
     def aperture_photometry(self, r_ap, r_in, r_out, data=None, center=None, gain=1, plot=True,**kwargs):
         """
         Perform aperture photometry on the PSF data.
