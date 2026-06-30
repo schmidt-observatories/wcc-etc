@@ -29,6 +29,12 @@ jobs:
           pip install -e ./packages/lazuli-transit
           pip install -e .
 
+      - name: Type check (mypy, non-blocking)
+        continue-on-error: true
+        run: |
+          pip install mypy
+          mypy src/wcc_etc
+
       - name: Run tests
         run: |
           pytest
