@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any, Self
+
 import numpy as np
 from synphot.models import Box1D
 from synphot import SpectralElement
@@ -25,9 +29,9 @@ class Telescope(_MetaHolder_):
     # list of mutable parameter. This is handled by _MetaHolder_
     _mutable_parameters = ["f_num", "diameter_primary", "jitter_sigma"]
     
-    def __init__(self, f_num, diameter_primary,
-                 jitter_sigma=0, 
-                 meta={}):
+    def __init__(self, f_num: float, diameter_primary: float | u.Quantity,
+                 jitter_sigma: float | u.Quantity = 0,
+                 meta: dict[str, Any] = {}) -> None:
         """ 
         Initialize a Telescope object.
 
@@ -52,7 +56,7 @@ class Telescope(_MetaHolder_):
         super().__init__(meta=meta)
 
     @classmethod
-    def from_config(cls, config):
+    def from_config(cls, config: dict[str, Any]) -> Self:
         """
         Create a Telescope instance from a configuration dictionary.
 
@@ -79,14 +83,14 @@ class Telescope(_MetaHolder_):
     #  Properties      #
     # ================ #
     @property
-    def f_num(self):
+    def f_num(self) -> float:
         """
         The focal ratio (f-number).
         """
-        return self.meta.get("f_num")
+        return self.meta.get("f_num")  # type: ignore[return-value]
         
     @property
-    def diameter_primary(self):
+    def diameter_primary(self) -> u.Quantity:
         """
         The primary mirror diameter as an astropy Quantity.
         """
@@ -97,7 +101,7 @@ class Telescope(_MetaHolder_):
         return diameter_primary
 
     @property
-    def jitter_sigma(self):
+    def jitter_sigma(self) -> u.Quantity:
         """
         The pointing jitter (sigma) as an astropy Quantity.
         """
@@ -108,14 +112,14 @@ class Telescope(_MetaHolder_):
         return  jitter_sigma
         
     @property
-    def surface(self):
+    def surface(self) -> u.Quantity:
         """
         The collecting area (surface) of the primary mirror.
         """
         return np.pi * (0.5 * self.diameter_primary) ** 2
         
     @property
-    def focal_len(self):
+    def focal_len(self) -> u.Quantity:
         """
         The focal length of the telescope.
         """
