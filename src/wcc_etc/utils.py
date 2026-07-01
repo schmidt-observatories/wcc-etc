@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from numpy.typing import NDArray
 
+import warnings
 import pandas
 import numpy as np
 from .io import expand_path
@@ -94,7 +95,7 @@ def list_of_quantity_to_array(quantities: list[Quantity]) -> Quantity | list[Qua
     if len(np.unique(units)) == 1:
         unit = units[0]
     else:
-        warnings.warn("input quantities are not all of the same unit. Nothing can be done.")  # type: ignore[name-defined]
+        warnings.warn("input quantities are not all of the same unit. Nothing can be done.")
         return quantities
 
     values = [q.value for q in quantities]
