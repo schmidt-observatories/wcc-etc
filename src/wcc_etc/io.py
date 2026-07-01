@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from synphot import SpectralElement
+
 import os
 import warnings
 import pandas as pd
@@ -9,7 +16,7 @@ from importlib.resources import files
 
 from glob import glob
 
-PACKAGE_PATH = str(files("wcc_etc.data")._paths[0])    #: Path to data & config files.
+PACKAGE_PATH = str(files("wcc_etc.data")._paths[0])  # type: ignore[attr-defined]    #: Path to data & config files.
 _PICKLES_DIR = os.path.join(PACKAGE_PATH, "astr_obj_models", "stars","pickles_models")
 PICKLES_MAPPING = pd.read_csv( os.path.join(_PICKLES_DIR, "pickles_mapping.csv") , sep=r'\s+')
 
@@ -35,7 +42,7 @@ _LOCAL_FILTERS = {
 _OTHER_FILTERS_DIR = os.path.join(PACKAGE_PATH, "throughput", "other_filters")
 
 
-def resolve_bandpass(bandpass):
+def resolve_bandpass(bandpass: str | SpectralElement) -> SpectralElement:
     """Resolve a bandpass to a synphot SpectralElement.
 
     Local SDSS filters (``'sdss_u'``, ``'sdss_g'``, ``'sdss_r'``, ``'sdss_i'``,
@@ -126,7 +133,7 @@ _SENSORFILTER_IMPLEMENTED: dict = {
 # shortcut to simplify usage.
 _KIND_NAMES = {shortcut:"zwo" for shortcut in ["sony", "imx", "imx455"]}
 
-def get_any_astro_name(name, retry=True):
+def get_any_astro_name(name: str, retry: bool = True) -> str | None:
     """
     Search for an astronomical object spectrum file by name or spectral type.
 
@@ -166,7 +173,7 @@ def get_any_astro_name(name, retry=True):
     warnings.warn(f"cannot parse {name=}")
     return None
 
-def get_pickles_spectrum_filename(spectral_type, fullpath=True):
+def get_pickles_spectrum_filename(spectral_type: str, fullpath: bool = True) -> str:
     """
     Get the Pickles spectrum filename for a given spectral type.
 
@@ -207,7 +214,7 @@ def get_pickles_spectrum_filename(spectral_type, fullpath=True):
         
     return filename
 
-def read_config(filename, source="config"):
+def read_config(filename: str | dict[str, Any], source: str = "config") -> dict[str, Any]:
     """
     Read a single configuration file.
 
@@ -241,7 +248,7 @@ def read_config(filename, source="config"):
         return filename
     
     # make sure you get the fullpath
-    filename = expand_path(filename, source=source, test_extension=False)
+    filename = expand_path(filename, source=source, test_extension=False)  # type: ignore[arg-type]
 
     # parse the extension to know how to read it.
     _, extension = os.path.splitext(filename)
@@ -256,7 +263,7 @@ def read_config(filename, source="config"):
     
     return config
 
-def get_sensor_config(kind, band, **kwargs):
+def get_sensor_config(kind: str, band: str, **kwargs: Any) -> dict[str, Any]:
     """
     Get sensor configuration for a specific detector kind and band.
 
@@ -282,12 +289,12 @@ def get_sensor_config(kind, band, **kwargs):
         If the throughput curve for the specified band is not yet implemented.
     """
     # trick to allow nicknames like 'sony' in place of 'zwo'
-    kind = _KIND_NAMES.get(kind, kind) 
+    kind = _KIND_NAMES.get(kind, kind)
     kind_sensors = SENSORS.get(kind)
-    if band not in kind_sensors:
+    if band not in kind_sensors:  # type: ignore[operator]
         raise ValueError(f"{kind_sensors} sensor do not have {band} band.")
     else:
-        throughput_filter = kind_sensors.get(band)
+        throughput_filter = kind_sensors.get(band)  # type: ignore[attr-defined]
         if throughput_filter is None:
             raise NotImplementedError("{kind_sensors} {band} sensor exists but no throghputcurve implemented yet.")
 
@@ -303,7 +310,7 @@ def get_sensor_config(kind, band, **kwargs):
 
 
 
-def expand_path(filename, source=None, test_extension=False):
+def expand_path(filename: str, source: str | None = None, test_extension: bool = False) -> str:
     """
     Get the full file path, including the package path if necessary.
 

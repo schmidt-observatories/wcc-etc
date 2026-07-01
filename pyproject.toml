@@ -35,6 +35,7 @@ dependencies = [
 [project.optional-dependencies]
 lightcurve = ["lazuli-transit[batman]"]
 exoarchive = ["lazuli-transit[archive]"]
+typecheck = ["mypy"]
 
 [project.urls]
 Homepage = "https://github.com/schmidt-observatories/wcc-etc"
@@ -47,6 +48,7 @@ include-package-data = true
 
 [tool.setuptools.package-data]
 "wcc_etc" = [
+  "py.typed",
   "data/astr_obj_models/stars/pickles_models/dat_uvk/*.fits",
   "data/astr_obj_models/galaxies/brown/*",
   "data/astrophysics/*",
@@ -67,3 +69,12 @@ testpaths = [
 pythonpath = ["."]
 
 
+[tool.mypy]
+python_version = "3.11"
+files = ["src/wcc_etc"]
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = false
+no_implicit_optional = true
+warn_redundant_casts = true
+exclude = ['src/wcc_etc/wcc_etc\.py$']

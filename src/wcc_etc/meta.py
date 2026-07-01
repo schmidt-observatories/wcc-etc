@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+from collections.abc import KeysView
 import warnings
 from copy import deepcopy
 
@@ -15,10 +19,10 @@ class _MetaHolder_():
         List of parameters that are allowed to be updated.
     """
 
-    _mutable_parameters = []
+    _mutable_parameters: list[str] = []
 
 
-    def __init__(self, meta={}):
+    def __init__(self, meta: dict[str, Any] = {}) -> None:
         """
         Initialize the _MetaHolder_.
 
@@ -33,13 +37,13 @@ class _MetaHolder_():
     # ============== #
     #  Methods       #
     # ============== # 
-    def reset(self):
+    def reset(self) -> None:
         """
         Revert the metadata to the initial input parameters.
         """
         self._meta = deepcopy(self._meta_in)
         
-    def update(self, reset=False, **kwargs):
+    def update(self, reset: bool = False, **kwargs: Any) -> KeysView[str]:
         """
         Change any mutable parameter.
 
@@ -78,7 +82,7 @@ class _MetaHolder_():
         self._meta |= updated_params
         return updated_params.keys()
 
-    def describe(self):
+    def describe(self) -> None:
         """
         Print the current parameters and their values.
         """
@@ -89,14 +93,14 @@ class _MetaHolder_():
     #   Properties     #
     # ================ #
     @property
-    def meta(self):
+    def meta(self) -> dict[str, Any]:
         """
         The current metadata dictionary.
         """
         return self._meta
             
     @property
-    def mutable_parameters(self):
+    def mutable_parameters(self) -> list[str]:
         """
         The list of parameters that are allowed to be updated.
         """

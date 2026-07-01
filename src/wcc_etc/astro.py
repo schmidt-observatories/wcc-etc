@@ -1,6 +1,14 @@
+from __future__ import annotations
+
+from numpy.typing import NDArray
 import numpy as np
 
-def get_moon_magnitude(phase, phase_type='fraction', distance_km=384400.0, m_full=-12.74):
+def get_moon_magnitude(
+    phase: float | NDArray[np.float64],
+    phase_type: str = 'fraction',
+    distance_km: float | None = 384400.0,
+    m_full: float = -12.74,
+) -> float | NDArray[np.float64]:
     """
     Return an approximate V-band magnitude of the Moon.
 

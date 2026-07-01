@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+from typing import Any, Self, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from synphot import SpectralElement
+    from .telescope import Telescope
 
 from astropy import units as u
 from copy import deepcopy
@@ -38,18 +45,18 @@ class Sensor(_MetaHolder_):
                             "gain", "area", "temperature",
                             "bit_depth", "bias_level"]
     
-    def __init__(self, bandpass, 
-                 pixel_size,                  
-                 read_noise,
-                 dark_current, 
-                 gain,
-                 area,
-                 temperature=None,
-                 qe= 1, # part of the total throughput for now.
-                 well_depth=None,
-                 bit_depth=None,
-                 bias_level=None,
-                meta={}):
+    def __init__(self, bandpass: str | SpectralElement,
+                 pixel_size: float | u.Quantity,
+                 read_noise: float | u.Quantity,
+                 dark_current: float | u.Quantity,
+                 gain: float | u.Quantity,
+                 area: float | u.Quantity,
+                 temperature: float | u.Quantity | None = None,
+                 qe: float = 1, # part of the total throughput for now.
+                 well_depth: float | u.Quantity | None = None,
+                 bit_depth: int | None = None,
+                 bias_level: float | None = None,
+                 meta: dict[str, Any] = {}) -> None:
         """
         Initialize the sensor.
 
@@ -90,7 +97,7 @@ class Sensor(_MetaHolder_):
         super().__init__(meta | init_parameters)
         
     @classmethod
-    def from_name(cls, name):
+    def from_name(cls, name: str) -> Self:
         """
         Create a Sensor instance from a name string 'kind:band'.
 
@@ -107,7 +114,7 @@ class Sensor(_MetaHolder_):
         return cls.from_kind_and_band(sensor, band)
 
     @classmethod
-    def from_config(cls, config_or_name):
+    def from_config(cls, config_or_name: dict[str, Any] | str) -> Self:
         """
         Create a Sensor instance from a configuration or name.
 
@@ -142,16 +149,16 @@ class Sensor(_MetaHolder_):
         # gain
         gain_setting = config.get('gain_setting', None)        
         if gain_setting is not None:
-            gain = parse_and_interpolate(config.get("path_gain_curve"), gain_setting)
-            read_noise = parse_and_interpolate(config.get("path_read_noise"), gain_setting) * 2 # multiply by 2 to allow for unmodelled noise sources
-            dark_current = parse_and_interpolate(config.get("path_dark_current"), sensor_temp.to("Celsius").value) # careful temperature here.
-            well_depth = parse_and_interpolate(config.get("path_well_depth"), gain_setting)
-            
+            gain = parse_and_interpolate(config.get("path_gain_curve"), gain_setting)  # type: ignore[arg-type]
+            read_noise = parse_and_interpolate(config.get("path_read_noise"), gain_setting) * 2  # type: ignore[arg-type]  # multiply by 2 to allow for unmodelled noise sources
+            dark_current = parse_and_interpolate(config.get("path_dark_current"), sensor_temp.to("Celsius").value)  # type: ignore[arg-type]  # careful temperature here.
+            well_depth = parse_and_interpolate(config.get("path_well_depth"), gain_setting)  # type: ignore[arg-type]
+
         else: # no default allowed here, must be provided.
-            gain = config.get("gain")
-            read_noise = config.get("read_noise")
-            dark_current = config.get("dark_current")
-            well_depth = config.get("well_depth")        
+            gain = config.get("gain")  # type: ignore[assignment]
+            read_noise = config.get("read_noise")  # type: ignore[assignment]
+            dark_current = config.get("dark_current")  # type: ignore[assignment]
+            well_depth = config.get("well_depth")  # type: ignore[assignment]
 
         
         # ADC properties
@@ -172,7 +179,7 @@ class Sensor(_MetaHolder_):
                     meta=config)
     
     @classmethod
-    def from_kind_and_band(cls, kind, band):
+    def from_kind_and_band(cls, kind: str, band: str) -> Self:
         """
         Load the instance given the detector kind and filter.
 
@@ -197,7 +204,7 @@ class Sensor(_MetaHolder_):
     # ================ #
     #  Methods         #
     # ================ #
-    def set_bandpass(self, bandpass):
+    def set_bandpass(self, bandpass: str | SpectralElement) -> None:
         """
         Set the sensor bandpass.
 
@@ -207,7 +214,7 @@ class Sensor(_MetaHolder_):
         """
         self._bandpass = parse_element(bandpass)
     
-    def get_plate_scale(self, telescope):
+    def get_plate_scale(self, telescope: Telescope) -> u.Quantity:
         """
         Calculate the plate scale in arcsec/pix.
 
@@ -228,14 +235,14 @@ class Sensor(_MetaHolder_):
     #  Properties      #
     # ================ #
     @property
-    def bandpass(self):
+    def bandpass(self) -> SpectralElement:
         """
         The sensor bandpass (SpectralElement).
         """
         return self._bandpass
         
     @property
-    def wavelength(self):
+    def wavelength(self) -> u.Quantity:
         """
         The effective (pivot) wavelength of the bandpass.
 
@@ -249,62 +256,62 @@ class Sensor(_MetaHolder_):
         independent of where the throughput happens to peak.
         """
         # store in memory as a bit slow
-        if not hasattr(self, "_wavelength") or self._wavelength is None:
+        if not hasattr(self, "_wavelength") or self._wavelength is None:  # type: ignore[has-type]
             self._wavelength = self.bandpass.pivot().to(u.nm)
 
         return self._wavelength
 
     @property
-    def area(self):
+    def area(self) -> u.Quantity:
         """
         The sensor area.
         """
         return self.meta["area"]
         
     @property
-    def gain(self):
+    def gain(self) -> u.Quantity:
         """
         The sensor gain (e-/ct).
         """
         return self.meta["gain"] * (u.electron / u.ct)
         
     @property
-    def dark_current(self):
+    def dark_current(self) -> u.Quantity:
         """
         The dark current (e-/s/pix).
         """
         return self.meta["dark_current"] * (u.electron / (u.s * u.pix))
 
     @property
-    def read_noise(self):
+    def read_noise(self) -> u.Quantity:
         """
         The read noise (e-/pix).
         """
         return self.meta["read_noise"] * u.electron / u.pix
         
     @property
-    def pixel_size(self):
+    def pixel_size(self) -> u.Quantity:
         """
         The pixel size (um/pix).
         """
         return self.meta["pixel_size"] * u.um/u.pix
 
     @property
-    def bit_depth(self):
+    def bit_depth(self) -> int | None:
         """
         The ADC bit depth (int), or None if not configured.
         """
         return self.meta.get("bit_depth")
 
     @property
-    def bias_level(self):
+    def bias_level(self) -> u.Quantity:
         """
         The additive bias/offset level in ADU (u.ct). Defaults to 0.
         """
         return self.meta.get("bias_level", 0) * u.ct
 
     @property
-    def adc_max(self):
+    def adc_max(self) -> u.Quantity:
         """
         The ADC full-scale (clip ceiling) in ADU (u.ct): 2**bit_depth - 1.
         """

@@ -1,9 +1,19 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from numpy.typing import NDArray
+
+import warnings
 import pandas
 import numpy as np
 from .io import expand_path
 
+if TYPE_CHECKING:
+    from astropy.units import Quantity
+    from synphot import SpectralElement
 
-def parse_element(path_or_element, wave_unit='nm'):
+
+def parse_element(path_or_element: str | SpectralElement | None, wave_unit: str = 'nm') -> SpectralElement | None:
     """
     Parse a path to a bandpass file or a SpectralElement object.
 
@@ -41,7 +51,7 @@ def parse_element(path_or_element, wave_unit='nm'):
     # build the effective througput
     return element
 
-def parse_and_interpolate(input_file, xval):
+def parse_and_interpolate(input_file: str, xval: float | NDArray[np.float64]) -> float | NDArray[np.float64]:
     """
     Interpolate values from a CSV file at a given input x-value.
 
@@ -62,7 +72,7 @@ def parse_and_interpolate(input_file, xval):
     data = pandas.read_csv(input_file, index_col=0).iloc[:, 0]
     return np.interp(xval, data.index, data.values)
 
-def list_of_quantity_to_array(quantities):
+def list_of_quantity_to_array(quantities: list[Quantity]) -> Quantity | list[Quantity]:
     """
     Convert a list of astropy Quantities to a numpy array, assuming they have the same unit.
 
