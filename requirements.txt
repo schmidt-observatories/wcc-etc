@@ -1,3 +1,5 @@
-bokeh==3.6.2
-toml
-photutils=2.3.0
+# All dependencies are declared in pyproject.toml.
+# Install the package with:
+#   pip install -e .           # core
+#   pip install -e ".[dev]"    # + dev tools (pytest, ruff, mypy, pre-commit)
+#   pip install -e ".[docs]"   # + documentation build (sphinx etc.)
