@@ -1,20 +1,23 @@
-import numpy as np
-from astropy import units as u
-from synphot import SpectralElement, Observation
-
 import warnings
 
-from .io import get_sensor_config, _SENSORFILTER_FOCUS, _SENSORFILTER_IMPLEMENTED, resolve_bandpass
+import numpy as np
+from astropy import units as u
+from .io import (
+    _SENSORFILTER_FOCUS,
+    _SENSORFILTER_IMPLEMENTED,
+    get_sensor_config,
+    resolve_bandpass,
+)
 from .telescope import Telescope
 from .sensor import Sensor
 from .scene import Scene
 from .meta import _MetaHolder_
 from .utils import list_of_quantity_to_array
 
+# import logging
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
 
-#import logging
-#logging.basicConfig(level=logging.INFO)
-#logger = logging.getLogger(__name__)
 
 def calculate_bg_normalization_magnitude(bg_surface_brightness, psf_area):
     """
@@ -58,14 +61,17 @@ def _psf_from_focus_level(focus_level):
     ValueError
         If focus_level is not one of the expected values.
     """
-    from .psfsim import AiryPSF, DefocusPSF, DEFOCUS_1WAVE_PATH, DEFOCUS_2WAVE_PATH
+    from .psfsim import DEFOCUS_1WAVE_PATH, DEFOCUS_2WAVE_PATH, AiryPSF, DefocusPSF
+
     if focus_level == "0wave":
         return AiryPSF()
     if focus_level == "1wave":
         return DefocusPSF(DEFOCUS_1WAVE_PATH)
     if focus_level == "2wave":
         return DefocusPSF(DEFOCUS_2WAVE_PATH)
-    raise ValueError(f"Unknown focus_level {focus_level!r}. Expected '0wave', '1wave', or '2wave'.")
+    raise ValueError(
+        f"Unknown focus_level {focus_level!r}. Expected '0wave', '1wave', or '2wave'."
+    )
 
 
 class Simulation(_MetaHolder_):
@@ -83,18 +89,13 @@ class Simulation(_MetaHolder_):
     psf_profile : dict
         Calculated PSF profile parameters.
     """
+
     _mutable_parameters = ["time", "r_aper_mas", "n_reads"]
 
-    def __init__(self,
-                 telescope,
-                 sensor,
-                 scene=None,
-                 time=90,
-                 r_aper_mas=70,
-                 n_reads=1,
-                 meta={}
-                 ):
-        """ 
+    def __init__(
+        self, telescope, sensor, scene=None, time=90, r_aper_mas=70, n_reads=1, meta={}
+    ):
+        """
         Initialize a Simulation object.
 
         Parameters
@@ -122,13 +123,21 @@ class Simulation(_MetaHolder_):
         self._psf_profile = {}
         self._image_render_bundle_cache = {}
 
-        input_parameters = {key:value for key,value in locals().items()
-                             if key not in ["self", "telescope", "sensor", "scene", "meta"]
-                                and value is not None and not key.startswith("__")}
-        non_attr_meta  = {key: value for key, value in meta.items() if key not in ["telescope", "sensor", "scene"]}
+        input_parameters = {
+            key: value
+            for key, value in locals().items()
+            if key not in ["self", "telescope", "sensor", "scene", "meta"]
+            and value is not None
+            and not key.startswith("__")
+        }
+        non_attr_meta = {
+            key: value
+            for key, value in meta.items()
+            if key not in ["telescope", "sensor", "scene"]
+        }
 
         super().__init__(non_attr_meta | input_parameters)
-        
+
     # ============= #
     #  properties   #
     # ============= #
@@ -153,7 +162,7 @@ class Simulation(_MetaHolder_):
             telescope = Telescope.from_config(config_telescope)
         else:
             telescope = None
-            
+
         # Sensor
         config_sensor = config.get("sensor", None)
         if config_sensor is not None:
@@ -187,7 +196,7 @@ class Simulation(_MetaHolder_):
         Simulation
         """
         return cls.from_sensor_and_scene(sensor, scene=scene)
-    
+
     @classmethod
     def from_sensor_and_scene(cls, sensor, scene):
         """
@@ -211,8 +220,8 @@ class Simulation(_MetaHolder_):
                 kind, band = sensor
 
             config = get_sensor_config(kind, band)
-            this = cls.from_config(config) # this has no scene
-            
+            this = cls.from_config(config)  # this has no scene
+
         elif isinstance(sensor, Sensor):
             this = cls(sensor=sensor, telescope=sensor.telescope)
 
@@ -247,8 +256,7 @@ class Simulation(_MetaHolder_):
         if sensorfilter not in _SENSORFILTER_FOCUS:
             known = sorted(_SENSORFILTER_FOCUS)
             raise ValueError(
-                f"Unknown sensorfilter {sensorfilter!r}. "
-                f"Known labels: {known}"
+                f"Unknown sensorfilter {sensorfilter!r}. Known labels: {known}"
             )
         if not _SENSORFILTER_IMPLEMENTED[sensorfilter]:
             raise NotImplementedError(
@@ -323,9 +331,9 @@ class Simulation(_MetaHolder_):
             telescope = Telescope.from_config(telescope_or_config)
         else:
             telescope = telescope_or_config
-        
+
         self._telescope = telescope
-        self._psf_profile = {} # reset the psf profile
+        self._psf_profile = {}  # reset the psf profile
         self._image_render_bundle_cache = {}
 
     # ------- #
@@ -351,8 +359,10 @@ class Simulation(_MetaHolder_):
             key = element
             element = None
         else:
-            key = "__".join(keys) # trick to allow scene__background__mag => scene, background__mag
-                
+            key = "__".join(
+                keys
+            )  # trick to allow scene__background__mag => scene, background__mag
+
         return element, key
 
     def _fullkey_to_value(self, fullkey):
@@ -371,64 +381,65 @@ class Simulation(_MetaHolder_):
         """
         *origin, baseparam = fullkey.split("__")
         origin = "__".join(origin)
-        if len(origin)==0:
+        if len(origin) == 0:
             return self.meta.get(baseparam)
         else:
-            return eval(f"self.{origin.replace('__', '.')}").meta.get(baseparam)     
-    
+            return eval(f"self.{origin.replace('__', '.')}").meta.get(baseparam)
+
     def reset(self):
         """
         Reset the simulation and its components.
         """
-        super().reset() # this resets the meta
+        super().reset()  # this resets the meta
         for element in [self.telescope, self.sensor, self.scene]:
             if element is not None:
                 element.reset()
         self._psf_profile = {}
         self._image_render_bundle_cache = {}
-            
-                
+
     def update(self, **kwargs):
         """
         Update simulation parameters.
 
         The keyword should in principle have the following structure
-        `scene__source__mag = 21` to change the `self.scene.source.mag` 
+        `scene__source__mag = 21` to change the `self.scene.source.mag`
         parameter to 21.
 
-        To simplify the use, if the name has no ambiguity, you 
-        can skip the first structure elements. 
+        To simplify the use, if the name has no ambiguity, you
+        can skip the first structure elements.
         For instance, only `scene__` has a `source__mag`. So `source__mag=21`
-        will automatically be associated with `scene__source__mag=21`. 
-        Same would work, for instance for `dark_current`: only `detector__` 
+        will automatically be associated with `scene__source__mag=21`.
+        Same would work, for instance for `dark_current`: only `detector__`
         has a `dark_current` mutable_parameter.
-        However `mag=21` is not clear enough, as `scene__source__mag`, 
-        `scene__background__mag` or `scene__host__mag` exist. 
+        However `mag=21` is not clear enough, as `scene__source__mag`,
+        `scene__background__mag` or `scene__host__mag` exist.
 
         Parameters
         ----------
         **kwargs
             Parameters to update. Can use double-underscore for sub-elements.
-        """        
+        """
         update_this = {}
-        to_update = {"telescope": {},
-                     "sensor": {},
-                     "scene": {}
-                    }
+        to_update = {"telescope": {}, "sensor": {}, "scene": {}}
         for key, value in kwargs.items():
-            key = key.replace(".", "__") # generi trick, sensor.gain == sensor__gain.
-            
+            key = key.replace(".", "__")  # generi trick, sensor.gain == sensor__gain.
+
             # is that a fully defined name like sensor__dark_current ?
-            if np.any([key.startswith(f"{element}__")
-                       for element in ["telescope", "sensor", "scene"]]):
+            if np.any(
+                [
+                    key.startswith(f"{element}__")
+                    for element in ["telescope", "sensor", "scene"]
+                ]
+            ):
                 # yes ? easy then
                 element, down_key = self._fullkey_to_element_and_key(key)
                 to_update[element][down_key] = value
                 continue
-    
+
             # see if it is missing a key
-            fetch_key = [fullkey for fullkey in self.mutable_parameters
-                          if fullkey.endswith(key)]
+            fetch_key = [
+                fullkey for fullkey in self.mutable_parameters if fullkey.endswith(key)
+            ]
             if len(fetch_key) == 1:
                 # ok, well defined, easy:
                 element, down_key = self._fullkey_to_element_and_key(fetch_key[0])
@@ -439,19 +450,21 @@ class Simulation(_MetaHolder_):
                     # it is a sub-element
                     to_update[element][down_key] = value
                 continue
-                
-            if len(fetch_key)>1:
+
+            if len(fetch_key) > 1:
                 # not well defined, more than one entry exist for they key
-                warnings.warn(f"several entries found matiching {key=} : {fetch_key}. Please clarify. *{key=} ignored*")
+                warnings.warn(
+                    f"several entries found matiching {key=} : {fetch_key}. Please clarify. *{key=} ignored*"
+                )
                 continue
-    
+
             # if we are here, it means fetch_key didn't match.
             warnings.warn(f"no entries found matiching {key=}. *{key=} ignored*")
-    
+
         self.update_telescope(**to_update["telescope"])
         self.update_sensor(**to_update["sensor"])
         self.update_scene(**to_update["scene"])
-    
+
         self._meta |= update_this
         # any parameter change can affect the PSF/count rates: drop caches
         self._psf_profile = {}
@@ -466,11 +479,10 @@ class Simulation(_MetaHolder_):
         **kwargs
             Telescope parameters.
         """
-        shortcuts = {"jitter": "jitter_sigma", 
-                    "diameter": "diameter_primary"}
+        shortcuts = {"jitter": "jitter_sigma", "diameter": "diameter_primary"}
         to_update = {shortcuts.get(key, key): value for key, value in kwargs.items()}
         self.telescope.update(**to_update)
-    
+
     def update_scene(self, **kwargs):
         """
         Update scene parameters.
@@ -481,7 +493,7 @@ class Simulation(_MetaHolder_):
             Scene parameters.
         """
         self.scene.update(**kwargs)
-    
+
     def update_sensor(self, **kwargs):
         """
         Update sensor parameters.
@@ -512,25 +524,27 @@ class Simulation(_MetaHolder_):
         values = []
         names = np.atleast_1d(name)
         for name_ in names:
-            name_ = name_.replace(".","__") # accept this generic way
-            fetch_key = [fullkey for fullkey in self.mutable_parameters
-                                if fullkey.endswith(name_)]
+            name_ = name_.replace(".", "__")  # accept this generic way
+            fetch_key = [
+                fullkey
+                for fullkey in self.mutable_parameters
+                if fullkey.endswith(name_)
+            ]
             if len(fetch_key) == 1:
-                values.append( self._fullkey_to_value(fetch_key[0]) ) 
+                values.append(self._fullkey_to_value(fetch_key[0]))
             else:
-                if len(fetch_key)==0:
+                if len(fetch_key) == 0:
                     warnings.warn(f"not matching found for {name_=}")
                 else:
                     warnings.warn(f"several matching found for {name_=} ; {fetch_key}")
-                                      
+
                 values.append(None)
-    
+
         if as_dict:
             return dict(zip(names, values))
-        
+
         return values
-    
-      
+
     # ------- #
     #  GETTER #
     # ------- #
@@ -538,12 +552,20 @@ class Simulation(_MetaHolder_):
         """DEPRECATED (Airy, in-aperture). Use _count_rate_components for the 2D
         path or get_image_snr. Retained for the analytic Airy methods."""
         import warnings
-        warnings.warn("get_countrates is deprecated (Airy in-aperture model); "
-                      "use get_image_snr / _count_rate_components.",
-                      DeprecationWarning, stacklevel=2)
-        return self._countrates_in_aperture(scene=scene, band=band, units=units, as_dict=as_dict)
 
-    def _countrates_in_aperture(self, scene=None, band=None, units="adu/s", as_dict=True):
+        warnings.warn(
+            "get_countrates is deprecated (Airy in-aperture model); "
+            "use get_image_snr / _count_rate_components.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._countrates_in_aperture(
+            scene=scene, band=band, units=units, as_dict=as_dict
+        )
+
+    def _countrates_in_aperture(
+        self, scene=None, band=None, units="adu/s", as_dict=True
+    ):
         """
         Get the countrates for each element in the scene (Airy in-aperture).
 
@@ -564,8 +586,9 @@ class Simulation(_MetaHolder_):
             The countrates.
         """
         if units not in ["adu/s", "e/s", "e-/s"]:
-            raise ValueError(f"unknown countrate units. Should be 'adu/s' or 'e/s'. {units=} given")
-
+            raise ValueError(
+                f"unknown countrate units. Should be 'adu/s' or 'e/s'. {units=} given"
+            )
 
         # INFO: self.psf_profile is computed automatically if needed.
         if band is None:
@@ -574,10 +597,9 @@ class Simulation(_MetaHolder_):
         if scene is None:
             scene = self.scene
 
-
         # these are the countrate in e/s
-        if np.any( scene.call_down("mag_is_surface_brightness")):
-            area = self.psf_profile['psf_area'].value # area in arcsec**2
+        if np.any(scene.call_down("mag_is_surface_brightness")):
+            area = self.psf_profile["psf_area"].value  # area in arcsec**2
         else:
             area = None
 
@@ -587,10 +609,12 @@ class Simulation(_MetaHolder_):
         countrates = {}
         for element, observation in scene_observations.items():
             # - scene
-            count_rate_total = observation.countrate(area=self.telescope.surface) * u.electron/u.ct
+            count_rate_total = (
+                observation.countrate(area=self.telescope.surface) * u.electron / u.ct
+            )
             count_rate = count_rate_total * self.psf_profile["ee_at_aper"]
 
-            if units in ["adu/s"]: # in [] enables short cut.
+            if units in ["adu/s"]:  # in [] enables short cut.
                 count_rate /= self.sensor.gain  #   ADU/s
 
             countrates[element] = count_rate
@@ -611,14 +635,18 @@ class Simulation(_MetaHolder_):
         """
         if band is None:
             band = self.sensor.bandpass
-        plate_scale_arcsec = self.sensor.get_plate_scale(self.telescope).to(u.arcsec / u.pix).value
-        pixel_area_arcsec2 = plate_scale_arcsec ** 2  # one detector pixel, arcsec^2
+        plate_scale_arcsec = (
+            self.sensor.get_plate_scale(self.telescope).to(u.arcsec / u.pix).value
+        )
+        pixel_area_arcsec2 = plate_scale_arcsec**2  # one detector pixel, arcsec^2
         surf = self.telescope.surface
 
         # One call at one-pixel area: non-surface-brightness elements (the point
         # source) ignore `area` -> total rate; surface-brightness elements (sky)
         # use it -> per-pixel rate.
-        obs = self.scene.get_observation(band=band, area=pixel_area_arcsec2, as_dict=True)
+        obs = self.scene.get_observation(
+            band=band, area=pixel_area_arcsec2, as_dict=True
+        )
 
         source_rate_total = 0.0
         background_rate_per_pix = 0.0
@@ -626,16 +654,20 @@ class Simulation(_MetaHolder_):
         for name, o in obs.items():
             if o is None:
                 continue
-            rate = (o.countrate(area=surf) * u.electron / u.ct).to(u.electron / u.s).value
+            rate = (
+                (o.countrate(area=surf) * u.electron / u.ct).to(u.electron / u.s).value
+            )
             if name == "source":
                 source_rate_total = rate
             elif name == "background":
                 background_rate_per_pix = rate
             else:
                 diffuse_rate_per_pix += rate
-        return {"source_rate_total": source_rate_total,
-                "background_rate_per_pix": background_rate_per_pix,
-                "diffuse_rate_per_pix": diffuse_rate_per_pix}
+        return {
+            "source_rate_total": source_rate_total,
+            "background_rate_per_pix": background_rate_per_pix,
+            "diffuse_rate_per_pix": diffuse_rate_per_pix,
+        }
 
     def get_signal_and_variance(self, time=None, units="e-", n_reads=None):
         """
@@ -657,59 +689,77 @@ class Simulation(_MetaHolder_):
             (source_signal, total_variance)
         """
         import warnings
-        warnings.warn("get_signal_and_variance is the analytic Airy approximation and is "
-                      "deprecated; use the PSF-aware 2D path (get_image_snr / "
-                      "get_image_exptime_for_snr / get_peak_pixel).",
-                      DeprecationWarning, stacklevel=2)
+
+        warnings.warn(
+            "get_signal_and_variance is the analytic Airy approximation and is "
+            "deprecated; use the PSF-aware 2D path (get_image_snr / "
+            "get_image_exptime_for_snr / get_peak_pixel).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if time is None:
             time = self._meta.get("time", None)
         if time is None:
             raise ValueError("no time given, none set to meta")
-            
+
         # make sure the time is in the current units.
         elif not isinstance(time, u.Quantity):
-           time = time*u.second
+            time = time * u.second
 
         n_reads = self._resolve_n_reads(n_reads)
 
         # get the count rates in {adu,e-}/s
-        count_rates = self._countrates_in_aperture(units="e/s", as_dict=True) # this is an array
-        
-        #logging.info(f"Scene count rate: {count_rates:.2f} e/s")
-        #logging.info(f"Background count rate: {sky_count_rate:.2f} e/s")
+        count_rates = self._countrates_in_aperture(
+            units="e/s", as_dict=True
+        )  # this is an array
 
-        source_signal = count_rates["source"] * time # e-
-        
+        # logging.info(f"Scene count rate: {count_rates:.2f} e/s")
+        # logging.info(f"Background count rate: {sky_count_rate:.2f} e/s")
+
+        source_signal = count_rates["source"] * time  # e-
+
         # poisson noise is at the electron level, not adu.
         # poisson noise comes from the full scene source.
-        all_countrates = list_of_quantity_to_array( count_rates.values() )
-        scene_signal = np.nansum( all_countrates ) * time # e-
-        
-        dark_signal = self.sensor.dark_current * time # e-/pix
-        
+        all_countrates = list_of_quantity_to_array(count_rates.values())
+        scene_signal = np.nansum(all_countrates) * time  # e-
+
+        dark_signal = self.sensor.dark_current * time  # e-/pix
+
         # u.electron/u.pixel as variance, so unit square
-        detector_variance = (dark_signal * u.electron/u.pixel
-                             + n_reads * self.sensor.read_noise**2) * self.psf_profile["num_psf_pixels"] # e-**2
-        #logging.info(f"signal: {scene_signal:.2f} e-")
-#        logging.info(f"sky signal: {sky_signal:.2f} e-") part of the scene signal?
-        #logging.info(f"dark signal: {dark_signal:.2f} e-")
-        #logging.info(f"detector variance: {detector_variance:.2f} e-^2.")
+        detector_variance = (
+            dark_signal * u.electron / u.pixel + n_reads * self.sensor.read_noise**2
+        ) * self.psf_profile["num_psf_pixels"]  # e-**2
+        # logging.info(f"signal: {scene_signal:.2f} e-")
+        #        logging.info(f"sky signal: {sky_signal:.2f} e-") part of the scene signal?
+        # logging.info(f"dark signal: {dark_signal:.2f} e-")
+        # logging.info(f"detector variance: {detector_variance:.2f} e-^2.")
 
         # total noise
         # * u.electron as photon noise ; already there in etector_variance
-        total_variance = (scene_signal * u.electron + detector_variance)  # variance in  e-**2
-        
+        total_variance = (
+            scene_signal * u.electron + detector_variance
+        )  # variance in  e-**2
+
         # units
         if units.lower() == "adu":
             scene_signal /= self.sensor.gain
             total_variance /= self.sensor.gain**2
         elif units not in ["e", "e-", "electron"]:
             raise ValueError(f"unknown units {units=}. adu or electron/e- expected.")
-            
+
         return source_signal, total_variance
 
-    def get_peak_pixel(self, time=None, units="adu", n_reads=None, *,
-                       psf=None, jitter_sigma_mas=None, npix=128, oversample=11):
+    def get_peak_pixel(
+        self,
+        time=None,
+        units="adu",
+        n_reads=None,
+        *,
+        psf=None,
+        jitter_sigma_mas=None,
+        npix=128,
+        oversample=11,
+    ):
         """Brightest-pixel value for the actual (possibly defocused) PSF.
 
         Peak = source_rate_total * peak_pixel_fraction + sky_per_pix + dark,
@@ -730,13 +780,18 @@ class Simulation(_MetaHolder_):
 
         if psf is None:
             from .psfsim import AiryPSF
+
             psf = self._default_psf if self._default_psf is not None else AiryPSF()
         b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
 
-        dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
-        peak_rate = (b["source_rate_total"] * float(b["psf_norm"].max())
-                     + b["background_rate_per_pix"]
-                     + dark_rate_per_pix)  # electron / s in the brightest pixel
+        dark_rate_per_pix = self.sensor.dark_current.to(
+            u.electron / (u.s * u.pix)
+        ).value
+        peak_rate = (
+            b["source_rate_total"] * float(b["psf_norm"].max())
+            + b["background_rate_per_pix"]
+            + dark_rate_per_pix
+        )  # electron / s in the brightest pixel
         # host/diffuse elements are excluded from the saturation budget by design
         # (matches _per_frame_clean_image_e and get_image_snr saturation check)
         peak_e = (peak_rate * tf) * u.electron
@@ -747,8 +802,16 @@ class Simulation(_MetaHolder_):
             return (peak_e / self.sensor.gain).to(u.ct) + self.sensor.bias_level
         raise ValueError(f"unknown units {units=}. 'adu' or electron/'e-' expected.")
 
-    def is_saturated(self, time=None, n_reads=None, *,
-                     psf=None, jitter_sigma_mas=None, npix=128, oversample=11):
+    def is_saturated(
+        self,
+        time=None,
+        n_reads=None,
+        *,
+        psf=None,
+        jitter_sigma_mas=None,
+        npix=128,
+        oversample=11,
+    ):
         """Whether the brightest pixel (ADU) reaches sensor.adc_max, per frame,
         for the actual (possibly defocused) PSF. See get_peak_pixel.
 
@@ -758,12 +821,20 @@ class Simulation(_MetaHolder_):
         limit binds and bias is small (the usual case). A full reconciliation of
         the two criteria (well-depth + bias handling) is a known follow-up.
         """
-        peak_adu = self.get_peak_pixel(time, units="adu", n_reads=n_reads, psf=psf,
-                                       jitter_sigma_mas=jitter_sigma_mas,
-                                       npix=npix, oversample=oversample)
+        peak_adu = self.get_peak_pixel(
+            time,
+            units="adu",
+            n_reads=n_reads,
+            psf=psf,
+            jitter_sigma_mas=jitter_sigma_mas,
+            npix=npix,
+            oversample=oversample,
+        )
         return peak_adu >= self.sensor.adc_max
 
-    def peak_pixel_fraction(self, psf=None, jitter_sigma_mas=None, npix=128, oversample=11):
+    def peak_pixel_fraction(
+        self, psf=None, jitter_sigma_mas=None, npix=128, oversample=11
+    ):
         """Fraction of total source flux in the brightest detector pixel for the
         actual (possibly defocused) PSF.
 
@@ -773,6 +844,7 @@ class Simulation(_MetaHolder_):
         """
         if psf is None:
             from .psfsim import AiryPSF
+
             psf = self._default_psf if self._default_psf is not None else AiryPSF()
         b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
         return float(b["psf_norm"].max())
@@ -806,11 +878,13 @@ class Simulation(_MetaHolder_):
         diffuse_rate_per_pix = comps["diffuse_rate_per_pix"]
         background_rate_per_pix = comps["background_rate_per_pix"]
 
-        bundle = {"psf_norm": psf_norm,
-                  "plate_scale_mas": ctx.plate_scale_mas,
-                  "source_rate_total": source_rate_total,
-                  "diffuse_rate_per_pix": diffuse_rate_per_pix,
-                  "background_rate_per_pix": background_rate_per_pix}
+        bundle = {
+            "psf_norm": psf_norm,
+            "plate_scale_mas": ctx.plate_scale_mas,
+            "source_rate_total": source_rate_total,
+            "diffuse_rate_per_pix": diffuse_rate_per_pix,
+            "background_rate_per_pix": background_rate_per_pix,
+        }
         cache[key] = bundle
         return bundle
 
@@ -822,13 +896,29 @@ class Simulation(_MetaHolder_):
         _image_render_bundle dict; `tf` is the per-frame integration time
         (total time / n_reads); `source_scale` scales the source flux.
         """
-        dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
-        return (b["source_rate_total"] * source_scale * tf) * b["psf_norm"] \
-               + b["background_rate_per_pix"] * tf + dark_rate_per_pix * tf
+        dark_rate_per_pix = self.sensor.dark_current.to(
+            u.electron / (u.s * u.pix)
+        ).value
+        return (
+            (b["source_rate_total"] * source_scale * tf) * b["psf_norm"]
+            + b["background_rate_per_pix"] * tf
+            + dark_rate_per_pix * tf
+        )
 
-    def get_image_snr(self, time=None, mags=None, psf=None, r_aper_mas=None,
-                      ee_frac=None, optimize=False, jitter_sigma_mas=None,
-                      n_reads=None, npix=128, oversample=11, warn=True):
+    def get_image_snr(
+        self,
+        time=None,
+        mags=None,
+        psf=None,
+        r_aper_mas=None,
+        ee_frac=None,
+        optimize=False,
+        jitter_sigma_mas=None,
+        n_reads=None,
+        npix=128,
+        oversample=11,
+        warn=True,
+    ):
         """
         PSF-aware aperture signal-to-noise ratio.
 
@@ -882,8 +972,12 @@ class Simulation(_MetaHolder_):
             `time` and `mags`, or ndarrays (n_pix/n_saturated as int, saturated
             as bool) when `time` or `mags` is an array.
         """
-        from .psfsim import (AiryPSF, aperture_snr_radial, select_aperture,
-                             saturation_mask_from_image_e)
+        from .psfsim import (
+            AiryPSF,
+            aperture_snr_radial,
+            saturation_mask_from_image_e,
+            select_aperture,
+        )
 
         if time is None:
             time = self._meta.get("time", None)
@@ -906,8 +1000,9 @@ class Simulation(_MetaHolder_):
                 raise ValueError("mags sweep requires a source with a set magnitude")
             m0 = m0.value
             if np.ndim(mags) > 0 and not time.isscalar:
-                raise ValueError("time and mags cannot both be arrays; "
-                                 "sweep one axis at a time")
+                raise ValueError(
+                    "time and mags cannot both be arrays; sweep one axis at a time"
+                )
 
         b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
 
@@ -915,38 +1010,63 @@ class Simulation(_MetaHolder_):
         if not optimize and r_aper_mas is None and ee_frac is None:
             r_aper_mas = self._meta.get("r_aper_mas")
 
-        read_noise = self.sensor.read_noise.to(u.electron / u.pix).value * np.sqrt(n_reads)
-        dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
+        read_noise = self.sensor.read_noise.to(u.electron / u.pix).value * np.sqrt(
+            n_reads
+        )
+        dark_rate_per_pix = self.sensor.dark_current.to(
+            u.electron / (u.s * u.pix)
+        ).value
 
         def _snr_at(t_sec, source_scale=1.0):
             source_e_total = b["source_rate_total"] * source_scale * t_sec
             # Sky (background) + host (diffuse) both contribute per-pixel shot noise.
             # The sky term lives in background_rate_per_pix and MUST be included here
             # (it is what makes faint sources sky-limited); omitting it overstates SNR.
-            diffuse_per_pix = (b["diffuse_rate_per_pix"]
-                               + b["background_rate_per_pix"]) * t_sec
+            diffuse_per_pix = (
+                b["diffuse_rate_per_pix"] + b["background_rate_per_pix"]
+            ) * t_sec
             dark_per_pix = dark_rate_per_pix * t_sec
-            prof = aperture_snr_radial(b["psf_norm"], b["plate_scale_mas"],
-                                       source_e_total, diffuse_per_pix, dark_per_pix, read_noise)
-            idx = select_aperture(prof, r_aper_mas=r_aper_mas, ee_frac=ee_frac, optimize=optimize)
+            prof = aperture_snr_radial(
+                b["psf_norm"],
+                b["plate_scale_mas"],
+                source_e_total,
+                diffuse_per_pix,
+                dark_per_pix,
+                read_noise,
+            )
+            idx = select_aperture(
+                prof, r_aper_mas=r_aper_mas, ee_frac=ee_frac, optimize=optimize
+            )
             # per-frame clean electron image -> saturated-pixel count
             # (matches get_peak_pixel/is_saturated: saturation is per-frame).
             image_e = self._per_frame_clean_image_e(b, t_sec / n_reads, source_scale)
             mask = saturation_mask_from_image_e(self.sensor, image_e)
-            return {"snr": float(prof["snr"][idx]),
-                    "signal_e": float(prof["signal_e"][idx]),
-                    "noise_e": float(prof["noise_e"][idx]),
-                    "enclosed_fraction": float(prof["enclosed_fraction"][idx]),
-                    "r_aper_mas": float(prof["r_mas"][idx]),
-                    "n_pix": int(prof["n_pix"][idx]),
-                    "n_saturated": int(mask.sum()),
-                    "saturated": bool(mask.any())}
+            return {
+                "snr": float(prof["snr"][idx]),
+                "signal_e": float(prof["signal_e"][idx]),
+                "noise_e": float(prof["noise_e"][idx]),
+                "enclosed_fraction": float(prof["enclosed_fraction"][idx]),
+                "r_aper_mas": float(prof["r_mas"][idx]),
+                "n_pix": int(prof["n_pix"][idx]),
+                "n_saturated": int(mask.sum()),
+                "saturated": bool(mask.any()),
+            }
 
         def _assemble_array(results):
-            out = {k: np.array([r[k] for r in results])
-                   for k in ("snr", "signal_e", "noise_e", "enclosed_fraction", "r_aper_mas")}
+            out = {
+                k: np.array([r[k] for r in results])
+                for k in (
+                    "snr",
+                    "signal_e",
+                    "noise_e",
+                    "enclosed_fraction",
+                    "r_aper_mas",
+                )
+            }
             out["n_pix"] = np.array([r["n_pix"] for r in results], dtype=int)
-            out["n_saturated"] = np.array([r["n_saturated"] for r in results], dtype=int)
+            out["n_saturated"] = np.array(
+                [r["n_saturated"] for r in results], dtype=int
+            )
             out["saturated"] = np.array([r["saturated"] for r in results], dtype=bool)
             return out
 
@@ -958,7 +1078,8 @@ class Simulation(_MetaHolder_):
                     f"detector saturates — up to {n_max} pixel(s) "
                     f"at or above full well / ADC clip (per-frame, n_reads={n_reads}); "
                     f"SNR is unreliable. See is_saturated/get_peak_pixel.",
-                    stacklevel=2)
+                    stacklevel=2,
+                )
             return result
 
         # resolve the source-flux scale from mags (validated above)
@@ -976,10 +1097,19 @@ class Simulation(_MetaHolder_):
         results = [_snr_at(t, source_scale) for t in time.to(u.second).value]
         return _maybe_warn(_assemble_array(results))
 
-    def get_image_exptime_for_snr(self, snr, psf=None, r_aper_mas=None,
-                                  ee_frac=None, optimize=False,
-                                  jitter_sigma_mas=None, n_reads=None,
-                                  npix=128, oversample=11, warn=True):
+    def get_image_exptime_for_snr(
+        self,
+        snr,
+        psf=None,
+        r_aper_mas=None,
+        ee_frac=None,
+        optimize=False,
+        jitter_sigma_mas=None,
+        n_reads=None,
+        npix=128,
+        oversample=11,
+        warn=True,
+    ):
         """
         Exposure time (s) to reach a target SNR on the PSF-aware path.
 
@@ -1007,7 +1137,9 @@ class Simulation(_MetaHolder_):
 
         b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
 
-        dark_rate_per_pix = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
+        dark_rate_per_pix = self.sensor.dark_current.to(
+            u.electron / (u.s * u.pix)
+        ).value
         read_noise = self.sensor.read_noise.to(u.electron / u.pix).value
 
         if not optimize and r_aper_mas is None and ee_frac is None:
@@ -1016,12 +1148,19 @@ class Simulation(_MetaHolder_):
         # Sky (background) + host (diffuse) both contribute per-pixel shot noise;
         # the sky term must be included or the solved exposure time is too short.
         diffuse_rate_per_pix = b["diffuse_rate_per_pix"] + b["background_rate_per_pix"]
-        result = aperture_time_for_snr(b["psf_norm"], b["plate_scale_mas"],
-                                       b["source_rate_total"], diffuse_rate_per_pix,
-                                       dark_rate_per_pix, read_noise,
-                                       n_reads=n_reads, snr=snr,
-                                       r_aper_mas=r_aper_mas, ee_frac=ee_frac,
-                                       optimize=optimize)
+        result = aperture_time_for_snr(
+            b["psf_norm"],
+            b["plate_scale_mas"],
+            b["source_rate_total"],
+            diffuse_rate_per_pix,
+            dark_rate_per_pix,
+            read_noise,
+            n_reads=n_reads,
+            snr=snr,
+            r_aper_mas=r_aper_mas,
+            ee_frac=ee_frac,
+            optimize=optimize,
+        )
 
         # saturated-pixel count at the solved time, on the per-frame clean image
         # (source + background + dark; host excluded), matching get_image_snr/simulate.
@@ -1034,12 +1173,23 @@ class Simulation(_MetaHolder_):
                 f"detector saturates at the solved time ({result['time_s']:.3g} s) "
                 f"— {result['n_saturated']} pixel(s) at or above full well / ADC clip "
                 f"(per-frame, n_reads={n_reads}).",
-                stacklevel=2)
+                stacklevel=2,
+            )
         return result
 
-    def get_snr(self, time=None, psf=None, r_aper_mas=None, ee_frac=None,
-                optimize=False, jitter_sigma_mas=None, n_reads=None,
-                npix=128, oversample=11, warn=True):
+    def get_snr(
+        self,
+        time=None,
+        psf=None,
+        r_aper_mas=None,
+        ee_frac=None,
+        optimize=False,
+        jitter_sigma_mas=None,
+        n_reads=None,
+        npix=128,
+        oversample=11,
+        warn=True,
+    ):
         """
         Signal-to-noise ratio via the 2D image simulation (PSF-aware default).
 
@@ -1057,9 +1207,17 @@ class Simulation(_MetaHolder_):
             `time`). Pass warn=False to silence the saturation warning.
         """
         return self.get_image_snr(
-            time=time, psf=psf, r_aper_mas=r_aper_mas, ee_frac=ee_frac,
-            optimize=optimize, jitter_sigma_mas=jitter_sigma_mas,
-            n_reads=n_reads, npix=npix, oversample=oversample, warn=warn)
+            time=time,
+            psf=psf,
+            r_aper_mas=r_aper_mas,
+            ee_frac=ee_frac,
+            optimize=optimize,
+            jitter_sigma_mas=jitter_sigma_mas,
+            n_reads=n_reads,
+            npix=npix,
+            oversample=oversample,
+            warn=warn,
+        )
 
     def get_snr_airy(self, time=None, n_reads=None, warn=True):
         """
@@ -1084,18 +1242,21 @@ class Simulation(_MetaHolder_):
         warnings.warn(
             "get_snr_airy (analytic Airy approximation) is deprecated; "
             "use get_snr, which now uses the 2D image simulation.",
-            DeprecationWarning, stacklevel=2)
+            DeprecationWarning,
+            stacklevel=2,
+        )
         signal, variance = self.get_signal_and_variance(time, n_reads=n_reads)
         if warn:
             try:
                 sat = self.is_saturated(time, n_reads=n_reads)
             except ValueError:
-                sat = False                       # no time resolvable; skip the saturation check
+                sat = False  # no time resolvable; skip the saturation check
             if bool(np.any(sat)):
                 warnings.warn(
                     "detector saturates (per-frame); the analytic Airy SNR is "
                     "unreliable. Use get_snr for the saturated-pixel count.",
-                    stacklevel=2)
+                    stacklevel=2,
+                )
         return signal / np.sqrt(variance)
 
     def get_exptime_for_snr(self, snr, n_reads=None, warn=True):
@@ -1114,18 +1275,28 @@ class Simulation(_MetaHolder_):
             exposure time.
         """
         import warnings
-        warnings.warn("get_exptime_for_snr is the analytic Airy approximation and is "
-                      "deprecated; use the PSF-aware 2D path (get_image_snr / "
-                      "get_image_exptime_for_snr / get_peak_pixel).",
-                      DeprecationWarning, stacklevel=2)
+
+        warnings.warn(
+            "get_exptime_for_snr is the analytic Airy approximation and is "
+            "deprecated; use the PSF-aware 2D path (get_image_snr / "
+            "get_image_exptime_for_snr / get_peak_pixel).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         from .psfsim import solve_time_for_snr
+
         A, B, C = self._snr_coefficients(n_reads=n_reads)
         t = solve_time_for_snr(snr, A, B, C) * u.second
-        if warn and np.isfinite(t.value) and bool(np.any(self.is_saturated(t, n_reads=n_reads))):
+        if (
+            warn
+            and np.isfinite(t.value)
+            and bool(np.any(self.is_saturated(t, n_reads=n_reads)))
+        ):
             warnings.warn(
                 f"detector saturates at the solved exposure time ({t:.3g}); "
                 "use get_image_exptime_for_snr for the saturated-pixel count.",
-                stacklevel=2)
+                stacklevel=2,
+            )
         return t
 
     # -------------- #
@@ -1148,14 +1319,15 @@ class Simulation(_MetaHolder_):
         n_reads = self._resolve_n_reads(n_reads)
         count_rates = self._countrates_in_aperture(units="e/s", as_dict=True)
         A = count_rates["source"].to(u.electron / u.s).value
-        all_rates = float(np.nansum([r.to(u.electron / u.s).value
-                                     for r in count_rates.values()]))
+        all_rates = float(
+            np.nansum([r.to(u.electron / u.s).value for r in count_rates.values()])
+        )
         n_pix = self.psf_profile["num_psf_pixels"]
         n_pix = n_pix.value if isinstance(n_pix, u.Quantity) else float(n_pix)
         dark = self.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
         rn = self.sensor.read_noise.to(u.electron / u.pix).value
         B = all_rates + n_pix * dark
-        C = n_pix * n_reads * rn ** 2
+        C = n_pix * n_reads * rn**2
         return A, B, C
 
     def _parse_bandpass(self, bandpass):
@@ -1175,41 +1347,46 @@ class Simulation(_MetaHolder_):
             return self.sensor.bandpass
 
         return resolve_bandpass(bandpass)
-        
+
     def _compute_psf_profile_impl(self):
         """Internal implementation of the Airy PSF profile computation (no warning)."""
         from .airy import get_airy_and_ee_curve
 
         wavelength = self.sensor.wavelength.to("m")
-        r_psf_mas, psf1d, ee, ee_at_aper = get_airy_and_ee_curve(wavelength,
-                                                                 r_aper_mas = self._meta["r_aper_mas"], # no default allower
-                                                                 jitter_sigma_mas = self.telescope.jitter_sigma.to("mas"),
-                                                                 fnum=self.telescope.f_num,
-                                                                 D=self.telescope.diameter_primary.value,
-                                                                 pixel_size=self.sensor.pixel_size.value,
-                                                                 verbose=False)
+        r_psf_mas, psf1d, ee, ee_at_aper = get_airy_and_ee_curve(
+            wavelength,
+            r_aper_mas=self._meta["r_aper_mas"],  # no default allower
+            jitter_sigma_mas=self.telescope.jitter_sigma.to("mas"),
+            fnum=self.telescope.f_num,
+            D=self.telescope.diameter_primary.value,
+            pixel_size=self.sensor.pixel_size.value,
+            verbose=False,
+        )
 
         # compute the number of pixels associated to the PSF
-        plate_scale = self.sensor.get_plate_scale(self.telescope) # in arcsec/pix
-        num_pixels_at_r = self._meta["r_aper_mas"]*u.arcsec/(plate_scale * 1000) # pix
-        num_psf_pixels = (np.pi * num_pixels_at_r**2) # in pixels**2
+        plate_scale = self.sensor.get_plate_scale(self.telescope)  # in arcsec/pix
+        num_pixels_at_r = (
+            self._meta["r_aper_mas"] * u.arcsec / (plate_scale * 1000)
+        )  # pix
+        num_psf_pixels = np.pi * num_pixels_at_r**2  # in pixels**2
 
         # area of the psf in angular units
-        psf_area = num_psf_pixels * plate_scale **2 # in arcsec**2
+        psf_area = num_psf_pixels * plate_scale**2  # in arcsec**2
 
-        #logging.info(f"PSF profile computed:")
-        #logging.info(f"EE={ee_at_aper:.2f} at {self.meta['r_aper_mas']} mas aperture")
-        #logging.info(f"num_psf_pixels={num_psf_pixels:.1f} pixels")
-        #logging.info(f"PSF area={psf_area:.2f} arcsec^2")
+        # logging.info(f"PSF profile computed:")
+        # logging.info(f"EE={ee_at_aper:.2f} at {self.meta['r_aper_mas']} mas aperture")
+        # logging.info(f"num_psf_pixels={num_psf_pixels:.1f} pixels")
+        # logging.info(f"PSF area={psf_area:.2f} arcsec^2")
 
-        return {"wavelength": wavelength,
-                "r_psf_mas": r_psf_mas,
-                "psf1d": psf1d,
-                "ee": ee,
-                "ee_at_aper": ee_at_aper,
-                "num_psf_pixels": num_psf_pixels,
-                "psf_area": psf_area,
-                }
+        return {
+            "wavelength": wavelength,
+            "r_psf_mas": r_psf_mas,
+            "psf1d": psf1d,
+            "ee": ee,
+            "ee_at_aper": ee_at_aper,
+            "num_psf_pixels": num_psf_pixels,
+            "psf_area": psf_area,
+        }
 
     def compute_psf_profile(self):
         """
@@ -1225,10 +1402,14 @@ class Simulation(_MetaHolder_):
             'ee_at_aper', 'num_psf_pixels', and 'psf_area'.
         """
         import warnings
-        warnings.warn("compute_psf_profile is the analytic Airy approximation and is "
-                      "deprecated; use the PSF-aware 2D path (get_image_snr / "
-                      "get_image_exptime_for_snr / get_peak_pixel).",
-                      DeprecationWarning, stacklevel=2)
+
+        warnings.warn(
+            "compute_psf_profile is the analytic Airy approximation and is "
+            "deprecated; use the PSF-aware 2D path (get_image_snr / "
+            "get_image_exptime_for_snr / get_peak_pixel).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self._compute_psf_profile_impl()
 
     def has_element(self, which):
@@ -1245,7 +1426,7 @@ class Simulation(_MetaHolder_):
         bool
         """
         return getattr(self, which) is not None
-        
+
     # ================= #
     #   Properties      #
     # ================= #
@@ -1262,7 +1443,7 @@ class Simulation(_MetaHolder_):
         The Telescope object.
         """
         return self._telescope
-    
+
     @property
     def sensor(self):
         """
@@ -1275,21 +1456,24 @@ class Simulation(_MetaHolder_):
         """
         Combined metadata from simulation and components.
         """
-        return self._meta | {element_name: element.meta
-                                 for element_name in ["telescope", "sensor", "scene"]
-                                 if (element := getattr(self, element_name)) is not None
-                                 }
+        return self._meta | {
+            element_name: element.meta
+            for element_name in ["telescope", "sensor", "scene"]
+            if (element := getattr(self, element_name)) is not None
+        }
 
     @property
     def mutable_parameters(self):
         """
         List of all mutable parameters (including sub-elements).
         """
-        return self._mutable_parameters +  [f"{element_name}__{k}"
-                                                for element_name in ["telescope", "sensor", "scene"]
-                                                if (element := getattr(self, element_name)) is not None
-                                                for k in element.mutable_parameters  
-                                            ]
+        return self._mutable_parameters + [
+            f"{element_name}__{k}"
+            for element_name in ["telescope", "sensor", "scene"]
+            if (element := getattr(self, element_name)) is not None
+            for k in element.mutable_parameters
+        ]
+
     # ---------- #
     # cashed     #
     # ---------- #
@@ -1298,8 +1482,11 @@ class Simulation(_MetaHolder_):
         """
         The calculated PSF profile.
         """
-        if not hasattr(self,"_psf_profile") or self._psf_profile is None or len(self._psf_profile) == 0 : # like {}
+        if (
+            not hasattr(self, "_psf_profile")
+            or self._psf_profile is None
+            or len(self._psf_profile) == 0
+        ):  # like {}
             self._psf_profile = self._compute_psf_profile_impl()
-            
-        return self._psf_profile
 
+        return self._psf_profile

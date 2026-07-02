@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools", "setuptools-scm", "wheel"]
-build-backend = "setuptools.build_meta" 
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "wcc_etc"
@@ -64,6 +64,3 @@ include-package-data = true
 testpaths = [
 	"tests",
 ]
-pythonpath = ["."]
-
-

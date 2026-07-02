@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from lazuli_transit import FluxModel, TransitModel
 
 
@@ -12,8 +11,17 @@ def test_fluxmodel_base_is_abstract():
 def test_transit_relative_flux_matches_batman_directly():
     batman = pytest.importorskip("batman")
     t = np.linspace(-0.1, 0.1, 200)
-    model = TransitModel(t0=0.0, per=1.0, rp=0.1, a=15.0, inc=87.0,
-                         ecc=0.0, w=90.0, limb_dark="quadratic", u=(0.1, 0.3))
+    model = TransitModel(
+        t0=0.0,
+        per=1.0,
+        rp=0.1,
+        a=15.0,
+        inc=87.0,
+        ecc=0.0,
+        w=90.0,
+        limb_dark="quadratic",
+        u=(0.1, 0.3),
+    )
     got = model.relative_flux(t)
 
     params = batman.TransitParams()
@@ -31,16 +39,38 @@ AU_RSUN = 215.03215567054764
 
 
 def _df():
-    return pd.DataFrame([
-        dict(pl_name="WASP-12 b", tran_flag=1, pl_orbper=1.0914, pl_ratror=0.117,
-             pl_ratdor=3.04, pl_orbincl=83.3, pl_tranmid=2456305.46,
-             pl_orbeccen=0.0, pl_orblper=90.0, pl_radj=1.9, pl_orbsmax=0.0234,
-             st_rad=1.66),
-        dict(pl_name="HD 209458 b", tran_flag=1, pl_orbper=3.5247, pl_ratror=np.nan,
-             pl_ratdor=np.nan, pl_orbincl=86.7, pl_tranmid=2451370.0,
-             pl_orbeccen=np.nan, pl_orblper=np.nan, pl_radj=1.38,
-             pl_orbsmax=0.0475, st_rad=1.19),
-    ])
+    return pd.DataFrame(
+        [
+            dict(
+                pl_name="WASP-12 b",
+                tran_flag=1,
+                pl_orbper=1.0914,
+                pl_ratror=0.117,
+                pl_ratdor=3.04,
+                pl_orbincl=83.3,
+                pl_tranmid=2456305.46,
+                pl_orbeccen=0.0,
+                pl_orblper=90.0,
+                pl_radj=1.9,
+                pl_orbsmax=0.0234,
+                st_rad=1.66,
+            ),
+            dict(
+                pl_name="HD 209458 b",
+                tran_flag=1,
+                pl_orbper=3.5247,
+                pl_ratror=np.nan,
+                pl_ratdor=np.nan,
+                pl_orbincl=86.7,
+                pl_tranmid=2451370.0,
+                pl_orbeccen=np.nan,
+                pl_orblper=np.nan,
+                pl_radj=1.38,
+                pl_orbsmax=0.0475,
+                st_rad=1.19,
+            ),
+        ]
+    )
 
 
 def test_from_planet_uses_ratio_columns_directly():

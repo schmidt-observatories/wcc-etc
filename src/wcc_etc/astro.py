@@ -1,6 +1,9 @@
 import numpy as np
 
-def get_moon_magnitude(phase, phase_type='fraction', distance_km=384400.0, m_full=-12.74):
+
+def get_moon_magnitude(
+    phase, phase_type="fraction", distance_km=384400.0, m_full=-12.74
+):
     """
     Return an approximate V-band magnitude of the Moon.
 
@@ -24,7 +27,7 @@ def get_moon_magnitude(phase, phase_type='fraction', distance_km=384400.0, m_ful
         for angle in (0, 90, 180):
             print(f"angle {angle} deg -> mag = {get_moon_magnitude(angle, phase_type='angle'):.2f}")
     """
-    if phase_type == 'angle':
+    if phase_type == "angle":
         # convert phase angle (0=full, 180=new) to illuminated fraction
         phi = np.deg2rad(phase)
         frac = (1.0 + np.cos(phi)) / 2.0

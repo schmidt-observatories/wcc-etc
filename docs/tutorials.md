@@ -20,4 +20,3 @@ print(f"SNR={snr:.2f}")
 ```
 
 Additional examples are shown in `notebooks/` in `examples/`
-

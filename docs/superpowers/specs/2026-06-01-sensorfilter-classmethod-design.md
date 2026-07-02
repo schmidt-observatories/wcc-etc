@@ -1,6 +1,6 @@
 # Design: `Simulation.from_sensorfilter` — per-sensor PSF auto-selection
 
-**Date:** 2026-06-01  
+**Date:** 2026-06-01
 **Branch:** `sensorfilter-classmethod`
 
 ## Motivation
@@ -159,5 +159,5 @@ sim.get_image_snr(60)                     # AiryPSF (existing behavior)
 
 ## Branch and PR plan
 
-Branch: `sensorfilter-classmethod` off `main`.  
+Branch: `sensorfilter-classmethod` off `main`.
 Touches: `src/wcc_etc/io.py`, `src/wcc_etc/simulation.py`, `src/wcc_etc/psfsim.py`, `tests/`.

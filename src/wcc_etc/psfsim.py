@@ -1,37 +1,44 @@
-
-import numpy as np
-import matplotlib.pyplot as plt
-from astropy import units as u
-from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry
-from astropy.stats import sigma_clipped_stats
-import pandas as pd
-import scipy.interpolate
-import astropy.io.fits
-import tifffile
-from astropy.io import fits
 import os
 from dataclasses import dataclass
-from astropy.visualization import LogStretch, SqrtStretch, AsinhStretch, HistEqStretch,ZScaleInterval
-from astropy.visualization.mpl_normalize import ImageNormalize
+from typing import Optional
+
+import astropy.io.fits
 import astropy.units as u
-from scipy.ndimage import zoom, shift
-from scipy.signal import fftconvolve
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import scipy.interpolate
+import tifffile
+from astropy.io import fits
+from astropy.stats import sigma_clipped_stats
+from astropy.visualization import (
+    HistEqStretch,
+    LogStretch,
+)
+from astropy.visualization.mpl_normalize import ImageNormalize
+from photutils.aperture import CircularAnnulus, CircularAperture, aperture_photometry
 from scipy.interpolate import UnivariateSpline
+from scipy.ndimage import shift, zoom
+from scipy.signal import fftconvolve
+
 from . import airy
 from .radial_data import radial_data
 from .simulation import Simulation
-import warnings
-from typing import Optional
 
 # Bundled Zemax Huygens defocus PSF data (monochromatic, 500 nm, 4 um spacing)
 _PSF_DATA_DIR = os.path.join(os.path.dirname(__file__), "data", "psfs")
-DEFOCUS_1WAVE_PATH = os.path.join(_PSF_DATA_DIR, "CAD_1-waves-defocus_500nm_Huygens-PSF-Data_Linear.txt")
-DEFOCUS_2WAVE_PATH = os.path.join(_PSF_DATA_DIR, "CAD_2-waves-defocus_500nm_Huygens-PSF-Data_Linear.txt")
+DEFOCUS_1WAVE_PATH = os.path.join(
+    _PSF_DATA_DIR, "CAD_1-waves-defocus_500nm_Huygens-PSF-Data_Linear.txt"
+)
+DEFOCUS_2WAVE_PATH = os.path.join(
+    _PSF_DATA_DIR, "CAD_2-waves-defocus_500nm_Huygens-PSF-Data_Linear.txt"
+)
 
 
 @dataclass
 class DetectorPSFContext:
     """Detector + optics parameters a PSF source needs to render onto the grid."""
+
     npix: int
     pixel_size_um: float
     plate_scale_mas: float
@@ -64,7 +71,7 @@ def center_crop_or_pad(img, npix, fill=0.0):
     sy0, sx0 = max(0, y0), max(0, x0)
     sy1, sx1 = min(ny, y1), min(nx, x1)
     if sy1 > sy0 and sx1 > sx0:
-        out[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0] = img[sy0:sy1, sx0:sx1]
+        out[sy0 - y0 : sy1 - y0, sx0 - x0 : sx1 - x0] = img[sy0:sy1, sx0:sx1]
     return out
 
 
@@ -73,8 +80,13 @@ def recenter(psf, center):
     npix = psf.shape[0]
     grid_center = (npix - 1) / 2.0
     cx, cy = float(center[0]), float(center[1])
-    return shift(psf, shift=(cy - grid_center, cx - grid_center),
-                 order=3, mode="constant", cval=0.0)
+    return shift(
+        psf,
+        shift=(cy - grid_center, cx - grid_center),
+        order=3,
+        mode="constant",
+        cval=0.0,
+    )
 
 
 class PSFSource:
@@ -99,9 +111,14 @@ class AiryPSF(PSFSource):
 
     def render(self, ctx):
         psf, _ = airy.render_detector_psf(
-            wavelength=ctx.wavelength_m, fnum=ctx.fnum, D=ctx.diameter_m,
-            pixel_size=ctx.pixel_size_um, jitter_sigma_mas=ctx.jitter_sigma_mas,
-            n_pixels=ctx.npix, oversample=ctx.oversample)
+            wavelength=ctx.wavelength_m,
+            fnum=ctx.fnum,
+            D=ctx.diameter_m,
+            pixel_size=ctx.pixel_size_um,
+            jitter_sigma_mas=ctx.jitter_sigma_mas,
+            n_pixels=ctx.npix,
+            oversample=ctx.oversample,
+        )
         if psf.shape != (ctx.npix, ctx.npix):  # render_detector_psf forces odd n_pixels
             psf = center_crop_or_pad(psf, ctx.npix)
         if ctx.center is not None:
@@ -112,8 +129,11 @@ class AiryPSF(PSFSource):
 def load_huygens_psf(path, encoding="utf-16"):
     """Load a Zemax Huygens PSF text file into a 2D float array of intensities."""
     with open(path, encoding=encoding) as fh:
-        rows = [ln for ln in fh.read().splitlines()
-                if ln.strip() and not ln.lstrip().startswith("#")]
+        rows = [
+            ln
+            for ln in fh.read().splitlines()
+            if ln.strip() and not ln.lstrip().startswith("#")
+        ]
     data = np.array([[float(x) for x in ln.split()] for ln in rows], dtype=float)
     if data.ndim != 2 or data.size == 0:
         raise ValueError(f"Huygens PSF file did not parse to a 2D array: {path}")
@@ -136,7 +156,9 @@ class _ResampledPSF(PSFSource):
         zoomed = zoom(self._data, zoom_factor, order=1, mode="constant", cval=0.0)
         psf = normalize_psf(center_crop_or_pad(zoomed, ctx.npix))
         if ctx.jitter_sigma_mas and ctx.jitter_sigma_mas > 0:
-            psf = normalize_psf(apply_jitter(psf, ctx.jitter_sigma_mas, ctx.plate_scale_mas))
+            psf = normalize_psf(
+                apply_jitter(psf, ctx.jitter_sigma_mas, ctx.plate_scale_mas)
+            )
         if ctx.center is not None:
             psf = normalize_psf(recenter(psf, ctx.center))
         return psf
@@ -160,7 +182,11 @@ class CustomPSF(_ResampledPSF):
     """A custom PSF from an ndarray or a Huygens-format text file (future hook)."""
 
     def __init__(self, source, src_um_per_pix, encoding="utf-16"):
-        data = source if isinstance(source, np.ndarray) else load_huygens_psf(source, encoding)
+        data = (
+            source
+            if isinstance(source, np.ndarray)
+            else load_huygens_psf(source, encoding)
+        )
         super().__init__(data, src_um_per_pix)
 
 
@@ -191,11 +217,12 @@ def saturation_mask_from_image_e(sensor, image_e):
 @dataclass
 class SimulatedImage:
     """Result of an ImageSimulator.simulate() call."""
-    image_e: np.ndarray          # detector image in electrons (noisy unless add_noise=False)
-    image_clean: np.ndarray      # noiseless electrons
+
+    image_e: np.ndarray  # detector image in electrons (noisy unless add_noise=False)
+    image_clean: np.ndarray  # noiseless electrons
     saturation_mask: np.ndarray  # bool: pixels at/over adc_max or full well
-    gain: float                  # electron / ct
-    bias_level: float            # ct
+    gain: float  # electron / ct
+    bias_level: float  # ct
     npix: int
     pixel_scale_mas: float
     psf: "PSFSource"
@@ -211,6 +238,7 @@ class SimulatedImage:
     def plot_image(self, backend="mpl", **kwargs):
         """Plot this image (single panel). backend='mpl' or 'bokeh'."""
         from . import plotting
+
         if backend == "mpl":
             return plotting.plot_image_mpl(self, **kwargs)
         if backend == "bokeh":
@@ -220,6 +248,7 @@ class SimulatedImage:
     def plot_image_row(self, backend="mpl", **kwargs):
         """Plot the 3-panel row (PSF+noise, PSF, saturation mask)."""
         from . import plotting
+
         if backend == "mpl":
             return plotting.plot_image_row_mpl(self, **kwargs)
         if backend == "bokeh":
@@ -229,6 +258,7 @@ class SimulatedImage:
     def plot_radial(self, backend="mpl", **kwargs):
         """Plot the azimuthally-averaged radial profile."""
         from . import plotting
+
         if backend == "mpl":
             return plotting.plot_radial_mpl(self, **kwargs)
         if backend == "bokeh":
@@ -239,6 +269,7 @@ class SimulatedImage:
         """Plot the encircled-energy curve (marks the 90% EE radius by default;
         pass ee_target=None to disable or another fraction to override)."""
         from . import plotting
+
         if backend == "mpl":
             return plotting.plot_encircled_energy_mpl(self, **kwargs)
         if backend == "bokeh":
@@ -275,7 +306,9 @@ class ImageSimulator:
 
     def _context(self, jitter_sigma_mas=None, center=None):
         sim = self.sim
-        plate_scale_mas = sim.sensor.get_plate_scale(sim.telescope).to("arcsec/pix").value * 1000.0
+        plate_scale_mas = (
+            sim.sensor.get_plate_scale(sim.telescope).to("arcsec/pix").value * 1000.0
+        )
         if jitter_sigma_mas is None:
             jitter_sigma_mas = sim.telescope.jitter_sigma.to("mas").value
         return DetectorPSFContext(
@@ -287,10 +320,18 @@ class ImageSimulator:
             fnum=sim.telescope.f_num,
             jitter_sigma_mas=jitter_sigma_mas,
             center=center,
-            oversample=self.oversample)
+            oversample=self.oversample,
+        )
 
-    def simulate(self, time=None, psf=None, jitter_sigma_mas=None, center=None,
-                 add_noise=True, seed=None):
+    def simulate(
+        self,
+        time=None,
+        psf=None,
+        jitter_sigma_mas=None,
+        center=None,
+        add_noise=True,
+        seed=None,
+    ):
         """
         Simulate a detector image for the given exposure time and PSF.
 
@@ -359,9 +400,15 @@ class ImageSimulator:
         saturation_mask = saturation_mask_from_image_e(sim.sensor, image_e)
 
         return SimulatedImage(
-            image_e=image_e, image_clean=image_clean, saturation_mask=saturation_mask,
-            gain=gain, bias_level=bias_level, npix=self.npix,
-            pixel_scale_mas=ctx.plate_scale_mas, psf=psf)
+            image_e=image_e,
+            image_clean=image_clean,
+            saturation_mask=saturation_mask,
+            gain=gain,
+            bias_level=bias_level,
+            npix=self.npix,
+            pixel_scale_mas=ctx.plate_scale_mas,
+            psf=psf,
+        )
 
 
 def howell_center(postage_stamp):
@@ -383,12 +430,12 @@ def howell_center(postage_stamp):
     I = np.sum(postage_stamp, axis=0)
     J = np.sum(postage_stamp, axis=1)
 
-    Isub = I-np.sum(I)/I.size
-    Isub[Isub<0] = 0
-    Jsub = J-np.sum(J)/J.size
-    Jsub[Jsub<0] = 0
-    xc = np.sum(Isub*xpixels)/np.sum(Isub)
-    yc = np.sum(Jsub*ypixels)/np.sum(Jsub)
+    Isub = I - np.sum(I) / I.size
+    Isub[Isub < 0] = 0
+    Jsub = J - np.sum(J) / J.size
+    Jsub[Jsub < 0] = 0
+    xc = np.sum(Isub * xpixels) / np.sum(Isub)
+    yc = np.sum(Jsub * ypixels) / np.sum(Jsub)
     return xc, yc
 
 
@@ -421,9 +468,7 @@ def psf_center(image):
     return xc, yc
 
 
-
-
-def apply_jitter(data,jitter_mas,pixel_scale):
+def apply_jitter(data, jitter_mas, pixel_scale):
     """
     Apply jitter to the input data.
 
@@ -435,11 +480,12 @@ def apply_jitter(data,jitter_mas,pixel_scale):
     total_flux = data.sum()
     sigma_pix = jitter_mas / pixel_scale
     ker = airy.gaussian_kernel_2d(sigma_pix)
-    data_blur = fftconvolve(data, ker, mode='same')
+    data_blur = fftconvolve(data, ker, mode="same")
     s = data_blur.sum()
     if s > 0:
         data_blur /= s
-    return data_blur*total_flux
+    return data_blur * total_flux
+
 
 # make a function that converts a tiff file to a series of fits files
 def tiff_to_fits(tiff_file, output_dir):
@@ -463,9 +509,10 @@ def tiff_to_fits(tiff_file, output_dir):
         fits.writeto(fits_filename, image_data, overwrite=True)
         print(f"Saved {fits_filename}")
 
+
 # make a function that reads in fits files from a directory and averages them to create a master flat
 def create_master_flat_from_fits(directory, output_filename):
-    fits_files = [f for f in os.listdir(directory) if f.endswith('.fits')]
+    fits_files = [f for f in os.listdir(directory) if f.endswith(".fits")]
     if not fits_files:
         raise ValueError("No FITS files found in the specified directory.")
 
@@ -480,9 +527,10 @@ def create_master_flat_from_fits(directory, output_filename):
     # Save the master flat
     hdu = fits.PrimaryHDU(data=master_flat.astype(np.float32))
     hdu.writeto(output_filename, overwrite=True)
-    print(f'Master flat saved to {output_filename}')
+    print(f"Master flat saved to {output_filename}")
 
-def apply_nl_scaling(df_nl,data,how='makenonlinear',scale=1):
+
+def apply_nl_scaling(df_nl, data, how="makenonlinear", scale=1):
     """
     Apply non-linear scaling to the input data using the provided scaling factors.
 
@@ -500,26 +548,30 @@ def apply_nl_scaling(df_nl,data,how='makenonlinear',scale=1):
         - only applies scaling to positive values; zero or negative values are unchanged.
         - Should only be applied after bias subtraction.
     """
-    f_nl = scipy.interpolate.interp1d(df_nl['mean_value'].values,df_nl['scaling_factor'].values*scale,kind='linear',fill_value='extrapolate')
+    f_nl = scipy.interpolate.interp1d(
+        df_nl["mean_value"].values,
+        df_nl["scaling_factor"].values * scale,
+        kind="linear",
+        fill_value="extrapolate",
+    )
     data_flat = data.flatten()
     m = data_flat > 0
     data_flat_scaled = data_flat.copy()
-    if how == 'makenonlinear':
+    if how == "makenonlinear":
         data_flat_scaled[m] = data_flat[m] / f_nl(data_flat[m])
-    elif how == 'correctnonlinear':
+    elif how == "correctnonlinear":
         data_flat_scaled[m] = data_flat[m] * f_nl(data_flat[m])
-    #data_flat_scaled = data_flat.copy()
-    #if how == 'makenonlinear':
+    # data_flat_scaled = data_flat.copy()
+    # if how == 'makenonlinear':
     #    data_flat_scaled = data_flat / f_nl(np.abs(data_flat))
-    #elif how == 'correctnonlinear':
+    # elif how == 'correctnonlinear':
     #    data_flat_scaled = data_flat * f_nl(np.abs(data_flat))
     data_scaled = data_flat_scaled.reshape(data.shape)
     return data_scaled
 
 
 class FitsImgList(object):
-
-    def __init__(self, data_list, center_list=None,**kwargs):
+    def __init__(self, data_list, center_list=None, **kwargs):
         """
         Initialize the FitsImgList with a list of data arrays and optional centers.
         """
@@ -528,7 +580,7 @@ class FitsImgList(object):
             center = center_list[i] if center_list is not None else None
             self.imglist.append(FitsImg(data=data, center=center, **kwargs))
 
-    def aperture_photometry(self, **kwargs ):
+    def aperture_photometry(self, **kwargs):
         """
         Perform aperture photometry on all images in the list.
 
@@ -547,46 +599,82 @@ class FitsImgList(object):
             result = img.aperture_photometry(**kwargs)
             results_list.append(result)
         self.df_phot = pd.DataFrame(results_list)
-        self.df_phot['flux_norm'] = self.df_phot['net_flux'] / np.abs(np.median(self.df_phot['net_flux']))
-        self.df_phot['flux_err_norm'] = self.df_phot['flux_err'] / np.abs(np.median(self.df_phot['net_flux']))
+        self.df_phot["flux_norm"] = self.df_phot["net_flux"] / np.abs(
+            np.median(self.df_phot["net_flux"])
+        )
+        self.df_phot["flux_err_norm"] = self.df_phot["flux_err"] / np.abs(
+            np.median(self.df_phot["net_flux"])
+        )
         return self.df_phot
 
-    def plot_photometry(self,axes=None):
+    def plot_photometry(self, axes=None):
         """
         Plot the photometry results stored in self.df_phot.
         """
-        if not hasattr(self, 'df_phot'):
-            raise ValueError("No photometry data found. Please run aperture_photometry() first.")
+        if not hasattr(self, "df_phot"):
+            raise ValueError(
+                "No photometry data found. Please run aperture_photometry() first."
+            )
 
         if axes is None:
-            fig, axes = plt.subplots(dpi=200,nrows=3,sharex=True)
+            fig, axes = plt.subplots(dpi=200, nrows=3, sharex=True)
         ax, bx, cx = axes
-        label = r'$\sigma$={:0.0f}ppm, MedErr={:0.0f}ppm'.format(1e6*np.std(self.df_phot.flux_norm),1e6*np.median(self.df_phot.flux_err_norm))
-        ax.errorbar(np.arange(len(self.df_phot)),self.df_phot.flux_norm,yerr=self.df_phot.flux_err_norm,marker='o',lw=0,mew=0.5,capsize=4,elinewidth=0.5, label=label)
-        bx.plot(np.arange(len(self.df_phot)),self.df_phot['xcen'],marker='o',lw=0.5,mew=0.5)
-        cx.plot(np.arange(len(self.df_phot)),self.df_phot['ycen'],marker='o',lw=0.5,mew=0.5)
-        for xx in [ax,bx,cx]:
-            xx.grid(lw=0.3,alpha=0.3)
+        label = r"$\sigma$={:0.0f}ppm, MedErr={:0.0f}ppm".format(
+            1e6 * np.std(self.df_phot.flux_norm),
+            1e6 * np.median(self.df_phot.flux_err_norm),
+        )
+        ax.errorbar(
+            np.arange(len(self.df_phot)),
+            self.df_phot.flux_norm,
+            yerr=self.df_phot.flux_err_norm,
+            marker="o",
+            lw=0,
+            mew=0.5,
+            capsize=4,
+            elinewidth=0.5,
+            label=label,
+        )
+        bx.plot(
+            np.arange(len(self.df_phot)),
+            self.df_phot["xcen"],
+            marker="o",
+            lw=0.5,
+            mew=0.5,
+        )
+        cx.plot(
+            np.arange(len(self.df_phot)),
+            self.df_phot["ycen"],
+            marker="o",
+            lw=0.5,
+            mew=0.5,
+        )
+        for xx in [ax, bx, cx]:
+            xx.grid(lw=0.3, alpha=0.3)
             xx.minorticks_on()
-        ax.set_ylabel('Normalized flux',fontsize=15)
-        bx.set_ylabel('x-centroid',fontsize=15)
-        cx.set_ylabel('y-centroid',fontsize=15)
+        ax.set_ylabel("Normalized flux", fontsize=15)
+        bx.set_ylabel("x-centroid", fontsize=15)
+        cx.set_ylabel("y-centroid", fontsize=15)
 
-        ax.legend(fontsize=8,loc='upper right')
-        cx.set_xlabel('Exposure number',fontsize=15)
-
-        
-
-
+        ax.legend(fontsize=8, loc="upper right")
+        cx.set_xlabel("Exposure number", fontsize=15)
 
 
 class FitsImg(object):
-
-    def __init__(self,filename=None,data=None,header=None,center=None,dark_current_rate=0.0,exp_time=1.0,read_noise_rms=0.0,imgnumber=0):
+    def __init__(
+        self,
+        filename=None,
+        data=None,
+        header=None,
+        center=None,
+        dark_current_rate=0.0,
+        exp_time=1.0,
+        read_noise_rms=0.0,
+        imgnumber=0,
+    ):
         """
         Initialize the FitsImg with data and optional center.
         """
-        if filename!=None:
+        if filename != None:
             self.filename = filename
             self.hdulist = astropy.io.fits.open(self.filename)
             self.header = self.hdulist[imgnumber].header
@@ -603,31 +691,31 @@ class FitsImg(object):
         self.exp_time = exp_time
         self.read_noise_rms = read_noise_rms
 
-    
-    
-    def crop(self,x,y,w,h):
+    def crop(self, x, y, w, h):
         """
         Crop to a box centered at (x,y), of size w x h
         """
-        x, y = int(x),int(y)
-        self.data = self.data[int(y-h/2):int(y+h/2),int(x-w/2):int(x+w/2)]
-        
-    def cropcenter(self,w,h,points=False):
+        x, y = int(x), int(y)
+        self.data = self.data[
+            int(y - h / 2) : int(y + h / 2), int(x - w / 2) : int(x + w / 2)
+        ]
+
+    def cropcenter(self, w, h, points=False):
         """
         Returns an image array around the center of an image array.
         """
         shape = self.data.shape
         x, y = (int(shape[0] / 2), int(shape[1] / 2))
-        self.crop(x,y,w,h)
+        self.crop(x, y, w, h)
 
-    def cropcentroid(self,w,h):
+    def cropcentroid(self, w, h):
         """
         Crop to a box centered at the centroid, of size w x h
         """
-        x,y = self.get_centroid()
-        self.crop(x,y,w,h)
+        x, y = self.get_centroid()
+        self.crop(x, y, w, h)
 
-    def get_centroid(self,plot_cross=False,ax=None,plot_lines=False):
+    def get_centroid(self, plot_cross=False, ax=None, plot_lines=False):
         """
         Find centroid using Howell centroiding.
 
@@ -636,77 +724,143 @@ class FitsImg(object):
         self.xcenter, self.ycenter = howell_center(self.data)
         if plot_cross:
             self.plot(ax=ax)
-            self.ax.scatter(self.xcenter,self.ycenter,marker="+",s=50,color="green")
+            self.ax.scatter(self.xcenter, self.ycenter, marker="+", s=50, color="green")
         if plot_lines:
             self.plot(ax=ax)
-            self.ax.hlines(int(self.ycenter),0,self.data.shape[1],color='#1f77b4',lw=1)
-            self.ax.vlines(int(self.xcenter),0,self.data.shape[0],color='#1f77b4',lw=1)
+            self.ax.hlines(
+                int(self.ycenter), 0, self.data.shape[1], color="#1f77b4", lw=1
+            )
+            self.ax.vlines(
+                int(self.xcenter), 0, self.data.shape[0], color="#1f77b4", lw=1
+            )
         return self.xcenter, self.ycenter
 
-
-    def plot(self,stretch="hist",cmap="gray",origin="lower",ax=None,colorbar=False,title="",vmin=None,vmax=None,dpi=200):
+    def plot(
+        self,
+        stretch="hist",
+        cmap="gray",
+        origin="lower",
+        ax=None,
+        colorbar=False,
+        title="",
+        vmin=None,
+        vmax=None,
+        dpi=200,
+    ):
         if ax == None:
             self.fig, self.ax = plt.subplots(dpi=dpi)
         else:
             self.ax = ax
-        if stretch=="hist":
-            print('hist stretch')
+        if stretch == "hist":
+            print("hist stretch")
             norm = ImageNormalize(stretch=HistEqStretch(self.data))
-            self.im = self.ax.imshow(self.data,cmap=cmap,origin=origin,norm=norm,vmin=vmin,vmax=vmax)
-        elif stretch=='log':
-            print('log stretch')
-            norm = ImageNormalize(self.data,stretch=LogStretch())
-            self.im = self.ax.imshow(self.data,cmap=cmap,origin=origin,norm=norm,vmin=vmin,vmax=vmax)
+            self.im = self.ax.imshow(
+                self.data, cmap=cmap, origin=origin, norm=norm, vmin=vmin, vmax=vmax
+            )
+        elif stretch == "log":
+            print("log stretch")
+            norm = ImageNormalize(self.data, stretch=LogStretch())
+            self.im = self.ax.imshow(
+                self.data, cmap=cmap, origin=origin, norm=norm, vmin=vmin, vmax=vmax
+            )
         else:
-            print('linear stretch')
-            self.im = self.ax.imshow(self.data,cmap=cmap,origin=origin,vmin=vmin,vmax=vmax)
-        self.ax.set_xlim(0,self.data.shape[1]) # cols
-        self.ax.set_ylim(0,self.data.shape[0]) # rows
-        self.ax.set_title(title,y=1.02)
+            print("linear stretch")
+            self.im = self.ax.imshow(
+                self.data, cmap=cmap, origin=origin, vmin=vmin, vmax=vmax
+            )
+        self.ax.set_xlim(0, self.data.shape[1])  # cols
+        self.ax.set_ylim(0, self.data.shape[0])  # rows
+        self.ax.set_title(title, y=1.02)
         self.ax.set_xlabel("X pixels")
         self.ax.set_ylabel("Y pixels")
         if colorbar:
             self.fig.colorbar(self.im)
 
-    def get_radial_profile(self,rmax=None,plot=False,z=2.,return_hwzm=False,ax=None,xcen=None,ycen=None,annulus_width=1,subtract_min=False):
+    def get_radial_profile(
+        self,
+        rmax=None,
+        plot=False,
+        z=2.0,
+        return_hwzm=False,
+        ax=None,
+        xcen=None,
+        ycen=None,
+        annulus_width=1,
+        subtract_min=False,
+    ):
         """
         Plot radial profile
         """
-        if not hasattr(self,"radial"):
+        if not hasattr(self, "radial"):
             print("Calculating radial data")
-            self.radial = radial_data(self.data,rmax=rmax,x=xcen,y=ycen,annulus_width=annulus_width)
+            self.radial = radial_data(
+                self.data, rmax=rmax, x=xcen, y=ycen, annulus_width=annulus_width
+            )
         else:
             print("Warning: using stored radial data")
         if subtract_min:
-            print("Subtracting min value from azimuthal average", np.min(self.radial.mean))
+            print(
+                "Subtracting min value from azimuthal average", np.min(self.radial.mean)
+            )
             self.radial.mean -= np.min(self.radial.mean)
-        self.radial_hwhm = calc_hwhm(self.radial.r,self.radial.mean)
-        self.radial_hwzm = calc_hwzm(self.radial.r,self.radial.mean,z=z)
+        self.radial_hwhm = calc_hwhm(self.radial.r, self.radial.mean)
+        self.radial_hwzm = calc_hwzm(self.radial.r, self.radial.mean, z=z)
         z = float(z)
 
-        print("HWZM",self.radial_hwzm)
-        
+        print("HWZM", self.radial_hwzm)
+
         if plot:
-            if ax==None:
+            if ax == None:
                 self.fig, self.ax = plt.subplots()
             else:
                 self.ax = ax
-            self.ax.plot(self.radial.r,self.radial.mean)
+            self.ax.plot(self.radial.r, self.radial.mean)
             ymin, ymax = self.ax.get_ylim()
-            self.ax.vlines(self.radial_hwhm,ymin,ymax,label="HWHM={}".format(self.radial_hwhm),color="orange",linestyle="--",lw=1)
-            self.ax.vlines(self.radial_hwzm,ymin,ymax,label="HWZM(z={})={}".format(z,self.radial_hwzm),color="red",linestyle="--",lw=1)
-            self.ax.legend(loc="upper right",fontsize=14)
-            self.ax.grid(lw=0.5,alpha=0.3)
-
+            self.ax.vlines(
+                self.radial_hwhm,
+                ymin,
+                ymax,
+                label="HWHM={}".format(self.radial_hwhm),
+                color="orange",
+                linestyle="--",
+                lw=1,
+            )
+            self.ax.vlines(
+                self.radial_hwzm,
+                ymin,
+                ymax,
+                label="HWZM(z={})={}".format(z, self.radial_hwzm),
+                color="red",
+                linestyle="--",
+                lw=1,
+            )
+            self.ax.legend(loc="upper right", fontsize=14)
+            self.ax.grid(lw=0.5, alpha=0.3)
 
         if return_hwzm:
-            return self.radial.r,self.radial.mean,self.radial_hwzm
+            return self.radial.r, self.radial.mean, self.radial_hwzm
         else:
-            return self.radial.r,self.radial.mean
+            return self.radial.r, self.radial.mean
 
-
-    def aperture_photometry(self, r_ap=3.0, r_in=6.0, r_out=8.0, gain=1.0, center=None, bkg_sigma_clip=3.0, bkg_maxiters=5, 
-                            plot=True, ax=None, verbose=True,vmin=None,vmax=None,cmap='viridis',origin='lower',stretch='hist',colorbar=True):
+    def aperture_photometry(
+        self,
+        r_ap=3.0,
+        r_in=6.0,
+        r_out=8.0,
+        gain=1.0,
+        center=None,
+        bkg_sigma_clip=3.0,
+        bkg_maxiters=5,
+        plot=True,
+        ax=None,
+        verbose=True,
+        vmin=None,
+        vmax=None,
+        cmap="viridis",
+        origin="lower",
+        stretch="hist",
+        colorbar=True,
+    ):
         """
         Perform circular aperture photometry on the current `self.data` image using photutils.
 
@@ -741,7 +895,7 @@ class FitsImg(object):
                 print(f"Using centroid at (x={cx:.2f}, y={cy:.2f}) for photometry.")
 
         # determine center
-        #if center is None:
+        # if center is None:
         #    if hasattr(self, 'center') and self.center is not None:
         #        try:
         #            cy, cx = self.center if len(self.center) == 2 else (float(self.center), float(self.center))
@@ -755,7 +909,7 @@ class FitsImg(object):
         #        except Exception:
         #            cy = (img.shape[0] - 1) / 2.0
         #            cx = (img.shape[1] - 1) / 2.0
-        #else:
+        # else:
         #    cy, cx = float(center[0]), float(center[1]) if len(center) == 2 else (float(center), float(center))
 
         pos = [(cx, cy)]  # photutils uses (x, y)
@@ -770,7 +924,7 @@ class FitsImg(object):
             phot_table = aperture_photometry(img, [aper])
 
         # aperture sums
-        ap_sum = float(phot_table['aperture_sum_0'][0])
+        ap_sum = float(phot_table["aperture_sum_0"][0])
         ap_area = float(aper.area)
         bkg_mean = 0.0
         bkg_median = 0.0
@@ -780,17 +934,19 @@ class FitsImg(object):
 
         if use_ann:
             try:
-                ann_sum = float(phot_table['aperture_sum_1'][0])
+                ann_sum = float(phot_table["aperture_sum_1"][0])
             except Exception:
                 ann_sum = 0.0
 
-            mask = ann.to_mask(method='exact')[0]
+            mask = ann.to_mask(method="exact")[0]
             annulus_data = mask.multiply(img)
             ann_pixels = annulus_data[mask.data > 0]
             ann_pixels_used = int(ann_pixels.size)
 
             if ann_pixels_used > 0:
-                bkg_mean, bkg_median, bkg_std = sigma_clipped_stats(ann_pixels, sigma=bkg_sigma_clip, maxiters=bkg_maxiters)
+                bkg_mean, bkg_median, bkg_std = sigma_clipped_stats(
+                    ann_pixels, sigma=bkg_sigma_clip, maxiters=bkg_maxiters
+                )
                 ann_area = float(ann.area)
             else:
                 # fallback to image statistics
@@ -812,17 +968,17 @@ class FitsImg(object):
             except Exception:
                 return float(x)
 
-        dark_rate = _val(getattr(self, 'dark_current_rate'))
-        exp_time_val = _val(getattr(self, 'exp_time'))
-        read_noise = _val(getattr(self, 'read_noise_rms'))
+        dark_rate = _val(getattr(self, "dark_current_rate"))
+        exp_time_val = _val(getattr(self, "exp_time"))
+        read_noise = _val(getattr(self, "read_noise_rms"))
 
         dark_per_pix = dark_rate * exp_time_val
 
         # noise model (electrons)
         shot_var = net_flux
         dark_var = ap_area * dark_per_pix
-        read_var = ap_area * (read_noise ** 2)
-        bkg_var = ap_area * (bkg_std ** 2)
+        read_var = ap_area * (read_noise**2)
+        bkg_var = ap_area * (bkg_std**2)
 
         total_var = shot_var + dark_var + read_var + bkg_var
         flux_err = np.sqrt(total_var) / float(gain)
@@ -832,51 +988,64 @@ class FitsImg(object):
             if ax is None:
                 fig, ax = plt.subplots(dpi=100)
             # --- 4. Plot the Ideal PSF --
-            if stretch =="hist":
+            if stretch == "hist":
                 norm = ImageNormalize(stretch=HistEqStretch(self.data))
-                self.im = ax.imshow(self.data,cmap=cmap,origin=origin,norm=norm,vmin=vmin,vmax=vmax)
-            elif stretch=='log':
-                print('log stretch')
-                norm = ImageNormalize(self.data,stretch=LogStretch())
-                self.im = ax.imshow(self.data,cmap=cmap,origin=origin,norm=norm,vmin=vmin,vmax=vmax)
+                self.im = ax.imshow(
+                    self.data, cmap=cmap, origin=origin, norm=norm, vmin=vmin, vmax=vmax
+                )
+            elif stretch == "log":
+                print("log stretch")
+                norm = ImageNormalize(self.data, stretch=LogStretch())
+                self.im = ax.imshow(
+                    self.data, cmap=cmap, origin=origin, norm=norm, vmin=vmin, vmax=vmax
+                )
             else:
-                print('linear stretch')
-                self.im = ax.imshow(self.data,cmap=cmap,origin=origin,vmin=vmin,vmax=vmax)
+                print("linear stretch")
+                self.im = ax.imshow(
+                    self.data, cmap=cmap, origin=origin, vmin=vmin, vmax=vmax
+                )
 
-            ax.imshow(self.data, origin='lower', interpolation='nearest', cmap='viridis')
-            #ax.set_title(f"PSF with Detector Noise (Flux={self.total_flux} e-)")
+            ax.imshow(
+                self.data, origin="lower", interpolation="nearest", cmap="viridis"
+            )
+            # ax.set_title(f"PSF with Detector Noise (Flux={self.total_flux} e-)")
             ax.set_xlabel("Pixel")
             ax.set_ylabel("Pixel")
             if colorbar:
                 ax.figure.colorbar(ax.images[0], ax=ax, label="Signal (electrons)")
             ax.grid(lw=0)
             # Draw aperture and annulus outlines
-            aper_patch = aper.plot(ax=ax, color='red', lw=1.6, alpha=0.9)[0]
-            ann_patch = ann.plot(ax=ax, color='white', lw=1.2, alpha=0.9)[0]
+            aper_patch = aper.plot(ax=ax, color="red", lw=1.6, alpha=0.9)[0]
+            ann_patch = ann.plot(ax=ax, color="white", lw=1.2, alpha=0.9)[0]
             # Mark the center
-            ax.plot(cx, cy, marker='+', color='yellow', markersize=10, mew=1.5)
+            ax.plot(cx, cy, marker="+", color="yellow", markersize=10, mew=1.5)
             # Annotation: show aperture radii in pixels
-            ax.text(0.02, 0.98, f"r_ap={r_ap:.1f}px, r_in={r_in:.1f}px, r_out={r_out:.1f}px",
-                    transform=ax.transAxes, color='white', fontsize=9, va='top')
-            ax.set_title('Centroid: (x={:.2f}, y={:.2f})'.format(cx, cy), y=1.02)
+            ax.text(
+                0.02,
+                0.98,
+                f"r_ap={r_ap:.1f}px, r_in={r_in:.1f}px, r_out={r_out:.1f}px",
+                transform=ax.transAxes,
+                color="white",
+                fontsize=9,
+                va="top",
+            )
+            ax.set_title("Centroid: (x={:.2f}, y={:.2f})".format(cx, cy), y=1.02)
 
         return {
-            'xcen': cx,
-            'ycen': cy,
-            'ap_sum': ap_sum,
-            'bkg_mean_per_pix': float(bkg_mean),
-            'bkg_median_per_pix': float(bkg_median),
-            'bkg_std_per_pix': float(bkg_std),
-            'bkg_sum': float(bkg_sum),
-            'net_flux': float(net_flux),
-            'flux_err': float(flux_err),
-            'snr': float(snr),
-            'ap_area': ap_area,
-            'ann_area': ann_area,
-            'ann_pixels_used': int(ann_pixels_used)
+            "xcen": cx,
+            "ycen": cy,
+            "ap_sum": ap_sum,
+            "bkg_mean_per_pix": float(bkg_mean),
+            "bkg_median_per_pix": float(bkg_median),
+            "bkg_std_per_pix": float(bkg_std),
+            "bkg_sum": float(bkg_sum),
+            "net_flux": float(net_flux),
+            "flux_err": float(flux_err),
+            "snr": float(snr),
+            "ap_area": ap_area,
+            "ann_area": ann_area,
+            "ann_pixels_used": int(ann_pixels_used),
         }
-
-
 
 
 def solve_time_for_snr(snr, A, B, C):
@@ -891,9 +1060,9 @@ def solve_time_for_snr(snr, A, B, C):
     B = np.asarray(B, dtype=float)
     C = np.asarray(C, dtype=float)
     s2 = float(snr) ** 2
-    disc = s2 * s2 * B ** 2 + 4.0 * A ** 2 * s2 * C
+    disc = s2 * s2 * B**2 + 4.0 * A**2 * s2 * C
     with np.errstate(divide="ignore", invalid="ignore"):
-        t = (s2 * B + np.sqrt(disc)) / (2.0 * A ** 2)
+        t = (s2 * B + np.sqrt(disc)) / (2.0 * A**2)
     t = np.where(A > 0, t, np.inf)
     return t.item() if t.ndim == 0 else t
 
@@ -908,7 +1077,9 @@ def _radial_cumulative(psf_norm, plate_scale_mas):
     """
     psf_norm = np.asarray(psf_norm, dtype=float)
     if psf_norm.ndim != 2 or psf_norm.shape[0] != psf_norm.shape[1]:
-        raise ValueError(f"psf_norm must be a square 2D array, got shape {psf_norm.shape}")
+        raise ValueError(
+            f"psf_norm must be a square 2D array, got shape {psf_norm.shape}"
+        )
     npix = psf_norm.shape[0]
     xc, yc = psf_center(psf_norm)  # shared centroid convention (see psf_center)
     yy, xx = np.mgrid[0:npix, 0:npix]
@@ -920,8 +1091,9 @@ def _radial_cumulative(psf_norm, plate_scale_mas):
     return r_sorted * plate_scale_mas, enclosed, n_pix
 
 
-def aperture_snr_radial(psf_norm, plate_scale_mas, source_e_total,
-                        diffuse_per_pix, dark_per_pix, read_noise):
+def aperture_snr_radial(
+    psf_norm, plate_scale_mas, source_e_total, diffuse_per_pix, dark_per_pix, read_noise
+):
     """
     SNR as a function of circular-aperture radius for a rendered PSF.
 
@@ -950,16 +1122,18 @@ def aperture_snr_radial(psf_norm, plate_scale_mas, source_e_total,
     r_mas, enclosed, n_pix = _radial_cumulative(psf_norm, plate_scale_mas)
 
     signal = source_e_total * enclosed
-    per_pix_var = diffuse_per_pix + dark_per_pix + read_noise ** 2
+    per_pix_var = diffuse_per_pix + dark_per_pix + read_noise**2
     noise = np.sqrt(signal + per_pix_var * n_pix)
     snr = np.divide(signal, noise, out=np.zeros_like(signal), where=noise > 0)
 
-    return {"r_mas": r_mas,
-            "enclosed_fraction": enclosed,
-            "n_pix": n_pix,
-            "signal_e": signal,
-            "noise_e": noise,
-            "snr": snr}
+    return {
+        "r_mas": r_mas,
+        "enclosed_fraction": enclosed,
+        "n_pix": n_pix,
+        "signal_e": signal,
+        "noise_e": noise,
+        "snr": snr,
+    }
 
 
 def select_aperture(profile, r_aper_mas=None, ee_frac=None, optimize=False):
@@ -982,10 +1156,19 @@ def select_aperture(profile, r_aper_mas=None, ee_frac=None, optimize=False):
     raise ValueError("select_aperture: specify optimize, r_aper_mas, or ee_frac.")
 
 
-def aperture_time_for_snr(psf_norm, plate_scale_mas, source_rate_total,
-                          diffuse_rate_per_pix, dark_rate_per_pix, read_noise,
-                          n_reads=1, snr=None, r_aper_mas=None, ee_frac=None,
-                          optimize=False):
+def aperture_time_for_snr(
+    psf_norm,
+    plate_scale_mas,
+    source_rate_total,
+    diffuse_rate_per_pix,
+    dark_rate_per_pix,
+    read_noise,
+    n_reads=1,
+    snr=None,
+    r_aper_mas=None,
+    ee_frac=None,
+    optimize=False,
+):
     """
     Exposure time (s) to reach `snr` for a rendered PSF, per aperture mode.
 
@@ -1001,55 +1184,61 @@ def aperture_time_for_snr(psf_norm, plate_scale_mas, source_rate_total,
 
     A = source_rate_total * enclosed
     B = A + (diffuse_rate_per_pix + dark_rate_per_pix) * n_pix
-    C = n_reads * read_noise ** 2 * n_pix
-    t = solve_time_for_snr(snr, A, B, C)              # array over radii
+    C = n_reads * read_noise**2 * n_pix
+    t = solve_time_for_snr(snr, A, B, C)  # array over radii
 
     if optimize:
-        idx = int(np.argmin(t))                       # radius reaching snr fastest
+        idx = int(np.argmin(t))  # radius reaching snr fastest
     elif r_aper_mas is not None:
-        idx = int(np.clip(np.searchsorted(r_mas, r_aper_mas, side="right") - 1,
-                          0, r_mas.size - 1))
+        idx = int(
+            np.clip(
+                np.searchsorted(r_mas, r_aper_mas, side="right") - 1, 0, r_mas.size - 1
+            )
+        )
     elif ee_frac is not None:
         idx = int(np.clip(np.searchsorted(enclosed, ee_frac), 0, enclosed.size - 1))
     else:
         raise ValueError("specify optimize, r_aper_mas, or ee_frac.")
 
-    return {"time_s": float(t[idx]),
-            "snr": float(snr),
-            "r_aper_mas": float(r_mas[idx]),
-            "enclosed_fraction": float(enclosed[idx]),
-            "n_pix": int(n_pix[idx])}
+    return {
+        "time_s": float(t[idx]),
+        "snr": float(snr),
+        "r_aper_mas": float(r_mas[idx]),
+        "enclosed_fraction": float(enclosed[idx]),
+        "n_pix": int(n_pix[idx]),
+    }
 
 
-def calc_hwzm(x,y,z=20):
+def calc_hwzm(x, y, z=20):
     """
     Calculates the HWHM at the Z-th maximum for a given dataset, by finding the roots of splines.
-    
+
     INPUTS:
         x - x input array
         y - y input array
-    
+
     OUTPUT:
         HWZM The Half Width at Z-th Max of the data
-    
+
     EXAMPLE:
     """
-    spline = UnivariateSpline(x, y-np.max(y)/z, s=0)
+    spline = UnivariateSpline(x, y - np.max(y) / z, s=0)
     roots = spline.roots()
     return roots
 
-def calc_hwhm(x,y):
+
+def calc_hwhm(x, y):
     """
     Calculates the HWHM for a given dataset, by finding the roots of splines.
-    
+
     INPUTS:
         x - x input array
         y - y input array
-    
+
     OUTPUT:
         HWZM The Half Width at Z-th Max of the data
-    
+
     EXAMPLE:
     """
-    roots = calc_hwzm(x,y,z=2)
+    roots = calc_hwzm(x, y, z=2)
     return roots

@@ -2,15 +2,14 @@
 #
 # Full reference: https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import os
 import shutil
 import sys
 from pathlib import Path
 
 # -- Path setup --------------------------------------------------------------
 # Make the package importable for autodoc without requiring an install.
-DOCS_DIR = Path(__file__).resolve().parent          # docs/sphinx
-REPO_ROOT = DOCS_DIR.parent.parent                  # wcc-etc/
+DOCS_DIR = Path(__file__).resolve().parent  # docs/sphinx
+REPO_ROOT = DOCS_DIR.parent.parent  # wcc-etc/
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 # -- Project information -----------------------------------------------------
@@ -29,13 +28,13 @@ version = ".".join(release.split(".")[:2])
 
 # -- General configuration ---------------------------------------------------
 extensions = [
-    "sphinx.ext.autodoc",        # pull docstrings from the source
-    "sphinx.ext.autosummary",    # generate per-object summary tables/stubs
-    "sphinx.ext.napoleon",       # parse NumPy/Google style docstrings
-    "sphinx.ext.viewcode",       # add "[source]" links to highlighted source
-    "sphinx.ext.intersphinx",    # cross-link to numpy/astropy/etc docs
-    "sphinx.ext.mathjax",        # render LaTeX math
-    "nbsphinx",                  # render the tutorial Jupyter notebooks
+    "sphinx.ext.autodoc",  # pull docstrings from the source
+    "sphinx.ext.autosummary",  # generate per-object summary tables/stubs
+    "sphinx.ext.napoleon",  # parse NumPy/Google style docstrings
+    "sphinx.ext.viewcode",  # add "[source]" links to highlighted source
+    "sphinx.ext.intersphinx",  # cross-link to numpy/astropy/etc docs
+    "sphinx.ext.mathjax",  # render LaTeX math
+    "nbsphinx",  # render the tutorial Jupyter notebooks
 ]
 
 # Optional: enable Markdown authoring if myst-parser is installed.
@@ -56,7 +55,7 @@ exclude_patterns = ["_build", "**.ipynb_checkpoints", "Thumbs.db", ".DS_Store"]
 # pages here would document each object twice (duplicate-object warnings), so
 # keep stub generation off.
 autosummary_generate = False
-autoclass_content = "class"          # merge __init__ docstring into the class
+autoclass_content = "class"  # merge __init__ docstring into the class
 autodoc_member_order = "bysource"
 autodoc_typehints = "description"
 autodoc_default_options = {

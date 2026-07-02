@@ -1,6 +1,5 @@
 import pandas as pd
 import pytest
-
 from lazuli_transit.archive import (
     ARCHIVE_COLUMNS,
     default_archive_path,
@@ -21,14 +20,24 @@ def test_archive_columns_contains_required_fields():
 
 
 def test_archive_columns_contains_stellar_and_transit_fields():
-    for col in ("tran_flag", "st_teff", "sy_gaiamag", "sy_vmag", "sy_tmag",
-                "sy_jmag", "sy_hmag", "sy_kmag"):
+    for col in (
+        "tran_flag",
+        "st_teff",
+        "sy_gaiamag",
+        "sy_vmag",
+        "sy_tmag",
+        "sy_jmag",
+        "sy_hmag",
+        "sy_kmag",
+    ):
         assert col in ARCHIVE_COLUMNS
 
 
 def test_load_reads_existing_csv(tmp_path):
     csv = tmp_path / "arch.csv"
-    pd.DataFrame({"pl_name": ["WASP-12 b"], "pl_orbper": [1.09]}).to_csv(csv, index=False)
+    pd.DataFrame({"pl_name": ["WASP-12 b"], "pl_orbper": [1.09]}).to_csv(
+        csv, index=False
+    )
     df = load_exoplanet_archive(path=csv)
     assert list(df["pl_name"]) == ["WASP-12 b"]
 
