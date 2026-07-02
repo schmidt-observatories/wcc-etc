@@ -16,14 +16,15 @@ sphinx:
 
 python:
   install:
-    # Sphinx + theme + nbsphinx
-    - requirements: docs/sphinx/requirements.txt
     # Transit core: wcc_etc depends on lazuli-transit, install it first
     - method: pip
       path: packages/lazuli-transit
-    # Install the package itself so autodoc can import wcc_etc and its deps
+    # Install the package itself so autodoc can import wcc_etc, plus the
+    # Sphinx toolchain from the [docs] extra in pyproject.toml
     - method: pip
       path: .
+      extra_requirements:
+        - docs
 
 formats:
   - htmlzip
