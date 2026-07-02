@@ -183,7 +183,7 @@ In `src/wcc_etc/scene.py`, replace the magsys resolution block in `_parse_mag_` 
             # make sure it is an astropy units.
             if not hasattr(magsys, "is_equivalent"):
                 magsys = getattr(u, magsys)
-            #         
+            #
             mag = mag * magsys
 ```
 
@@ -272,15 +272,15 @@ Expected: FAIL — units are `ABmag`, not `VEGAMAG`.
 In `src/wcc_etc/scene.py`, change the `__init__` signature (line ~344):
 
 ```python
-    def __init__(self, spectrum, mag, 
-                 magsys="ABmag", bandpass="johnson_v", 
+    def __init__(self, spectrum, mag,
+                 magsys="ABmag", bandpass="johnson_v",
 ```
 
 to:
 
 ```python
-    def __init__(self, spectrum, mag, 
-                 magsys="vegamag", bandpass="johnson_v", 
+    def __init__(self, spectrum, mag,
+                 magsys="vegamag", bandpass="johnson_v",
 ```
 
 And update the `magsys` docstring (line ~356-357) from:

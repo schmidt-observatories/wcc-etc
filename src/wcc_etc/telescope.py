@@ -1,9 +1,10 @@
 import numpy as np
-from synphot.models import Box1D
-from synphot import SpectralElement
 from astropy import units as u
+from synphot import SpectralElement
+from synphot.models import Box1D
 
 from .meta import _MetaHolder_
+
 
 class Telescope(_MetaHolder_):
     """
@@ -22,13 +23,12 @@ class Telescope(_MetaHolder_):
     focal_len : Quantity
         The focal length of the telescope.
     """
+
     # list of mutable parameter. This is handled by _MetaHolder_
     _mutable_parameters = ["f_num", "diameter_primary", "jitter_sigma"]
-    
-    def __init__(self, f_num, diameter_primary,
-                 jitter_sigma=0, 
-                 meta={}):
-        """ 
+
+    def __init__(self, f_num, diameter_primary, jitter_sigma=0, meta={}):
+        """
         Initialize a Telescope object.
 
         Parameters
@@ -70,11 +70,11 @@ class Telescope(_MetaHolder_):
 
         # read the throughput of the system.
         return cls(**config, meta=config)
-        
+
     # ================ #
     #  methods         #
     # ================ #
-    
+
     # ================ #
     #  Properties      #
     # ================ #
@@ -84,16 +84,16 @@ class Telescope(_MetaHolder_):
         The focal ratio (f-number).
         """
         return self.meta.get("f_num")
-        
+
     @property
     def diameter_primary(self):
         """
         The primary mirror diameter as an astropy Quantity.
         """
-        diameter_primary = self.meta.get("diameter_primary") 
+        diameter_primary = self.meta.get("diameter_primary")
         if not isinstance(diameter_primary, u.Quantity):
             diameter_primary *= u.m
-        
+
         return diameter_primary
 
     @property
@@ -104,20 +104,19 @@ class Telescope(_MetaHolder_):
         jitter_sigma = self.meta.get("jitter_sigma", 0)
         if not isinstance(jitter_sigma, u.Quantity):
             jitter_sigma *= u.mas
-            
-        return  jitter_sigma
-        
+
+        return jitter_sigma
+
     @property
     def surface(self):
         """
         The collecting area (surface) of the primary mirror.
         """
         return np.pi * (0.5 * self.diameter_primary) ** 2
-        
+
     @property
     def focal_len(self):
         """
         The focal length of the telescope.
         """
         return self.diameter_primary * self.f_num
-

@@ -5,6 +5,7 @@ confirmed planet) to a local CSV cache; `load_exoplanet_archive` reads it.
 `TransitModel.from_planet` consumes the result to build transit models for real
 planets.
 """
+
 from pathlib import Path
 
 import pandas as pd
@@ -17,11 +18,26 @@ import pandas as pd
 #: included by default. ``tran_flag`` (1 = transiting, 0 = not) is fully
 #: populated and drives TransitModel.from_planet's transit check.
 ARCHIVE_COLUMNS = [
-    "pl_name", "hostname", "pl_orbper", "pl_ratror", "pl_ratdor",
-    "pl_orbincl", "pl_tranmid", "pl_orbeccen", "pl_orblper",
-    "pl_radj", "pl_orbsmax", "tran_flag",
-    "st_rad", "st_teff",
-    "sy_gaiamag", "sy_vmag", "sy_tmag", "sy_jmag", "sy_hmag", "sy_kmag",
+    "pl_name",
+    "hostname",
+    "pl_orbper",
+    "pl_ratror",
+    "pl_ratdor",
+    "pl_orbincl",
+    "pl_tranmid",
+    "pl_orbeccen",
+    "pl_orblper",
+    "pl_radj",
+    "pl_orbsmax",
+    "tran_flag",
+    "st_rad",
+    "st_teff",
+    "sy_gaiamag",
+    "sy_vmag",
+    "sy_tmag",
+    "sy_jmag",
+    "sy_hmag",
+    "sy_kmag",
 ]
 
 _ASTROQUERY_HINT = (

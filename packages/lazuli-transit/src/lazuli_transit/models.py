@@ -5,6 +5,7 @@
 a WCC or IFS simulator consumes a FluxModel through its `relative_flux(time)`
 interface.
 """
+
 import numpy as np
 
 _BATMAN_HINT = (
@@ -27,15 +28,26 @@ class TransitModel(FluxModel):
     rp (Rp/R*), a (a/R*), inc (deg), ecc, w (deg), limb_dark, u (coeffs).
     """
 
-    def __init__(self, t0=0.0, per=1.0, rp=0.1, a=15.0, inc=87.0,
-                 ecc=0.0, w=90.0, limb_dark="quadratic", u=(0.1, 0.3)):
+    def __init__(
+        self,
+        t0=0.0,
+        per=1.0,
+        rp=0.1,
+        a=15.0,
+        inc=87.0,
+        ecc=0.0,
+        w=90.0,
+        limb_dark="quadratic",
+        u=(0.1, 0.3),
+    ):
         self.t0, self.per, self.rp, self.a = t0, per, rp, a
         self.inc, self.ecc, self.w = inc, ecc, w
         self.limb_dark, self.u = limb_dark, list(u)
 
     @classmethod
-    def from_planet(cls, name, df=None, require_transit=True,
-                    limb_dark="quadratic", u=(0.1, 0.3)):
+    def from_planet(
+        cls, name, df=None, require_transit=True, limb_dark="quadratic", u=(0.1, 0.3)
+    ):
         """Build a TransitModel from a NASA Exoplanet Archive (PSCompPars) row.
 
         Looks up ``name`` in ``df`` (or the local cache via
@@ -56,6 +68,7 @@ class TransitModel(FluxModel):
         """
         if df is None:
             from .archive import load_exoplanet_archive
+
             df = load_exoplanet_archive()
 
         def _norm(s):
@@ -69,7 +82,8 @@ class TransitModel(FluxModel):
         if require_transit:
             tran = row.get("tran_flag")
             known = tran is not None and not (
-                isinstance(tran, float) and np.isnan(tran))
+                isinstance(tran, float) and np.isnan(tran)
+            )
             if known and int(tran) == 0:
                 raise ValueError(
                     f"Planet {name!r} is not flagged as transiting "
@@ -89,8 +103,9 @@ class TransitModel(FluxModel):
                 f"Planet {name!r} has no pl_orbper; cannot build a transit model"
             )
 
-        import astropy.units as units
         import astropy.constants as const
+        import astropy.units as units
+
         rjup_rsun = float((const.R_jup / const.R_sun).decompose().value)
         au_rsun = float((1 * units.au).to(units.R_sun).value)
 

@@ -83,4 +83,3 @@ make html                  # output in _build/html/index.html
 
 A `.readthedocs.yaml` is included so the site builds automatically once the
 repository is connected to Read the Docs.
-

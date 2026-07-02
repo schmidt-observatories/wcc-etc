@@ -1,10 +1,11 @@
-
-from astropy import units as u
 from copy import deepcopy
 
-from .utils import parse_element, parse_and_interpolate
+from astropy import units as u
 
 from .meta import _MetaHolder_
+from .utils import parse_and_interpolate, parse_element
+
+
 class Sensor(_MetaHolder_):
     """
     A class representing the sensor (detector) properties.
@@ -33,23 +34,34 @@ class Sensor(_MetaHolder_):
         The ADC full-scale clip ceiling in ADU.
     """
 
-    _mutable_parameters = ["bandpass", "bandpass_name",
-                            "pixel_size", "read_noise", "dark_current",
-                            "gain", "area", "temperature",
-                            "bit_depth", "bias_level"]
-    
-    def __init__(self, bandpass, 
-                 pixel_size,                  
-                 read_noise,
-                 dark_current, 
-                 gain,
-                 area,
-                 temperature=None,
-                 qe= 1, # part of the total throughput for now.
-                 well_depth=None,
-                 bit_depth=None,
-                 bias_level=None,
-                meta={}):
+    _mutable_parameters = [
+        "bandpass",
+        "bandpass_name",
+        "pixel_size",
+        "read_noise",
+        "dark_current",
+        "gain",
+        "area",
+        "temperature",
+        "bit_depth",
+        "bias_level",
+    ]
+
+    def __init__(
+        self,
+        bandpass,
+        pixel_size,
+        read_noise,
+        dark_current,
+        gain,
+        area,
+        temperature=None,
+        qe=1,  # part of the total throughput for now.
+        well_depth=None,
+        bit_depth=None,
+        bias_level=None,
+        meta={},
+    ):
         """
         Initialize the sensor.
 
@@ -81,14 +93,18 @@ class Sensor(_MetaHolder_):
             Additional metadata. Default is {}.
         """
 
-        init_parameters = {key: value for key, value in locals().items()
-                            if key not in ["self", "bandpass", "meta"] and value is not None
-                            and not key.startswith("__")}
-        
+        init_parameters = {
+            key: value
+            for key, value in locals().items()
+            if key not in ["self", "bandpass", "meta"]
+            and value is not None
+            and not key.startswith("__")
+        }
+
         # overwrite meta with manually given ones.
         self.set_bandpass(bandpass)
         super().__init__(meta | init_parameters)
-        
+
     @classmethod
     def from_name(cls, name):
         """
@@ -128,49 +144,55 @@ class Sensor(_MetaHolder_):
         # read the total throughput allowing 2 formating
         throughput = config.get("throughput", config.get("path_total_throughput"))
         bandpass = parse_element(throughput)
-        
+
         # basic sensor information:
         pixel_size = config.get("pixel_size")
         sensor_area = config.get("sensor_area") * u.mm**2
-        
+
         # optional
         sensor_temp = config.get("sensor_temp", None)
         if sensor_temp is not None:
             sensor_temp *= u.Celsius
-        
-        
+
         # gain
-        gain_setting = config.get('gain_setting', None)        
+        gain_setting = config.get("gain_setting", None)
         if gain_setting is not None:
             gain = parse_and_interpolate(config.get("path_gain_curve"), gain_setting)
-            read_noise = parse_and_interpolate(config.get("path_read_noise"), gain_setting) * 2 # multiply by 2 to allow for unmodelled noise sources
-            dark_current = parse_and_interpolate(config.get("path_dark_current"), sensor_temp.to("Celsius").value) # careful temperature here.
-            well_depth = parse_and_interpolate(config.get("path_well_depth"), gain_setting)
-            
-        else: # no default allowed here, must be provided.
+            read_noise = (
+                parse_and_interpolate(config.get("path_read_noise"), gain_setting) * 2
+            )  # multiply by 2 to allow for unmodelled noise sources
+            dark_current = parse_and_interpolate(
+                config.get("path_dark_current"), sensor_temp.to("Celsius").value
+            )  # careful temperature here.
+            well_depth = parse_and_interpolate(
+                config.get("path_well_depth"), gain_setting
+            )
+
+        else:  # no default allowed here, must be provided.
             gain = config.get("gain")
             read_noise = config.get("read_noise")
             dark_current = config.get("dark_current")
-            well_depth = config.get("well_depth")        
+            well_depth = config.get("well_depth")
 
-        
         # ADC properties
         bit_depth = config.get("bit_depth")
         bias_level = config.get("bias_level")
 
-        return cls(bandpass=bandpass,
-                     pixel_size=pixel_size,
-                     read_noise=read_noise,
-                     dark_current=dark_current,
-                     gain=gain,
-                     area=sensor_area,
-                     temperature=sensor_temp,
-                     well_depth=well_depth,
-                     bit_depth=bit_depth,
-                     bias_level=bias_level,
-                     qe=1, # forced qe=1 as included in total throughput
-                    meta=config)
-    
+        return cls(
+            bandpass=bandpass,
+            pixel_size=pixel_size,
+            read_noise=read_noise,
+            dark_current=dark_current,
+            gain=gain,
+            area=sensor_area,
+            temperature=sensor_temp,
+            well_depth=well_depth,
+            bit_depth=bit_depth,
+            bias_level=bias_level,
+            qe=1,  # forced qe=1 as included in total throughput
+            meta=config,
+        )
+
     @classmethod
     def from_kind_and_band(cls, kind, band):
         """
@@ -179,7 +201,7 @@ class Sensor(_MetaHolder_):
         Parameters
         ----------
         kind : str
-            Kind of sensor of the WCC: 
+            Kind of sensor of the WCC:
             - 'zwo' ('sony', 'imx', 'imx455' accepted)
             - 'qcmos'
         band : str
@@ -190,6 +212,7 @@ class Sensor(_MetaHolder_):
         Sensor
         """
         from .io import get_sensor_config
+
         # grabs the configuration associated to this sensor
         config = get_sensor_config(kind, band)
         return cls.from_config(config["sensor"])
@@ -206,7 +229,7 @@ class Sensor(_MetaHolder_):
         bandpass : str or SpectralElement
         """
         self._bandpass = parse_element(bandpass)
-    
+
     def get_plate_scale(self, telescope):
         """
         Calculate the plate scale in arcsec/pix.
@@ -222,8 +245,14 @@ class Sensor(_MetaHolder_):
             The plate scale in arcsec/pix.
         """
         # why 206265
-        return (self.pixel_size.to("m/pix") / telescope.diameter_primary.to("m") / telescope.f_num * 206265*u.arcsec) # arcsec/pix
-        
+        return (
+            self.pixel_size.to("m/pix")
+            / telescope.diameter_primary.to("m")
+            / telescope.f_num
+            * 206265
+            * u.arcsec
+        )  # arcsec/pix
+
     # ================ #
     #  Properties      #
     # ================ #
@@ -233,7 +262,7 @@ class Sensor(_MetaHolder_):
         The sensor bandpass (SpectralElement).
         """
         return self._bandpass
-        
+
     @property
     def wavelength(self):
         """
@@ -260,14 +289,14 @@ class Sensor(_MetaHolder_):
         The sensor area.
         """
         return self.meta["area"]
-        
+
     @property
     def gain(self):
         """
         The sensor gain (e-/ct).
         """
         return self.meta["gain"] * (u.electron / u.ct)
-        
+
     @property
     def dark_current(self):
         """
@@ -281,13 +310,13 @@ class Sensor(_MetaHolder_):
         The read noise (e-/pix).
         """
         return self.meta["read_noise"] * u.electron / u.pix
-        
+
     @property
     def pixel_size(self):
         """
         The pixel size (um/pix).
         """
-        return self.meta["pixel_size"] * u.um/u.pix
+        return self.meta["pixel_size"] * u.um / u.pix
 
     @property
     def bit_depth(self):
@@ -312,4 +341,3 @@ class Sensor(_MetaHolder_):
         if bit_depth is None:
             raise ValueError("bit_depth is not set; cannot compute adc_max")
         return (2**bit_depth - 1) * u.ct
-
