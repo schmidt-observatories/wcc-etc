@@ -374,6 +374,46 @@ class TestMakeTotalPsf:
             np.asarray(fits.getdata(path), dtype=np.float32), psf.data
         )
 
+    def test_report_writes_a_pdf(self, psf, tmp_path):
+        """report= produces a real, multi-page PDF."""
+        path = tmp_path / "report.pdf"
+        sp.write_psf_report(psf, path)
+        head = path.read_bytes()[:5]
+        assert head == b"%PDF-"
+
+    def test_report_is_emitted_by_make_total_psf(self, synthetic_fgd, tmp_path):
+        """The report= argument is wired through the entry point."""
+        path = tmp_path / "r.pdf"
+        sp.make_total_psf(
+            scatter_data=synthetic_fgd,
+            sensor="hwk4123",
+            extent=401,
+            desired_power=DESIRED_POWER,
+            report=str(path),
+            verbose=False,
+        )
+        assert path.exists() and path.stat().st_size > 1000
+
+    def test_report_records_the_settings_it_was_built_with(self, psf):
+        """settings carries the call, so the report is not guessing."""
+        assert psf.settings["inner_npix"] == 201
+
+    def test_diagnostics_report_the_contrast(self, psf):
+        """report_diagnostics exposes the Airy-to-halo contrast."""
+        assert sp.report_diagnostics(psf)["contrast"] > 0
+
+    def test_crossover_is_nan_when_it_falls_outside_the_stamp(self, synthetic_fgd):
+        """A stamp too small to contain the crossover must not report its edge."""
+        small = sp.make_total_psf(
+            scatter_data=synthetic_fgd,
+            sensor="imx455",
+            extent=1501,
+            desired_power=DESIRED_POWER,
+            keep_components=True,
+            verbose=False,
+        )
+        assert np.isnan(sp.report_diagnostics(small)["crossover_fringed_mm"])
+
     def test_rice_at_quantize_zero_is_refused(self, psf, tmp_path):
         """RICE_1 with quantize_level=0 destroys float data; save() blocks it."""
         with pytest.raises(ValueError, match="lossless"):

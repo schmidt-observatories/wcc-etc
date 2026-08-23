@@ -55,6 +55,7 @@ dev = [
 "wcc_etc" = [
   "data/psfs/lazuli_focal_plane_airy_scatter_450nm.fits",
   "data/psfs/scatter/*",
+  "data/psfs/*_report.pdf",
 ]
 
 [project.urls]

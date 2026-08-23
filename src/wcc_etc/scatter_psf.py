@@ -63,6 +63,9 @@ __all__ = [
     "render_airy_core",
     "airy_irradiance",
     "plot_scatter_verify",
+    "write_psf_report",
+    "report_diagnostics",
+    "crossover_radius",
     "fgd_grid",
     "fgd_integrated_power",
 ]
@@ -416,7 +419,9 @@ def airy_irradiance(r_mm, D, fnum, wavelength, power=1.0, envelope=False):
     out = np.full(x.shape, i0, dtype=float)
     nz = x > 0
     if envelope:
-        out[nz] = i0 * 4.0 / (np.pi * x[nz] ** 3)
+        # 4/(pi x^3) is the large-x mean of (2 J1/x)^2; it diverges as x -> 0, so
+        # clip it at the true peak rather than letting it run above the Airy.
+        out[nz] = np.minimum(i0 * 4.0 / (np.pi * x[nz] ** 3), i0)
     else:
         out[nz] = i0 * (2.0 * j1(x[nz]) / x[nz]) ** 2
     return out
@@ -537,6 +542,8 @@ class TotalPSF:
     core: np.ndarray = field(repr=False, default=None)
     scatter: np.ndarray = field(repr=False, default=None)
     meta: dict = field(repr=False, default_factory=dict)
+    #: The call that produced this PSF, verbatim -- what the PDF report prints.
+    settings: dict = field(repr=False, default_factory=dict)
 
     @property
     def shape(self):
@@ -560,6 +567,20 @@ class TotalPSF:
         **irradiance in W/mm^2 per watt of source flux**: one over the pixel area.
         """
         return 1.0 / self.mm_per_pixel**2
+
+    def halo_profile(self):
+        """``(radius_mm, irradiance)`` of the scatter alone along the +x half-row.
+
+        Irradiance is W/mm^2 per watt of source flux.  Only the positive half:
+        ``abs(x_mm)`` is V-shaped, and interpolating on it mixes the two sides.
+        Returns ``(None, None)`` when the components were not retained.
+        """
+        if self.scatter is None:
+            return None, None
+        xm = self.x_mm
+        keep = xm >= 0
+        row = np.asarray(self.scatter[self.shape[0] // 2], dtype=float)[keep]
+        return xm[keep], row * self.desired_power * self.irradiance_scale
 
     @property
     def x_mm(self):
@@ -651,6 +672,364 @@ class TotalPSF:
 # --------------------------------------------------------------------------- #
 
 
+def crossover_radius(
+    r_mm,
+    halo_irradiance,
+    D,
+    fnum,
+    wavelength,
+    power=1.0,
+    envelope=False,
+    rmax=None,
+    n=200001,
+):
+    """
+    Largest radius [mm] at which the Airy still exceeds the scatter halo.
+
+    ``envelope=False`` uses the fringed Airy -- the last radius at which a ring
+    *maximum* pokes above the halo, which is what a peak-to-peak requirement
+    means.  ``envelope=True`` uses the azimuthally-averaged envelope, which
+    crosses earlier.  Returns NaN if they never cross inside ``rmax``.
+    """
+    r_mm = np.asarray(r_mm, dtype=float)
+    halo_irradiance = np.asarray(halo_irradiance, dtype=float)
+    rmax = float(r_mm.max()) if rmax is None else float(rmax)
+    r = np.linspace(max(float(r_mm.min()), 1e-4), rmax, int(n))
+    halo = np.interp(r, r_mm, halo_irradiance)
+
+    # If the Airy envelope is still above the halo at the edge of the window, the
+    # crossover lies outside it. Without this the last sign change sits at the
+    # boundary and reads as a real crossover -- a stamp-size artefact.
+    if airy_irradiance(rmax, D, fnum, wavelength, power=power, envelope=True) > (
+        np.interp(rmax, r_mm, halo_irradiance)
+    ):
+        return float("nan")
+
+    diff = (
+        airy_irradiance(r, D, fnum, wavelength, power=power, envelope=envelope) - halo
+    )
+    i = np.where(np.sign(diff[:-1]) != np.sign(diff[1:]))[0]
+    return float(r[i[-1]]) if len(i) else float("nan")
+
+
+def report_diagnostics(res):
+    """
+    Derived numbers describing a :class:`TotalPSF`, for a report or a log line.
+
+    Peak irradiances (W/mm^2 per watt of source), the Airy-to-halo contrast, and
+    both crossover radii.  Halo-dependent entries are ``None`` when the PSF was
+    built without ``keep_components``.
+    """
+    d = float(res.meta["TELDIAM"][0])
+    fnum = float(res.meta["FNUM"][0])
+    lam = float(res.meta["WAVELEN"][0]) * 1e-9
+    dp = res.desired_power
+
+    out = {
+        "shape": res.shape,
+        "pixel_size_um": res.pixel_size_um,
+        "pixel_scale_mas": res.pixel_scale_mas,
+        "mm_per_pixel": res.mm_per_pixel,
+        "half_width_mm": res.shape[1] / 2 * res.mm_per_pixel,
+        "sum": float(res.data.sum(dtype=np.float64)),
+        "peak_fraction": float(res.data.max()),
+        "peak_irradiance": float(res.data.max()) * res.irradiance_scale,
+        "airy_peak_analytic": airy_irradiance(0.0, d, fnum, lam, power=1.0 - dp),
+        "scatter_enclosed_frac": res.scatter_enclosed_frac,
+        "core_enclosed_frac": res.core_enclosed_frac,
+        "scatter_in_array": res.scatter_in_array,
+        "halo_peak": None,
+        "contrast": None,
+        "crossover_fringed_mm": None,
+        "crossover_envelope_mm": None,
+    }
+
+    r_mm, halo = res.halo_profile()
+    if halo is not None:
+        out["halo_peak"] = float(halo.max())
+        out["contrast"] = out["airy_peak_analytic"] / out["halo_peak"]
+        for key, env in (
+            ("crossover_fringed_mm", False),
+            ("crossover_envelope_mm", True),
+        ):
+            out[key] = crossover_radius(
+                r_mm, halo, d, fnum, lam, power=1.0 - dp, envelope=env
+            )
+    return out
+
+
+def write_psf_report(res, path, fits_path=None, dpi=140):
+    """
+    Write a PDF describing this PSF: what went into it, what came out, how it looks.
+
+    Page 1 is the three-panel diagnostic figure.  Page 2 is an irradiance cut of
+    the core and halo against the closed-form Airy, so the contrast and the
+    crossover are visible rather than merely tabulated.  Page 3 lists the input
+    ingredients, the settings the PSF was built with, and the derived numbers.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_pdf import PdfPages
+
+    plt.style.use("gks")
+    diag = report_diagnostics(res)
+    d = float(res.meta["TELDIAM"][0])
+    fnum = float(res.meta["FNUM"][0])
+    lam = float(res.meta["WAVELEN"][0]) * 1e-9
+
+    with PdfPages(path) as pdf:
+        # -- page 1: the diagnostic figure -------------------------------- #
+        fig, _ = plot_total_psf(res)
+        fig.suptitle("Airy + scattered-light PSF", fontsize=13, y=1.0)
+        pdf.savefig(fig, dpi=dpi, bbox_inches="tight")
+        plt.close(fig)
+
+        # -- page 2: irradiance cut vs the closed-form Airy ---------------- #
+        r_mm, halo = res.halo_profile()
+        if halo is not None:
+            fig, ax = plt.subplots(figsize=(9.5, 6.5))
+            rr = np.linspace(res.mm_per_pixel / 2, float(r_mm.max()), 40001)
+            core_power = 1.0 - res.desired_power
+            ax.plot(
+                rr,
+                airy_irradiance(rr, d, fnum, lam, power=core_power),
+                color="#3b76af",
+                lw=0.4,
+                label="Airy (analytic, fringed)",
+            )
+            ax.plot(
+                rr,
+                airy_irradiance(rr, d, fnum, lam, power=core_power, envelope=True),
+                color="#003d5b",
+                lw=1.4,
+                ls=":",
+                label="Airy envelope",
+            )
+            ax.plot(
+                r_mm,
+                halo,
+                color="#66a182",
+                lw=2.0,
+                label=f"scatter halo ({100 * res.desired_power:.3g}% of flux)",
+            )
+            if res.core is not None:
+                core_row = np.asarray(res.core[res.shape[0] // 2], dtype=float)
+                keep = res.x_mm >= 0
+                ax.plot(
+                    res.x_mm[keep],
+                    core_row[keep]
+                    * (1 - res.desired_power)
+                    * res.renorm_scale
+                    * res.irradiance_scale,
+                    color="0.25",
+                    lw=1.2,
+                    ls="--",
+                    label="core (this PSF)",
+                )
+            for key, style in (
+                ("crossover_fringed_mm", "-"),
+                ("crossover_envelope_mm", ":"),
+            ):
+                if diag[key] and np.isfinite(diag[key]):
+                    ax.axvline(
+                        diag[key],
+                        color="#d1495b",
+                        lw=1.2,
+                        ls=style,
+                        label=f"{key.replace('_mm', '').replace('_', ' ')}"
+                        f" = {diag[key]:.2f} mm",
+                    )
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+            ax.set_xlim(res.mm_per_pixel / 2, float(r_mm.max()))
+            ax.set_ylim(float(halo.min()) / 30, diag["airy_peak_analytic"] * 5)
+            ax.set_xlabel("radius [mm]")
+            ax.set_ylabel("irradiance [W mm$^{-2}$ per W of source]")
+            ax.set_title(
+                f"Core vs halo   contrast = {diag['contrast']:.3e}", fontsize=12
+            )
+            ax.legend(fontsize=9)
+            fig.tight_layout()
+            pdf.savefig(fig, dpi=dpi)
+            plt.close(fig)
+
+        # -- page 3: ingredients, settings, diagnostics -------------------- #
+        pdf.savefig(_report_text_page(res, diag, fits_path), dpi=dpi)
+        plt.close("all")
+
+    print(f"  wrote {path}")
+    return path
+
+
+def _report_text_page(res, diag, fits_path):
+    """The tabular page of write_psf_report. Kept separate so it stays readable."""
+    import matplotlib.pyplot as plt
+
+    def fmt(value):
+        if value is None:
+            return "n/a (built without keep_components)"
+        if isinstance(value, float):
+            if value and (abs(value) < 1e-3 or abs(value) >= 1e5):
+                return f"{value:.6e}"
+            return f"{value:.6f}".rstrip("0").rstrip(".")
+        return str(value)
+
+    st = res.settings
+    ny, nx = res.shape
+    aspmm = arcsec_per_mm(res.meta["TELDIAM"][0], res.meta["FNUM"][0])
+    sections = [
+        (
+            "INPUT INGREDIENTS",
+            [
+                (
+                    "scatter map",
+                    st.get("scatter_file", res.meta.get("SCATFILE", ("?",))[0]),
+                ),
+                ("FRED run", st.get("fred_run") or "n/a"),
+                (
+                    "rays traced",
+                    f"{int(st['rays_traced']):,}" if st.get("rays_traced") else "n/a",
+                ),
+                (
+                    "FRED integrated power",
+                    f"{res.meta['PFULL'][0]:.9e} W per W in "
+                    f"({100 * res.meta['PFULL'][0]:.4f}%)",
+                ),
+                ("core", st.get("core_kind", "Airy (analytic, rendered)")),
+                (
+                    "telescope",
+                    f"D = {res.meta['TELDIAM'][0]} m, f/{res.meta['FNUM'][0]}, "
+                    f"f = {res.meta['TELDIAM'][0] * res.meta['FNUM'][0]:.3f} m",
+                ),
+                ("detector", f"{res.meta['SENSOR'][0]}, {res.pixel_size_um} um pixels"),
+            ],
+        ),
+        (
+            "SETTINGS",
+            [
+                (
+                    "desired_power",
+                    f"{res.desired_power:g}  "
+                    f"({100 * res.desired_power:g}% of total flux, "
+                    f"instrument-wide)",
+                ),
+                (
+                    "extent",
+                    f"{st.get('extent', '?')}  ->  {nx} x {ny} px  = "
+                    f"{nx * res.mm_per_pixel:.2f} x {ny * res.mm_per_pixel:.2f} mm",
+                ),
+                ("wavelength", f"{res.meta['WAVELEN'][0]:g} nm"),
+                ("jitter_sigma_mas", f"{res.meta['JITTER'][0]:g}"),
+                (
+                    "inner_npix / oversample",
+                    f"{st.get('inner_npix', '?')} / {st.get('oversample', '?')}",
+                ),
+                (
+                    "smooth / interp_order",
+                    f"{res.meta['SMOOTH'][0]} / {st.get('interp_order', '?')}",
+                ),
+                ("renormalize", str(res.meta["RENORM"][0])),
+                ("dtype", str(res.data.dtype)),
+            ],
+        ),
+        (
+            "SAMPLING",
+            [
+                (
+                    "plate scale",
+                    f"{res.pixel_scale_mas:.4f} mas/pix  ({aspmm:.4f} arcsec/mm)",
+                ),
+                ("mm per pixel", fmt(res.mm_per_pixel)),
+                (
+                    "half-width",
+                    f"{diag['half_width_mm']:.3f} mm  "
+                    f"({diag['half_width_mm'] * aspmm:.1f} arcsec)",
+                ),
+                ("in memory", f"{res.data.nbytes / 1e6:,.1f} MB"),
+            ],
+        ),
+        (
+            "DIAGNOSTICS",
+            [
+                ("array sum", fmt(diag["sum"])),
+                (
+                    "peak pixel",
+                    f"{diag['peak_fraction']:.6f} of total flux  "
+                    f"= {diag['peak_irradiance']:.4e} W/mm^2",
+                ),
+                ("Airy peak (analytic)", f"{diag['airy_peak_analytic']:.4e} W/mm^2"),
+                (
+                    "halo peak",
+                    fmt(diag["halo_peak"]) + (" W/mm^2" if diag["halo_peak"] else ""),
+                ),
+                ("contrast (Airy/halo)", fmt(diag["contrast"])),
+                (
+                    "crossover, fringed",
+                    fmt(diag["crossover_fringed_mm"])
+                    + (" mm" if diag["crossover_fringed_mm"] else ""),
+                ),
+                (
+                    "crossover, envelope",
+                    fmt(diag["crossover_envelope_mm"])
+                    + (" mm" if diag["crossover_envelope_mm"] else ""),
+                ),
+                (
+                    "halo enclosed by stamp",
+                    f"{res.scatter_enclosed_frac:.6f}  "
+                    f"({100 * res.scatter_enclosed_frac:.2f}% of the map)",
+                ),
+                ("core enclosed by stamp", fmt(res.core_enclosed_frac)),
+                (
+                    "scatter carried by array",
+                    f"{res.scatter_in_array:.6e}  "
+                    f"({100 * res.scatter_in_array:.4f}% of flux)",
+                ),
+            ],
+        ),
+    ]
+    if fits_path:
+        size = os.path.getsize(fits_path) / 1e6 if os.path.exists(fits_path) else None
+        sections.append(
+            (
+                "OUTPUT",
+                [
+                    ("FITS", os.path.basename(str(fits_path))),
+                    ("on disk", f"{size:,.1f} MB" if size else "not written"),
+                ],
+            )
+        )
+
+    lines = []
+    for title, rows in sections:
+        lines.append(title)
+        lines.append("-" * 78)
+        for key, value in rows:
+            lines.append(f"  {key:<26s} {value}")
+        lines.append("")
+
+    fig = plt.figure(figsize=(8.5, 11))
+    fig.text(
+        0.06, 0.965, "Airy + scattered-light PSF - build report", fontsize=14, va="top"
+    )
+    fig.text(
+        0.06,
+        0.935,
+        "wcc_etc.scatter_psf.make_total_psf",
+        fontsize=9,
+        color="0.4",
+        va="top",
+    )
+    fig.text(
+        0.06,
+        0.905,
+        "\n".join(lines),
+        fontsize=7.4,
+        va="top",
+        family="monospace",
+        linespacing=1.45,
+    )
+    return fig
+
+
 def make_total_psf(
     scatter_file=DEFAULT_SCATTER_FGD,
     desired_power=5.542e-3,
@@ -674,6 +1053,7 @@ def make_total_psf(
     output=None,
     overwrite=False,
     compress=None,
+    report=None,
     plot=False,
     scatter_data=None,
     verbose=True,
@@ -728,6 +1108,11 @@ def make_total_psf(
         Path to write a float32 FITS file.
     compress : str, optional
         ``'GZIP_2'`` for a lossless tile-compressed file (data moves to HDU 1).
+    report : str, optional
+        Path to write a PDF build report -- the diagnostic figure, an irradiance
+        cut against the closed-form Airy, and a page listing the input
+        ingredients, the settings used and the derived numbers.  Implies
+        ``keep_components`` unless you set it explicitly.
     plot : bool
         Draw the two-panel diagnostic figure.
     scatter_data : tuple, optional
@@ -777,7 +1162,8 @@ def make_total_psf(
             "Shrink `extent`/`extent_mm`, or raise max_size_mb deliberately."
         )
     if keep_components is None:
-        keep_components = n_mb <= KEEP_COMPONENTS_MAX_MB
+        # the report's cut and contrast need .core / .scatter
+        keep_components = bool(report) or n_mb <= KEEP_COMPONENTS_MAX_MB
         if not keep_components:
             say(
                 f"                >{KEEP_COMPONENTS_MAX_MB} MB: dropping "
@@ -884,7 +1270,7 @@ def make_total_psf(
         )
 
     meta = {
-        "SCATFILE": (os.path.basename(scatter_file)[:60], "source FRED map"),
+        "SCATFILE": (os.path.basename(scatter_file)[:47], "source FRED map"),
         "SENSOR": (str(geom.get("label", "custom")), "detector"),
         "WAVELEN": (float(wavelength) * 1e9, "core wavelength [nm]"),
         "JITTER": (float(jitter_sigma_mas), "jitter sigma [mas]"),
@@ -912,8 +1298,36 @@ def make_total_psf(
         renorm_scale=(1.0 / raw_sum) if renormalize else 1.0,
     )
 
+    res.settings = {
+        # Prefer the FRED run recorded in the .fgd header over the file name:
+        # it survives the map being passed in pre-parsed via scatter_data.
+        "scatter_file": os.path.basename(scatter_file)
+        if scatter_data is None
+        else "(pre-parsed via scatter_data; see FRED run below)",
+        "fred_run": (
+            f"{str(hdr.get('FRED_FILENAME', '?')).strip(chr(34))}   "
+            f"{str(hdr.get('DATETIME', '')).strip(chr(34))}"
+            if "FRED_FILENAME" in hdr
+            else None
+        ),
+        "rays_traced": hdr.get("NUMBER_OF_RAYS_USED"),
+        "core_kind": "user-supplied array"
+        if core_psf is not None
+        else "Airy (analytic, radial + exact inner block)",
+        "extent": extent if extent_mm is None else f"extent_mm={extent_mm}",
+        "inner_npix": inner_npix,
+        "oversample": oversample,
+        "interp_order": interp_order,
+        "smooth": bool(smooth),
+        "renormalize": bool(renormalize),
+        "max_size_mb": max_size_mb,
+        "compress": compress,
+    }
+
     if output is not None:
         res.save(output, overwrite=overwrite, compress=compress)
+    if report is not None:
+        write_psf_report(res, report, fits_path=output)
     if plot:
         res.plot()
     return res
