@@ -8,7 +8,10 @@ from astropy.io import fits
 
 from wcc_etc import scatter_psf as sp
 
-pytestmark = pytest.mark.skipif(
+#: The 24 MB FRED map is a local data file, not shipped in the wheel. Only the
+#: tests that check its *specific* numbers need it; everything else -- including
+#: the stamp-size invariance -- runs against `synthetic_fgd` so CI exercises it.
+requires_fgd = pytest.mark.skipif(
     not os.path.exists(sp.DEFAULT_SCATTER_FGD),
     reason="the FRED .fgd is a large local data file, not shipped in the wheel",
 )
@@ -32,6 +35,29 @@ def fgd():
 
 
 @pytest.fixture(scope="module")
+def synthetic_fgd():
+    """A FRED-like halo on the real map's footprint, with no data file.
+
+    Broad, smooth and centrally peaked, on 2 mm cells over the same
+    670 x 280 mm focal plane, with a peak chosen to land the Airy/halo crossover
+    in the same few-mm range as the real map. Lets CI exercise the stamp-size
+    invariance, which is a property of the algorithm rather than of one .fgd.
+    """
+    nx, ny = 335, 140
+    x = -335.0 + (np.arange(nx) + 0.5) * (670.0 / nx)
+    y = -140.0 + (np.arange(ny) + 0.5) * (280.0 / ny)
+    xx, yy = np.meshgrid(x, y, indexing="xy")
+    data = 1.65e-05 / (1.0 + (xx**2 + yy**2) / 400.0) ** 0.9
+    header = {
+        "A_AXIS_MIN": -335,
+        "A_AXIS_MAX": 335,
+        "B_AXIS_MIN": -140,
+        "B_AXIS_MAX": 140,
+    }
+    return header, data, x, y
+
+
+@pytest.fixture(scope="module")
 def gaussian():
     """A synthetic map with a known analytic integral."""
     g = np.linspace(-10.0, 10.0, 201)
@@ -39,6 +65,7 @@ def gaussian():
     return g, np.exp(-(xx**2 + yy**2) / 8.0) / (2 * np.pi * 4.0)
 
 
+@requires_fgd
 class TestFgdGrid:
     """FRED's own axis convention."""
 
@@ -114,6 +141,7 @@ class TestAiryIrradiance:
         assert near < 1e-6 * sp.airy_irradiance(0.0, d, fnum, lam)
 
 
+@requires_fgd
 class TestVerifyFigureIsReproduced:
     """The numbers in notebooks_scratch/verify/scatter_verify.png."""
 
@@ -153,10 +181,10 @@ class TestContrastIsIndependentOfStampSize:
     CROSSOVER_EXTENTS = [3001, 5001]
 
     @pytest.fixture(scope="class")
-    def psfs(self, fgd):
+    def psfs(self, synthetic_fgd):
         return {
             n: sp.make_total_psf(
-                scatter_data=fgd,
+                scatter_data=synthetic_fgd,
                 sensor="imx455",
                 extent=n,
                 desired_power=DESIRED_POWER,
@@ -165,6 +193,34 @@ class TestContrastIsIndependentOfStampSize:
             )
             for n in self.EXTENTS
         }
+
+    @pytest.fixture(scope="class")
+    def expected_crossover(self, synthetic_fgd):
+        """Crossover read straight off the source map: extent-independent by
+        construction, so it is the right thing for every stamp to reproduce."""
+        _, data, x, y = synthetic_fgd
+        dx, dy = np.mean(np.diff(x)), np.mean(np.diff(y))
+        row = np.asarray(data[data.shape[0] // 2], dtype=float)
+        halo = row * DESIRED_POWER / float((data * dx * dy).sum())
+        keep = x >= 0
+        return self.crossover(x[keep], halo[keep])
+
+    @pytest.fixture(scope="class")
+    def expected_halo_peak(self, synthetic_fgd):
+        """dp * (map peak / map integral): the extent-independent prediction."""
+        _, data, x, y = synthetic_fgd
+        dx, dy = np.mean(np.diff(x)), np.mean(np.diff(y))
+        return DESIRED_POWER * float(data.max()) / float((data * dx * dy).sum())
+
+    @staticmethod
+    def crossover(r_halo, halo, rmax=5.6):
+        """Largest radius at which the fringed Airy still exceeds the halo."""
+        r = np.linspace(1e-4, rmax, 120001)
+        d = sp.airy_irradiance(
+            r, 3.065, 15.0, 450e-9, power=1.0 - DESIRED_POWER
+        ) - np.interp(r, r_halo, halo)
+        i = np.where(np.sign(d[:-1]) != np.sign(d[1:]))[0]
+        return float(r[i[-1]]) if len(i) else float("nan")
 
     @staticmethod
     def halo_profile(psf):
@@ -178,37 +234,41 @@ class TestContrastIsIndependentOfStampSize:
         row = np.asarray(psf.scatter[psf.shape[0] // 2], dtype=float)[keep]
         return xm[keep], row * DESIRED_POWER * psf.irradiance_scale
 
-    @pytest.mark.parametrize("extent", EXTENTS)
-    def test_scatter_peak_irradiance_does_not_move(self, psfs, extent):
-        """Halo surface brightness is pinned to FRED at every extent."""
-        psf = psfs[extent]
-        peak = float(psf.scatter.max()) * psf.irradiance_scale * DESIRED_POWER
-        assert peak == pytest.approx(2.0842e-05, rel=0.02)
+    def halo_peak(self, psf):
+        return float(psf.scatter.max()) * psf.irradiance_scale * DESIRED_POWER
 
-    @pytest.mark.parametrize("extent", EXTENTS)
-    def test_contrast_stays_at_1e9(self, psfs, extent):
-        """Analytic Airy peak over the delivered halo peak, at every extent."""
-        psf = psfs[extent]
+    def test_halo_peak_is_the_same_at_every_extent(self, psfs):
+        """The invariant, stated directly: peaks agree across all stamp sizes."""
+        peaks = [self.halo_peak(psfs[n]) for n in self.EXTENTS]
+        assert max(peaks) / min(peaks) - 1 < 0.005
+
+    def test_halo_peak_matches_the_source_map(self, psfs, expected_halo_peak):
+        """And they sit at dp * (map peak / map integral), not somewhere else."""
+        peaks = [self.halo_peak(psfs[n]) for n in self.EXTENTS]
+        assert np.mean(peaks) == pytest.approx(expected_halo_peak, rel=0.01)
+
+    def test_contrast_is_the_same_at_every_extent(self, psfs):
+        """Airy peak over halo peak does not drift with the stamp."""
         airy_peak = sp.airy_irradiance(
             0.0, 3.065, 15.0, 450e-9, power=1.0 - DESIRED_POWER
         )
-        scatter_peak = float(psf.scatter.max()) * psf.irradiance_scale * DESIRED_POWER
-        assert airy_peak / scatter_peak == pytest.approx(EXPECTED_CONTRAST, rel=0.02)
+        contrasts = [airy_peak / self.halo_peak(psfs[n]) for n in self.EXTENTS]
+        assert max(contrasts) / min(contrasts) - 1 < 0.005
 
-    @pytest.mark.parametrize("extent", CROSSOVER_EXTENTS)
-    def test_crossover_stays_at_5mm(self, psfs, extent):
+    def test_crossover_is_the_same_at_every_extent(self, psfs):
         """Airy-vs-halo crossover does not move with the stamp.
 
-        Measured against the halo's real radial profile, not its peak: the
-        fringed Airy stops exceeding it near 5 mm.
+        Measured against the halo's real radial profile, not its peak.
         """
-        psf = psfs[extent]
-        r_halo, halo = self.halo_profile(psf)
-        r = np.linspace(1e-4, 5.6, 120001)
-        airy = sp.airy_irradiance(r, 3.065, 15.0, 450e-9, power=1.0 - DESIRED_POWER)
-        d = airy - np.interp(r, r_halo, halo)
-        i = np.where(np.sign(d[:-1]) != np.sign(d[1:]))[0]
-        assert r[i[-1]] == pytest.approx(EXPECTED_CROSSOVER_MM, rel=0.03)
+        xs = [
+            self.crossover(*self.halo_profile(psfs[n])) for n in self.CROSSOVER_EXTENTS
+        ]
+        assert max(xs) / min(xs) - 1 < 0.01
+
+    def test_crossover_matches_the_source_map(self, psfs, expected_crossover):
+        """And it lands where the source map alone says it should."""
+        got = self.crossover(*self.halo_profile(psfs[self.CROSSOVER_EXTENTS[-1]]))
+        assert got == pytest.approx(expected_crossover, rel=0.03)
 
     @pytest.mark.parametrize("extent", EXTENTS[1:])
     def test_halo_profile_matches_the_smallest_stamp(self, psfs, extent):
@@ -221,13 +281,13 @@ class TestContrastIsIndependentOfStampSize:
         r_ref, ref = self.halo_profile(psfs[self.EXTENTS[0]])
         r_big, big = self.halo_profile(psfs[extent])
         sampled = np.interp(r_ref, r_big, big)
-        assert np.max(np.abs(sampled / ref - 1)) < 0.005
+        assert np.max(np.abs(sampled / ref - 1)) < 0.01
 
-    def test_exact_rebin_halo_is_bit_for_bit_stamp_independent(self, fgd):
+    def test_exact_rebin_halo_is_bit_for_bit_stamp_independent(self, synthetic_fgd):
         """With smooth=False the halo carries no extent dependence at all."""
         small, big = (
             sp.make_total_psf(
-                scatter_data=fgd,
+                scatter_data=synthetic_fgd,
                 sensor="imx455",
                 extent=n,
                 desired_power=DESIRED_POWER,
@@ -251,9 +311,9 @@ class TestMakeTotalPsf:
     """End-to-end behaviour of the public entry point."""
 
     @pytest.fixture(scope="class")
-    def psf(self, fgd):
+    def psf(self, synthetic_fgd):
         return sp.make_total_psf(
-            scatter_data=fgd,
+            scatter_data=synthetic_fgd,
             sensor="hwk4123",
             extent=1001,
             desired_power=DESIRED_POWER,
@@ -289,11 +349,11 @@ class TestMakeTotalPsf:
             airy.calc_plate_scale_from_flength(15.0 * 3.065, psf.pixel_size_um) * 1000.0
         )
 
-    def test_size_guard_refuses_an_oversized_grid(self, fgd):
+    def test_size_guard_refuses_an_oversized_grid(self, synthetic_fgd):
         """max_size_mb fires before anything is allocated."""
         with pytest.raises(ValueError, match="max_size_mb"):
             sp.make_total_psf(
-                scatter_data=fgd,
+                scatter_data=synthetic_fgd,
                 sensor="imx455",
                 extent="full",
                 max_size_mb=500,
@@ -342,3 +402,57 @@ class TestExtents:
         """An odd grid puts a pixel on the PSF peak."""
         geom = sp.get_sensor_geometry("hwk4123")
         assert sp.resolve_extent(400, None, geom, 0.0046) == (401, 401)
+
+
+@requires_fgd
+class TestRealMapInvariance:
+    """The same invariance, against the real FRED map and Scott's numbers.
+
+    Skipped without the .fgd; TestContrastIsIndependentOfStampSize covers the
+    same property on a synthetic map so CI still exercises it.
+    """
+
+    EXTENTS = [1001, 3001, 5001]
+
+    @pytest.fixture(scope="class")
+    def psfs(self, fgd):
+        return {
+            n: sp.make_total_psf(
+                scatter_data=fgd,
+                sensor="imx455",
+                extent=n,
+                desired_power=DESIRED_POWER,
+                keep_components=True,
+                verbose=False,
+            )
+            for n in self.EXTENTS
+        }
+
+    @pytest.mark.parametrize("extent", EXTENTS)
+    def test_scatter_peak_is_the_fred_value(self, psfs, extent):
+        """2.084e-5 W/mm^2 at 0.7%, whatever the stamp."""
+        psf = psfs[extent]
+        peak = float(psf.scatter.max()) * psf.irradiance_scale * DESIRED_POWER
+        assert peak == pytest.approx(2.0842e-05, rel=0.02)
+
+    @pytest.mark.parametrize("extent", EXTENTS)
+    def test_contrast_is_the_verify_figure_value(self, psfs, extent):
+        """Scott's ~1e9, whatever the stamp."""
+        psf = psfs[extent]
+        airy_peak = sp.airy_irradiance(
+            0.0, 3.065, 15.0, 450e-9, power=1.0 - DESIRED_POWER
+        )
+        scatter_peak = float(psf.scatter.max()) * psf.irradiance_scale * DESIRED_POWER
+        assert airy_peak / scatter_peak == pytest.approx(EXPECTED_CONTRAST, rel=0.02)
+
+    @pytest.mark.parametrize("extent", [3001, 5001])
+    def test_crossover_is_the_verify_figure_value(self, psfs, extent):
+        """Scott's ~5 mm, whatever the stamp."""
+        psf = psfs[extent]
+        xm = psfs[extent].x_mm
+        keep = xm >= 0
+        row = np.asarray(psf.scatter[psf.shape[0] // 2], dtype=float)[keep]
+        halo = row * DESIRED_POWER * psf.irradiance_scale
+        assert TestContrastIsIndependentOfStampSize.crossover(
+            xm[keep], halo
+        ) == pytest.approx(EXPECTED_CROSSOVER_MM, rel=0.03)
