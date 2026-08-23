@@ -211,3 +211,8 @@ __marimo__/
 
 # Local agent/editor context (not shared)
 CLAUDE.md
+
+# Large local PSF products: the FRED scatter map and PSFs derived from it.
+# Regenerate with notebooks_scratch/20260823_scatter_plus_airy_psf.ipynb.
+src/wcc_etc/data/psfs/scatter/
+src/wcc_etc/data/psfs/lazuli_focal_plane_airy_scatter_450nm.fits

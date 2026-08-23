@@ -49,6 +49,14 @@ dev = [
   "mypy",
 ]
 
+# The 370 MB Airy+scatter PSF and the 24 MB FRED .fgd are large local products,
+# not something to bake into a wheel. Regenerate them from the notebook.
+[tool.setuptools.exclude-package-data]
+"wcc_etc" = [
+  "data/psfs/lazuli_focal_plane_airy_scatter_450nm.fits",
+  "data/psfs/scatter/*",
+]
+
 [project.urls]
 Homepage = "https://github.com/schmidt-observatories/wcc-etc"
 Repository = "https://github.com/schmidt-observatories/wcc-etc"
