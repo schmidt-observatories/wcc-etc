@@ -66,6 +66,7 @@ __all__ = [
     "write_psf_report",
     "report_diagnostics",
     "crossover_radius",
+    "use_plot_style",
     "fgd_grid",
     "fgd_integrated_power",
 ]
@@ -672,6 +673,25 @@ class TotalPSF:
 # --------------------------------------------------------------------------- #
 
 
+def use_plot_style():
+    """
+    Apply the ``gks`` matplotlib style if it is installed, else the package's own.
+
+    ``scatter_psf`` is library code: ``gks`` lives in a personal matplotlib
+    stylelib, so it is absent in CI and for collaborators, where a bare
+    ``plt.style.use("gks")`` raises OSError. Falling back to ``WCC_STYLE`` keeps
+    the figures looking right everywhere.
+    """
+    import matplotlib.pyplot as plt
+
+    from wcc_etc.plotting import WCC_STYLE
+
+    try:
+        plt.style.use("gks")
+    except OSError:
+        plt.rcParams.update(WCC_STYLE)
+
+
 def crossover_radius(
     r_mm,
     halo_irradiance,
@@ -770,7 +790,7 @@ def write_psf_report(res, path, fits_path=None, dpi=140):
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
 
-    plt.style.use("gks")
+    use_plot_style()
     diag = report_diagnostics(res)
     d = float(res.meta["TELDIAM"][0])
     fnum = float(res.meta["FNUM"][0])
@@ -1366,7 +1386,7 @@ def plot_scatter_verify(
     """
     import matplotlib.pyplot as plt
 
-    plt.style.use("gks")
+    use_plot_style()
     hdr, sdata, x_src, y_src = scatter_data
     dp = float(desired_power)
 
@@ -1577,7 +1597,7 @@ def plot_total_psf(res, max_display_side=1100, dyn_range=1e11, figsize=(11, 9.5)
     """
     import matplotlib.pyplot as plt
 
-    plt.style.use("gks")
+    use_plot_style()
     ny, nx = res.data.shape
     fac = max(1, int(np.ceil(max(ny, nx) / max_display_side)))
     mm_disp = res.mm_per_pixel * fac
