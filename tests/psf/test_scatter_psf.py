@@ -394,6 +394,29 @@ class TestMakeTotalPsf:
         )
         assert path.exists() and path.stat().st_size > 1000
 
+    def test_report_call_is_valid_python(self, psf):
+        """The REPRODUCE block can be pasted back into a session."""
+        import ast
+
+        ast.parse(psf.settings["call"].replace("np.float32", "float"))
+
+    def test_report_call_names_the_scatter_file(self, synthetic_fgd, tmp_path):
+        """The source .fgd is named even when the map is passed in pre-parsed."""
+        p = sp.make_total_psf(
+            scatter_file="/some/where/my_run.fgd",
+            scatter_data=synthetic_fgd,
+            sensor="hwk4123",
+            extent=401,
+            desired_power=DESIRED_POWER,
+            verbose=False,
+        )
+        assert p.settings["scatter_file"] == "my_run.fgd"
+        assert "my_run.fgd" in p.settings["call"]
+
+    def test_report_flags_a_pre_parsed_map(self, psf):
+        """...and says so, rather than implying it was read from disk."""
+        assert psf.settings["scatter_preparsed"] is True
+
     def test_report_records_the_settings_it_was_built_with(self, psf):
         """settings carries the call, so the report is not guessing."""
         assert psf.settings["inner_npix"] == 201

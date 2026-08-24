@@ -67,6 +67,7 @@ __all__ = [
     "report_diagnostics",
     "crossover_radius",
     "use_plot_style",
+    "format_call",
     "fgd_grid",
     "fgd_integrated_power",
 ]
@@ -673,6 +674,49 @@ class TotalPSF:
 # --------------------------------------------------------------------------- #
 
 
+def format_call(call_locals, name="make_total_psf", width=58):
+    """
+    Render a call as reproducible source, from ``locals()`` taken at entry.
+
+    The output is valid Python you can paste back into a session. Bulk arrays are
+    elided rather than dumped -- ``scatter_data`` becomes a note, ``core_psf`` its
+    shape -- and long strings are split with implicit concatenation so nothing
+    runs off the edge of the report page.
+    """
+    import inspect
+
+    def render(key, value):
+        text = repr(value)
+        if not isinstance(value, str) or len(text) <= width:
+            return [f"    {key}={text},"]
+        chunks = [value[k : k + width] for k in range(0, len(value), width)]
+        out = [f"    {key}=("]
+        out += [f'        "{c}"' for c in chunks]
+        out.append("    ),")
+        return out
+
+    params = inspect.signature(globals()[name]).parameters
+    lines = [f"{name}("]
+    for key in params:
+        if key not in call_locals:
+            continue
+        value = call_locals[key]
+        if key == "scatter_data":
+            if value is None:
+                continue
+            value = "<pre-parsed; source named under 'scatter file' above>"
+        elif key == "core_psf" and value is not None:
+            value = f"<array {np.asarray(value).shape}>"
+        elif key == "dtype":
+            lines.append(f"    {key}=np.{getattr(value, '__name__', value)},")
+            continue
+        elif value is params[key].default and key != "scatter_file":
+            continue
+        lines += render(key, value)
+    lines.append(")")
+    return "\n".join(lines)
+
+
 def use_plot_style():
     """
     Apply the ``gks`` matplotlib style if it is installed, else the package's own.
@@ -814,7 +858,7 @@ def write_psf_report(res, path, fits_path=None, dpi=140):
                 airy_irradiance(rr, d, fnum, lam, power=core_power),
                 color="#3b76af",
                 lw=0.4,
-                label="Airy (analytic, fringed)",
+                label="Airy, analytic, continuous (rings resolved)",
             )
             ax.plot(
                 rr,
@@ -822,7 +866,7 @@ def write_psf_report(res, path, fits_path=None, dpi=140):
                 color="#003d5b",
                 lw=1.4,
                 ls=":",
-                label="Airy envelope",
+                label=r"Airy ring-averaged envelope $4/(\pi x^3)$",
             )
             ax.plot(
                 r_mm,
@@ -843,7 +887,7 @@ def write_psf_report(res, path, fits_path=None, dpi=140):
                     color="0.25",
                     lw=1.2,
                     ls="--",
-                    label="core (this PSF)",
+                    label="core AS SAMPLED on detector pixels (this PSF)",
                 )
             for key, style in (
                 ("crossover_fringed_mm", "-"),
@@ -866,6 +910,20 @@ def write_psf_report(res, path, fits_path=None, dpi=140):
             ax.set_ylabel("irradiance [W mm$^{-2}$ per W of source]")
             ax.set_title(
                 f"Core vs halo   contrast = {diag['contrast']:.3e}", fontsize=12
+            )
+            fig.text(
+                0.01,
+                0.005,
+                "Envelope is the analytic mean level the Airy rings oscillate "
+                "about -- a reference curve, not a resampled one. The dashed "
+                "core is what actually lands on the pixels: 2-D pixel-integrated "
+                "inside inner_npix, pixel-width radial average outside. At "
+                f"{res.pixel_scale_mas:.1f} mas/pix the ring spacing is "
+                f"{1e3 * lam * fnum / res.mm_per_pixel:.1f} pixels, so the rings "
+                "are only marginally sampled and partly survive in the array.",
+                fontsize=6.5,
+                color="0.35",
+                wrap=True,
             )
             ax.legend(fontsize=9)
             fig.tight_layout()
@@ -901,9 +959,15 @@ def _report_text_page(res, diag, fits_path):
             "INPUT INGREDIENTS",
             [
                 (
-                    "scatter map",
-                    st.get("scatter_file", res.meta.get("SCATFILE", ("?",))[0]),
+                    "scatter file",
+                    st.get("scatter_file", res.meta.get("SCATFILE", ("?",))[0])
+                    + (
+                        "   [passed in pre-parsed]"
+                        if st.get("scatter_preparsed")
+                        else ""
+                    ),
                 ),
+                ("scatter dir", st.get("scatter_dir") or "n/a"),
                 ("FRED run", st.get("fred_run") or "n/a"),
                 (
                     "rays traced",
@@ -1026,6 +1090,11 @@ def _report_text_page(res, diag, fits_path):
             lines.append(f"  {key:<26s} {value}")
         lines.append("")
 
+    if st.get("call"):
+        lines += ["REPRODUCE", "-" * 78]
+        lines += ["  " + ln for ln in st["call"].splitlines()]
+        lines.append("")
+
     fig = plt.figure(figsize=(8.5, 11))
     fig.text(
         0.06, 0.965, "Airy + scattered-light PSF - build report", fontsize=14, va="top"
@@ -1143,6 +1212,7 @@ def make_total_psf(
     -------
     TotalPSF
     """
+    call_kwargs = format_call(locals())
 
     def say(*a):
         if verbose:
@@ -1321,9 +1391,10 @@ def make_total_psf(
     res.settings = {
         # Prefer the FRED run recorded in the .fgd header over the file name:
         # it survives the map being passed in pre-parsed via scatter_data.
-        "scatter_file": os.path.basename(scatter_file)
-        if scatter_data is None
-        else "(pre-parsed via scatter_data; see FRED run below)",
+        "scatter_file": os.path.basename(scatter_file),
+        "scatter_dir": os.path.dirname(scatter_file),
+        "scatter_preparsed": scatter_data is not None,
+        "call": call_kwargs,
         "fred_run": (
             f"{str(hdr.get('FRED_FILENAME', '?')).strip(chr(34))}   "
             f"{str(hdr.get('DATETIME', '')).strip(chr(34))}"
