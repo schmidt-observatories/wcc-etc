@@ -43,6 +43,17 @@ def set_wcc_style():
     plt.rcParams.update(WCC_STYLE)
 
 
+def apply_ax_settings(ax, ticksize=None):
+    """Apply the standard per-axis tweaks: minor ticks, tick padding, faint grid.
+
+    Unlike set_wcc_style this touches one axis rather than global rcParams, so it
+    is safe to call on a figure that also carries someone else's style."""
+    ax.minorticks_on()
+    ax.tick_params(pad=3, labelsize=12 if ticksize is None else ticksize)
+    ax.grid(lw=0.3, alpha=0.3)
+    return ax
+
+
 def _resolve_inputs(
     source=None,
     *,

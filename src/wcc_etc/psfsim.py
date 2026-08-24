@@ -735,6 +735,41 @@ class FitsImg(object):
             )
         return self.xcenter, self.ycenter
 
+    def get_centroid_line_cut(self, line="X", plot=False, ax=None):
+        """
+        Horizontal (``line='X'``) or vertical (``line='Y'``) cut through the
+        centroid.
+
+        INPUT:
+            line - 'X' for the row through the centroid, 'Y' for the column
+            plot - draw the cut on ``ax`` (or a new axis)
+
+        OUTPUT:
+            cut  - 1D array along the requested direction
+        """
+        x, y = self.get_centroid()
+        x, y = int(x), int(y)
+        if line == "Y":
+            cut = self.data[:, x]
+        elif line == "X":
+            cut = self.data[y, :]
+        else:
+            raise ValueError("line must be 'X' (a row) or 'Y' (a column)")
+
+        self.cut_x = np.arange(len(cut))
+        self.cut_y = cut
+
+        if plot:
+            if ax is None:
+                self.fig, self.ax = plt.subplots()
+            else:
+                self.ax = ax
+            self.ax.plot(self.cut_x, self.cut_y, label=f"{line} cut")
+            self.ax.minorticks_on()
+            self.ax.set_xlabel("X")
+            self.ax.set_ylabel("Counts")
+        return cut
+
     def plot(
         self,
         stretch="hist",
