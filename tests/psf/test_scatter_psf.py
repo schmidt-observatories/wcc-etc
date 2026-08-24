@@ -519,3 +519,63 @@ class TestRealMapInvariance:
         assert TestContrastIsIndependentOfStampSize.crossover(
             xm[keep], halo
         ) == pytest.approx(EXPECTED_CROSSOVER_MM, rel=0.03)
+
+
+class TestNoScatterPsf:
+    """desired_power=0 gives a pure diffraction PSF, the no-scatter control."""
+
+    @pytest.fixture(scope="class")
+    def psf(self):
+        """Deliberately built with no scatter map at all."""
+        return sp.make_total_psf(
+            desired_power=0.0, sensor="imx455", extent=1001, verbose=False
+        )
+
+    def test_needs_no_scatter_map(self, psf):
+        """A pure-Airy PSF must not require the 24 MB .fgd to exist."""
+        assert psf.data.shape == (1001, 1001)
+
+    def test_sums_to_one(self, psf):
+        assert psf.data.sum(dtype=np.float64) == pytest.approx(1.0, abs=1e-6)
+
+    def test_carries_no_scatter(self, psf):
+        assert psf.scatter_in_array == 0.0
+
+    def test_scatter_component_is_absent(self, psf):
+        """Not an array of zeros -- never allocated in the first place."""
+        assert psf.scatter is None
+
+    def test_diagnostics_flag_the_absence(self, psf):
+        """has_scatter says why contrast is None, rather than dividing by zero."""
+        assert sp.report_diagnostics(psf)["has_scatter"] is False
+
+    def test_contrast_is_none_not_infinite(self, psf):
+        """The old code did airy_peak / 0.0 here."""
+        assert sp.report_diagnostics(psf)["contrast"] is None
+
+    def test_peak_is_the_analytic_airy_peak(self, psf):
+        """Within pixel integration of a marginally sampled core."""
+        analytic = sp.airy_irradiance(0.0, 3.065, 15.0, 450e-9, power=1.0)
+        assert psf.data.max() * psf.irradiance_scale == pytest.approx(
+            analytic, rel=0.15
+        )
+
+    def test_report_is_written(self, psf, tmp_path):
+        """The PDF still builds with no halo curve to draw."""
+        path = tmp_path / "noscatter.pdf"
+        sp.write_psf_report(psf, path)
+        assert path.read_bytes()[:5] == b"%PDF-"
+
+    @requires_fgd
+    def test_matches_the_core_of_the_scattered_psf(self, fgd, psf):
+        """Same core, whether or not a halo is added on top of it."""
+        with_scatter = sp.make_total_psf(
+            scatter_data=fgd,
+            sensor="imx455",
+            extent=1001,
+            desired_power=DESIRED_POWER,
+            keep_components=True,
+            verbose=False,
+        )
+        ratio = psf.data / (with_scatter.core / with_scatter.core_enclosed_frac)
+        assert np.max(np.abs(ratio - 1.0)) < 1e-5
