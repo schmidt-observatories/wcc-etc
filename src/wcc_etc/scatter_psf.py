@@ -808,8 +808,9 @@ def report_diagnostics(res):
         "crossover_envelope_mm": None,
     }
 
+    out["has_scatter"] = dp > 0.0
     r_mm, halo = res.halo_profile()
-    if halo is not None:
+    if halo is not None and float(halo.max()) > 0.0:
         out["halo_peak"] = float(halo.max())
         out["contrast"] = out["airy_peak_analytic"] / out["halo_peak"]
         for key, env in (
@@ -849,9 +850,12 @@ def write_psf_report(res, path, fits_path=None, dpi=140):
 
         # -- page 2: irradiance cut vs the closed-form Airy ---------------- #
         r_mm, halo = res.halo_profile()
-        if halo is not None:
+        has_halo = halo is not None and float(halo.max()) > 0.0
+        if res.core is not None:
+            core_x = res.x_mm[res.x_mm >= 0]
+            r_max = float(r_mm.max()) if has_halo else float(core_x.max())
             fig, ax = plt.subplots(figsize=(9.5, 6.5))
-            rr = np.linspace(res.mm_per_pixel / 2, float(r_mm.max()), 40001)
+            rr = np.linspace(res.mm_per_pixel / 2, r_max, 40001)
             core_power = 1.0 - res.desired_power
             ax.plot(
                 rr,
@@ -868,27 +872,30 @@ def write_psf_report(res, path, fits_path=None, dpi=140):
                 ls=":",
                 label=r"Airy ring-averaged envelope $4/(\pi x^3)$",
             )
-            ax.plot(
-                r_mm,
-                halo,
-                color="#66a182",
-                lw=2.0,
-                label=f"scatter halo ({100 * res.desired_power:.3g}% of flux)",
-            )
-            if res.core is not None:
-                core_row = np.asarray(res.core[res.shape[0] // 2], dtype=float)
-                keep = res.x_mm >= 0
+            if has_halo:
                 ax.plot(
-                    res.x_mm[keep],
-                    core_row[keep]
-                    * (1 - res.desired_power)
-                    * res.renorm_scale
-                    * res.irradiance_scale,
-                    color="0.25",
-                    lw=1.2,
-                    ls="--",
-                    label="core AS SAMPLED on detector pixels (this PSF)",
+                    r_mm,
+                    halo,
+                    color="#66a182",
+                    lw=2.0,
+                    label=f"scatter halo ({100 * res.desired_power:.3g}% of flux)",
                 )
+            core_row = np.asarray(res.core[res.shape[0] // 2], dtype=float)
+            keep = res.x_mm >= 0
+            core_irr = (
+                core_row[keep]
+                * (1 - res.desired_power)
+                * res.renorm_scale
+                * res.irradiance_scale
+            )
+            ax.plot(
+                core_x,
+                core_irr,
+                color="0.25",
+                lw=1.2,
+                ls="--",
+                label="core AS SAMPLED on detector pixels (this PSF)",
+            )
             for key, style in (
                 ("crossover_fringed_mm", "-"),
                 ("crossover_envelope_mm", ":"),
@@ -904,12 +911,20 @@ def write_psf_report(res, path, fits_path=None, dpi=140):
                     )
             ax.set_xscale("log")
             ax.set_yscale("log")
-            ax.set_xlim(res.mm_per_pixel / 2, float(r_mm.max()))
-            ax.set_ylim(float(halo.min()) / 30, diag["airy_peak_analytic"] * 5)
+            ax.set_xlim(res.mm_per_pixel / 2, r_max)
+            floor = (
+                float(halo.min()) / 30
+                if has_halo
+                else max(float(core_irr[core_irr > 0].min()) / 30, 1e-30)
+            )
+            ax.set_ylim(floor, diag["airy_peak_analytic"] * 5)
             ax.set_xlabel("radius [mm]")
             ax.set_ylabel("irradiance [W mm$^{-2}$ per W of source]")
             ax.set_title(
-                f"Core vs halo   contrast = {diag['contrast']:.3e}", fontsize=12
+                f"Core vs halo   contrast = {diag['contrast']:.3e}"
+                if has_halo
+                else "Core only (desired_power = 0, no scatter)",
+                fontsize=12,
             )
             fig.text(
                 0.01,
@@ -942,9 +957,15 @@ def _report_text_page(res, diag, fits_path):
     """The tabular page of write_psf_report. Kept separate so it stays readable."""
     import matplotlib.pyplot as plt
 
+    absent = (
+        "n/a (no scatter: desired_power = 0)"
+        if not diag.get("has_scatter", True)
+        else "n/a (built without keep_components)"
+    )
+
     def fmt(value):
         if value is None:
-            return "n/a (built without keep_components)"
+            return absent
         if isinstance(value, float):
             if value and (abs(value) < 1e-3 or abs(value) >= 1e5):
                 return f"{value:.6e}"
@@ -1264,41 +1285,59 @@ def make_total_psf(
     y_out = (np.arange(ny) - (ny - 1) / 2.0) * mm_per_pixel
 
     # ---- scatter ---------------------------------------------------------- #
-    if scatter_data is None:
-        say(f"Reading       : {os.path.basename(scatter_file)}")
-        hdr, sdata = read_fgd(scatter_file)
-        x_src, y_src = fgd_grid(hdr, sdata)
+    # desired_power=0 is a first-class case: a pure diffraction PSF, useful as a
+    # no-scatter control. Skip the map entirely rather than resampling it and
+    # multiplying by zero -- which also means it needs no .fgd on disk.
+    no_scatter = float(desired_power) == 0.0
+    if no_scatter and scatter_data is None:
+        hdr, scatter, p_full, p_exact, f_encl = {}, None, 0.0, 0.0, 0.0
+        say("Scatter       : desired_power = 0, no scatter (pure core PSF)")
     else:
-        hdr, sdata, x_src, y_src = scatter_data
+        if scatter_data is None:
+            say(f"Reading       : {os.path.basename(scatter_file)}")
+            hdr, sdata = read_fgd(scatter_file)
+            x_src, y_src = fgd_grid(hdr, sdata)
+        else:
+            hdr, sdata, x_src, y_src = scatter_data
 
-    scatter, p_exact, p_full = resample_scatter(
-        sdata,
-        x_src,
-        y_src,
-        x_out,
-        y_out,
-        smooth=smooth,
-        interp_order=interp_order,
-        dtype=dtype,
-    )
-    f_encl = p_exact / p_full
+        if no_scatter:
+            xe_src, dx_src = cell_edges(x_src)
+            ye_src, dy_src = cell_edges(y_src)
+            cum = cumulative_power(sdata, dx_src, dy_src)
+            p_full = float(cum[-1, -1])
+            scatter, p_exact, f_encl = None, 0.0, 0.0
+            say("Scatter       : desired_power = 0, no scatter (pure core PSF)")
+        else:
+            scatter, p_exact, p_full = resample_scatter(
+                sdata,
+                x_src,
+                y_src,
+                x_out,
+                y_out,
+                smooth=smooth,
+                interp_order=interp_order,
+                dtype=dtype,
+            )
+            f_encl = p_exact / p_full
     # Always normalize against the WHOLE map: that pins the halo to FRED's
     # surface brightness, which is what makes the contrast and the crossover
     # radius independent of the stamp size.
-    scatter /= dtype(p_full)  # now sums to f_encl
     scatter_sum = f_encl
-    say(
-        f"Scatter       : P_full = {p_full:.6e} W over "
-        f"{x_src.min():g}..{x_src.max():g} x {y_src.min():g}..{y_src.max():g} mm"
-    )
-    say(
-        f"                stamp holds {100 * f_encl:.3f}% of the FRED halo, so it "
-        f"carries"
-    )
-    say(
-        f"                {dp_pct(desired_power, f_encl)} of the source flux "
-        f"(FRED surface brightness kept)"
-    )
+    if scatter is not None:
+        scatter /= dtype(p_full)  # now sums to f_encl
+        say(
+            f"Scatter       : P_full = {p_full:.6e} W over "
+            f"{x_src.min():g}..{x_src.max():g} x "
+            f"{y_src.min():g}..{y_src.max():g} mm"
+        )
+        say(
+            f"                stamp holds {100 * f_encl:.3f}% of the FRED halo, "
+            f"so it carries"
+        )
+        say(
+            f"                {dp_pct(desired_power, f_encl)} of the source flux "
+            f"(FRED surface brightness kept)"
+        )
 
     # ---- core ------------------------------------------------------------- #
     if core_psf is not None:
@@ -1337,13 +1376,14 @@ def make_total_psf(
     # ---- combine (in place, to keep peak memory near 2x the output) -------- #
     dp = float(desired_power)
     core_keep = core.copy() if keep_components else None
-    scatter_keep = scatter.copy() if keep_components else None
+    scatter_keep = scatter.copy() if (keep_components and scatter is not None) else None
 
     total = core  # reuse the buffer
     total *= dtype(1.0 - dp)
-    scatter *= dtype(dp)
-    total += scatter
-    del scatter
+    if scatter is not None:
+        scatter *= dtype(dp)
+        total += scatter
+        del scatter
     if not keep_components:
         core = None
 
