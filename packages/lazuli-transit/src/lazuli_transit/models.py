@@ -1,17 +1,21 @@
 """Instrument-agnostic transit / flux models.
 
 `FluxModel` maps time to normalized relative flux; `TransitModel` wraps the
-`batman` package. These models carry no dependency on any specific instrument:
-a WCC or IFS simulator consumes a FluxModel through its `relative_flux(time)`
-interface.
+`jaxoplanet` package. These models carry no dependency on any specific
+instrument: a WCC or IFS simulator consumes a FluxModel through its
+`relative_flux(time)` interface.
 """
 
 import numpy as np
 
-_BATMAN_HINT = (
-    "TransitModel requires the 'batman' package. "
-    "Install it with: pip install lazuli-transit[batman]"
+_JAXOPLANET_HINT = (
+    "TransitModel requires the 'jaxoplanet' package. "
+    "Install it with: pip install lazuli-transit[jaxoplanet]"
 )
+
+# jaxoplanet implements polynomial limb darkening (Agol, Luger &
+# Foreman-Mackey 2020); law name -> required coefficient count.
+_POLY_LIMB_DARK = {"uniform": 0, "linear": 1, "quadratic": 2}
 
 
 class FluxModel:
@@ -22,10 +26,12 @@ class FluxModel:
 
 
 class TransitModel(FluxModel):
-    """Exoplanet transit light-curve model backed by `batman`.
+    """Exoplanet transit light-curve model backed by `jaxoplanet`.
 
-    Parameters mirror batman.TransitParams: t0 (center), per (period),
-    rp (Rp/R*), a (a/R*), inc (deg), ecc, w (deg), limb_dark, u (coeffs).
+    Parameters follow the batman.TransitParams convention: t0 (center),
+    per (period), rp (Rp/R*), a (a/R*), inc (deg), ecc, w (deg), limb_dark,
+    u (coeffs). Only polynomial limb-darkening laws are supported
+    ("uniform", "linear", "quadratic").
     """
 
     def __init__(
@@ -51,10 +57,10 @@ class TransitModel(FluxModel):
         """Build a TransitModel from a NASA Exoplanet Archive (PSCompPars) row.
 
         Looks up ``name`` in ``df`` (or the local cache via
-        load_exoplanet_archive if None) and maps archive columns to batman
-        parameters. ``pl_orbper`` is required; other fields fall back to
-        circular-orbit / direct-ratio defaults when missing. Limb-darkening is
-        not in the archive, so it stays a user argument.
+        load_exoplanet_archive if None) and maps archive columns to
+        transit-model parameters. ``pl_orbper`` is required; other fields
+        fall back to circular-orbit / direct-ratio defaults when missing.
+        Limb-darkening is not in the archive, so it stays a user argument.
 
         If ``require_transit`` is True (default), a planet flagged as
         non-transiting in the archive (``tran_flag == 0``) raises ValueError —
@@ -129,18 +135,53 @@ class TransitModel(FluxModel):
             u=u,
         )
 
-    def _params(self):
+    def build_system(self):
+        """Return ``(system, light_curve_fn)`` for the jaxoplanet backend.
+
+        Note this enables jax's float64 mode globally: without it jax runs in
+        float32 and the light curve is only accurate to ~1e-4.
+        """
         try:
-            import batman
+            import jax
+
+            jax.config.update("jax_enable_x64", True)
+            from jaxoplanet.light_curves import limb_dark_light_curve
+            from jaxoplanet.orbits.keplerian import Central, System
         except ImportError as exc:  # pragma: no cover - exercised via hint
-            raise ImportError(_BATMAN_HINT) from exc
-        p = batman.TransitParams()
-        p.t0, p.per, p.rp, p.a = self.t0, self.per, self.rp, self.a
-        p.inc, p.ecc, p.w = self.inc, self.ecc, self.w
-        p.limb_dark, p.u = self.limb_dark, list(self.u)
-        return batman, p
+            raise ImportError(_JAXOPLANET_HINT) from exc
+
+        # Fix the star at R* = 1 so a/R* and Rp/R* come out as given.
+        central = Central.from_orbital_properties(
+            period=self.per, semimajor=self.a, radius=1.0
+        )
+        body = dict(
+            period=self.per,
+            time_transit=self.t0,
+            inclination=np.deg2rad(self.inc),
+            radius=self.rp,
+        )
+        if self.ecc != 0.0:
+            body.update(eccentricity=self.ecc, omega_peri=np.deg2rad(self.w))
+        return System(central).add_body(**body), limb_dark_light_curve
+
+    def check_limb_dark(self):
+        """Validate ``limb_dark`` and ``u`` against the supported polynomial laws."""
+        n_coeff = _POLY_LIMB_DARK.get(self.limb_dark)
+        if n_coeff is None:
+            raise ValueError(
+                f"limb_dark={self.limb_dark!r} is not supported: the "
+                "jaxoplanet backend implements polynomial laws only "
+                f"({', '.join(_POLY_LIMB_DARK)})"
+            )
+        if len(self.u) != n_coeff:
+            raise ValueError(
+                f"limb_dark={self.limb_dark!r} needs {n_coeff} "
+                f"coefficient(s), got {len(self.u)}"
+            )
 
     def relative_flux(self, time):
         time = np.asarray(time, dtype=float)
-        batman, params = self._params()
-        return batman.TransitModel(params, time).light_curve(params)
+        self.check_limb_dark()
+        system, limb_dark_light_curve = self.build_system()
+        flux = limb_dark_light_curve(system, *self.u)(time)
+        return 1.0 + np.asarray(flux).reshape(time.shape)

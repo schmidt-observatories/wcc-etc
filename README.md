@@ -26,7 +26,7 @@ With optional extras:
 ```sh
 pip install -e ".[dev]"    # development tools (pytest, ruff, mypy, pre-commit)
 pip install -e ".[docs]"   # documentation build (Sphinx, nbsphinx, etc.)
-pip install -e ".[lightcurve]"   # transit light-curve modelling (batman)
+pip install -e ".[lightcurve]"   # transit light-curve modelling (jaxoplanet)
 pip install -e ".[exoarchive]"   # NASA Exoplanet Archive queries
 ```
 

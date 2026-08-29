@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-batman = ["batman-package"]
+jaxoplanet = ["jaxoplanet"]
 archive = ["astroquery"]
 
 [tool.setuptools]
