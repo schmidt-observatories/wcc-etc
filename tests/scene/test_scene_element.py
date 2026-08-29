@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from scipy.integrate import trapezoid
 from synphot import Observation, SourceSpectrum, SpectralElement
+from synphot.models import BlackBodyNorm1D
 from synphot import units as su
 
 from wcc_etc.io import expand_path
@@ -105,9 +106,8 @@ class TestBlackbodySource:
         )
         assert abs(_observed_abmag(se.get_spectrum()) - 15) < 0.01
 
-    def test_shape_matches_get_blackbody_flux(self):
-        from wcc_etc.wcc_etc import get_blackbody_flux
-
+    def test_shape_matches_planck_reference(self):
+        """The built spectrum keeps the Planck shape, up to normalization."""
         se = SceneElement.from_config(
             {
                 "spectrum": "blackbody",
@@ -120,7 +120,9 @@ class TestBlackbodySource:
         sp = se.get_spectrum()
         w = np.array([4000.0, 6000.0, 8000.0])
         flam = sp(w * u.AA, flux_unit=su.FLAM).value
-        ref = np.asarray(get_blackbody_flux(w, 5777, 15))
+        # Reference straight from synphot, independent of any wcc_etc plumbing.
+        ref_sp = SourceSpectrum(BlackBodyNorm1D, temperature=5777)
+        ref = ref_sp(w * u.AA, flux_unit=su.FLAM).value
         assert np.allclose(flam / flam[0], ref / ref[0], rtol=1e-3)
 
     def test_blackbody_initial_teff_shape_correct(self):
