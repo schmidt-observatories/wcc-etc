@@ -81,6 +81,11 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Resolve `lazuli_transit` to the copy vendored in this repo, ahead of any
+# editable install of the standalone lazuli-transit repo that may be on the
+# path. CI installs ./packages/lazuli-transit, so this keeps local runs
+# testing the same source CI does.
+pythonpath = [".", "packages/lazuli-transit/src"]
 
 [tool.ruff]
 src = ["src"]
