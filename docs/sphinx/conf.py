@@ -23,7 +23,7 @@ try:
 
     release = wcc_etc.__version__
 except Exception:  # pragma: no cover - docs should still build
-    release = "0.0.0"
+    release = "0.1.0"
 version = ".".join(release.split(".")[:2])
 
 # -- General configuration ---------------------------------------------------

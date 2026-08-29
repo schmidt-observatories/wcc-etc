@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wcc_etc"
-version = "0.6.0"
+version = "0.1.0"
 authors = [
   {name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org"},
   {name = "Mickael Rigault", email = "m.rigault@ip2i.in2p3.fr"},
