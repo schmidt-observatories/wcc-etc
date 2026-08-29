@@ -44,4 +44,3 @@ Modules
    plotting
    astro
    io
-   wcc_etc
