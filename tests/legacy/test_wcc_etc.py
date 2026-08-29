@@ -5,7 +5,7 @@ import warnings
 import numpy as np
 
 
-class TestLegacyWCCETC:
+class TestLegacyEntryPoint:
     def _import(self):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
