@@ -16,7 +16,7 @@ maintainers = [
 ]
 description = "Exposure Time Calculator for the WCC."
 readme = "README.md"
-license = { text = "GNU GENERAL PUBLIC LICENSE - Version 3" }
+license = { text = "BSD-3-Clause" }
 requires-python = ">=3.11"
 dependencies = [
   "synphot",
