@@ -27,11 +27,10 @@ __all__ = [
 
 from lazuli_transit import download_exoplanet_archive, load_exoplanet_archive
 
-# `airy` and `psfsim` used to become package attributes implicitly, via the
-# `from . import airy, psfsim` inside the legacy wcc_etc module. Bind them
-# explicitly so `wcc_etc.airy` / `wcc_etc.psfsim` stay on the public surface.
+# Bind the `airy` and `psfsim` submodules as package attributes, so
+# `wcc_etc.airy` / `wcc_etc.psfsim` work after a bare `import wcc_etc`.
 from . import airy, psfsim  # noqa: F401  (re-export as package attributes)
-from .astro import *
+from .astro import get_moon_magnitude
 from .io import get_pickles_spectrum_filename, get_sensor_config, read_config
 from .lightcurve import FluxModel, LightCurve, LightCurveSimulator, TransitModel
 from .plotting import (
@@ -57,10 +56,6 @@ from .psfsim import (
     ImageSimulator,
     SimulatedImage,
 )
-from .scene import *
+from .scene import Scene, get_scene, get_scene_element, get_scene_from_file
 from .sensor import Sensor
 from .simulation import Simulation
-from .wcc_etc import *
-# from .airy import *
-# from .psfsim import *
-# from .radial_data import *
