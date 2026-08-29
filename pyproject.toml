@@ -33,7 +33,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-lightcurve = ["lazuli-transit[batman]"]
+lightcurve = ["lazuli-transit[jaxoplanet]"]
 exoarchive = ["lazuli-transit[archive]"]
 docs = [
   "sphinx>=7",

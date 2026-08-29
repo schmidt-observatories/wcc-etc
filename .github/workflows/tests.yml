@@ -26,6 +26,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest
+          pip install jaxoplanet   # transit backend; physics tests skip without it
           pip install -e ./packages/lazuli-transit
           pip install -e .
 
