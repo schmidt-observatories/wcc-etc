@@ -1,4 +1,6 @@
+import dataclasses
 import os
+import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -25,19 +27,37 @@ from . import airy
 from .radial_data import radial_data
 from .simulation import Simulation
 
-# Bundled Zemax Huygens defocus PSF data (monochromatic, 500 nm, 4 um spacing)
+# Bundled Zemax Huygens defocus PSF products. The raw .txt files are the Zemax
+# exports as delivered; the .fits files are the canonical products, carrying the
+# reference wavelength and f-number in their headers so that a render can scale
+# them for the optics it is asked about instead of silently ignoring them
+# (issue #65). Regenerate the FITS with huygens_txt_to_fits.
 _PSF_DATA_DIR = os.path.join(os.path.dirname(__file__), "data", "psfs")
-DEFOCUS_1WAVE_PATH = os.path.join(
-    _PSF_DATA_DIR, "CAD_1-waves-defocus_500nm_Huygens-PSF-Data_Linear.txt"
-)
-DEFOCUS_2WAVE_PATH = os.path.join(
-    _PSF_DATA_DIR, "CAD_2-waves-defocus_500nm_Huygens-PSF-Data_Linear.txt"
-)
+_DEFOCUS_STEM = "CAD_{n}-waves-defocus_500nm_Huygens-PSF-Data_Linear"
+
+#: Reference wavelength of the bundled Zemax defocus runs (from their filenames
+#: and Zemax configuration: monochromatic 500 nm Huygens PSFs).
+DEFOCUS_REF_WAVELENGTH_M = 500e-9
+#: f-number of the Lazuli WCC design the defocus products were computed for
+#: (``data/config/lazuli.toml``).
+DEFOCUS_REF_FNUM = 15.0
+
+DEFOCUS_1WAVE_TXT_PATH = os.path.join(_PSF_DATA_DIR, _DEFOCUS_STEM.format(n=1) + ".txt")
+DEFOCUS_2WAVE_TXT_PATH = os.path.join(_PSF_DATA_DIR, _DEFOCUS_STEM.format(n=2) + ".txt")
+DEFOCUS_1WAVE_PATH = os.path.join(_PSF_DATA_DIR, _DEFOCUS_STEM.format(n=1) + ".fits")
+DEFOCUS_2WAVE_PATH = os.path.join(_PSF_DATA_DIR, _DEFOCUS_STEM.format(n=2) + ".fits")
 
 
 @dataclass
 class DetectorPSFContext:
-    """Detector + optics parameters a PSF source needs to render onto the grid."""
+    """Detector + optics parameters a PSF source needs to render onto the grid.
+
+    ``wavelength_m`` is the *source-weighted* effective wavelength of the
+    bandpass times the source SED (:attr:`wcc_etc.Simulation.effective_wavelength`),
+    not the filter pivot wavelength: the diffraction scale is linear in
+    wavelength, so an M5V and an O5V observed through the same broad band do not
+    share a PSF (issue #65).
+    """
 
     npix: int
     pixel_size_um: float
@@ -107,7 +127,14 @@ class PSFSource:
 
 
 class AiryPSF(PSFSource):
-    """Diffraction-limited Airy PSF rendered on the detector grid (default)."""
+    """Diffraction-limited Airy PSF rendered on the detector grid (default).
+
+    Monochromatic, at ``ctx.wavelength_m`` -- which the ETC sets to the
+    source-weighted effective wavelength, so the PSF width tracks the colour of
+    the source. For a coadd across the band (which also washes out the
+    monochromatic ring contrast) use :class:`PolychromaticPSF` or
+    :meth:`wcc_etc.Simulation.polychromatic_psf`.
+    """
 
     def render(self, ctx):
         psf, _ = airy.render_detector_psf(
@@ -126,6 +153,100 @@ class AiryPSF(PSFSource):
         return normalize_psf(psf)
 
 
+class PolychromaticPSF(PSFSource):
+    """Photon-weighted coadd of a base PSF rendered at several wavelengths.
+
+    Rendering at a single :attr:`wcc_etc.Simulation.effective_wavelength`
+    already removes the colour bias in the PSF *width*, which is the dominant
+    error (issue #65). This class goes one step further: it renders the base PSF
+    at ``n_sub`` sub-band wavelengths and coadds them with the sub-bands' photon
+    weights, so the diffraction rings are washed out the way a real broadband
+    PSF's are rather than staying at full monochromatic contrast.
+
+    The coadd's own wavelengths override ``ctx.wavelength_m``; the context still
+    supplies the optics, grid, jitter and centering.
+
+    Parameters
+    ----------
+    wavelengths : Quantity or array_like
+        Sub-band wavelengths. A bare array is read as metres.
+    weights : array_like
+        Relative photon weight per sub-band; normalized internally to sum to 1.
+    base : PSFSource, optional
+        PSF to render at each wavelength. Default :class:`AiryPSF`.
+
+    See Also
+    --------
+    wcc_etc.Simulation.polychromatic_psf : build one for a simulation.
+    wcc_etc.spectral.photon_weighted_subbands : chooses the wavelengths and weights.
+    """
+
+    def __init__(self, wavelengths, weights, base=None):
+        if isinstance(wavelengths, u.Quantity):
+            wavelengths = wavelengths.to_value(u.m)
+        wavelengths = np.atleast_1d(np.asarray(wavelengths, dtype=float))
+        weights = np.atleast_1d(np.asarray(weights, dtype=float))
+        if wavelengths.size == 0:
+            raise ValueError("PolychromaticPSF needs at least one wavelength.")
+        if wavelengths.shape != weights.shape:
+            raise ValueError(
+                "wavelengths and weights must have the same length, got "
+                f"{wavelengths.shape} and {weights.shape}."
+            )
+        if np.any(wavelengths <= 0):
+            raise ValueError("wavelengths must be positive (metres).")
+        total = weights.sum()
+        if not np.isfinite(total) or total <= 0:
+            raise ValueError(f"weights must sum to a positive value, got {total}.")
+        self.wavelengths_m = wavelengths
+        self.weights = weights / total
+        self.base = AiryPSF() if base is None else base
+
+    @classmethod
+    def from_bandpass(cls, bandpass, spectrum=None, n_sub=7, base=None):
+        """Build the coadd from a bandpass and a source spectrum.
+
+        Parameters
+        ----------
+        bandpass : SpectralElement
+            Total throughput.
+        spectrum : SourceSpectrum, optional
+            Source spectrum; ``None`` weights by throughput alone. The
+            normalization is irrelevant, so an un-normalized spectrum is fine.
+        n_sub : int, optional
+            Number of equal-photon-weight sub-bands. Default 7.
+        base : PSFSource, optional
+            PSF rendered at each sub-band wavelength. Default :class:`AiryPSF`.
+
+        Returns
+        -------
+        PolychromaticPSF
+        """
+        from .spectral import photon_weighted_subbands
+
+        wavelengths, weights = photon_weighted_subbands(bandpass, spectrum, n_sub=n_sub)
+        return cls(wavelengths, weights, base=base)
+
+    def render(self, ctx):
+        """Coadd the base PSF rendered at each sub-band wavelength."""
+        total = np.zeros((ctx.npix, ctx.npix), dtype=float)
+        for wavelength_m, weight in zip(self.wavelengths_m, self.weights):
+            total += weight * self.base.render(
+                dataclasses.replace(ctx, wavelength_m=float(wavelength_m))
+            )
+        return normalize_psf(total)
+
+    def cache_key(self):
+        # Round to a picometre / 1e-12 in weight, so that float noise in the
+        # sub-band solve cannot defeat the render cache.
+        return (
+            type(self).__name__,
+            self.base.cache_key(),
+            tuple(np.round(self.wavelengths_m, 12)),
+            tuple(np.round(self.weights, 12)),
+        )
+
+
 def load_huygens_psf(path, encoding="utf-16"):
     """Load a Zemax Huygens PSF text file into a 2D float array of intensities."""
     with open(path, encoding=encoding) as fh:
@@ -140,17 +261,301 @@ def load_huygens_psf(path, encoding="utf-16"):
     return data
 
 
-class _ResampledPSF(PSFSource):
-    """A PSF defined as a sampled image at a known source pixel scale (microns)."""
+def parse_huygens_header(path, encoding="utf-16"):
+    """Read the ``#`` comment header of a Zemax Huygens PSF export.
 
-    def __init__(self, data, src_um_per_pix):
+    Zemax puts the things that make the array interpretable -- the detector data
+    spacing, the defocus, the wavelength range, the Strehl ratio -- in comment
+    lines above the numbers. What it does *not* put there is the reference
+    wavelength of the run or the f-number of the design; those come from the
+    Zemax configuration and are supplied to :func:`huygens_txt_to_fits`.
+
+    Parameters
+    ----------
+    path : str
+        Path to the Zemax ``.txt`` export.
+    encoding : str, optional
+        Text encoding. Zemax writes UTF-16 by default.
+
+    Returns
+    -------
+    dict
+        Any of ``src_um_per_pix``, ``defocus_waves``, ``strehl``,
+        ``wl_min_um``, ``wl_max_um``, ``grid_size``, ``data_area_um`` that could
+        be parsed.
+    """
+    with open(path, encoding=encoding) as fh:
+        header = [
+            ln.lstrip("#").strip()
+            for ln in fh.read().splitlines()
+            if ln.lstrip().startswith("#")
+        ]
+
+    meta = {}
+    number = r"([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)"
+    patterns = {
+        "src_um_per_pix": rf"Data spacing is {number}",
+        "defocus_waves": rf"Defocus_waves:\s*{number}",
+        "strehl": rf"Strehl ratio:\s*{number}",
+        "grid_size": r"Image grid size:\s*([0-9]+)",
+        "data_area_um": rf"Data area is {number}",
+    }
+    for line in header:
+        for key, pattern in patterns.items():
+            if key in meta:
+                continue
+            match = re.search(pattern, line)
+            if match:
+                meta[key] = float(match.group(1))
+        wl_range = re.search(rf"{number} to {number}\s*\S*m at", line)
+        if wl_range and "wl_min_um" not in meta:
+            meta["wl_min_um"] = float(wl_range.group(1))
+            meta["wl_max_um"] = float(wl_range.group(2))
+    if "grid_size" in meta:
+        meta["grid_size"] = int(meta["grid_size"])
+    return meta
+
+
+def huygens_txt_to_fits(
+    txt_path,
+    fits_path,
+    ref_wavelength_m=DEFOCUS_REF_WAVELENGTH_M,
+    ref_fnum=DEFOCUS_REF_FNUM,
+    overwrite=False,
+    encoding="utf-16",
+):
+    """Convert a Zemax Huygens PSF export into a self-describing FITS product.
+
+    A bare intensity array is not enough to render a PSF onto a detector: you
+    also need to know the sampling it was computed at, and the wavelength and
+    f-number it was computed *for*, or a renderer has no choice but to ignore the
+    optics it is asked about. This writes all of that into the header
+    (``PIXSCALE``, ``WAVELEN``, ``FNUM``, ``DEFOCUSW``) so
+    :class:`DefocusPSF` can scale rather than guess.
+
+    Parameters
+    ----------
+    txt_path : str
+        Zemax Huygens PSF ``.txt`` export.
+    fits_path : str
+        Output FITS path.
+    ref_wavelength_m : float, optional
+        Wavelength the Zemax run was computed at, in metres. Not recoverable
+        from the export, so it must be supplied; defaults to the 500 nm the
+        bundled WCC products were run at.
+    ref_fnum : float, optional
+        f-number of the design the run was computed for. Defaults to the Lazuli
+        WCC f/15.
+    overwrite : bool, optional
+        Overwrite an existing output file. Default False.
+    encoding : str, optional
+        Encoding of the ``.txt`` export. Default 'utf-16'.
+
+    Returns
+    -------
+    str
+        The path written.
+    """
+    data = load_huygens_psf(txt_path, encoding=encoding)
+    meta = parse_huygens_header(txt_path, encoding=encoding)
+    src_um_per_pix = meta.get("src_um_per_pix")
+    if src_um_per_pix is None:
+        raise ValueError(
+            f"could not read the data spacing from the Zemax header of {txt_path}; "
+            "the PSF sampling is required to build a FITS product."
+        )
+
+    header = fits.Header()
+    header["BUNIT"] = ("relative", "Values are relative intensity")
+    header["PIXSCALE"] = (src_um_per_pix, "PSF data spacing [micron/pixel]")
+    header["WAVELEN"] = (
+        ref_wavelength_m * 1e9,
+        "Reference wavelength of the Zemax run [nm]",
+    )
+    header["FNUM"] = (float(ref_fnum), "Reference f-number of the design")
+    if "defocus_waves" in meta:
+        header["DEFOCUSW"] = (
+            meta["defocus_waves"],
+            "Wavefront defocus at WAVELEN [waves]",
+        )
+    if "strehl" in meta:
+        header["STREHL"] = (meta["strehl"], "Strehl ratio")
+    if "wl_min_um" in meta:
+        header["WLMIN"] = (meta["wl_min_um"], "Zemax wavelength range min [micron]")
+        header["WLMAX"] = (meta["wl_max_um"], "Zemax wavelength range max [micron]")
+    if "data_area_um" in meta:
+        header["DATAAREA"] = (meta["data_area_um"], "Data area [micron]")
+    header["ORIGFILE"] = (os.path.basename(txt_path), "Zemax export")
+    header.add_history("Converted from a Zemax Huygens-PSF .txt export")
+    header.add_history("by wcc_etc.psfsim.huygens_txt_to_fits")
+
+    hdu = fits.PrimaryHDU(data=data.astype(np.float32), header=header)
+    hdu.writeto(fits_path, overwrite=overwrite)
+    return fits_path
+
+
+def load_psf_fits(path):
+    """Load a FITS PSF product into ``(data, meta)``.
+
+    Parameters
+    ----------
+    path : str
+        Path to a FITS file whose primary HDU holds a 2D PSF.
+
+    Returns
+    -------
+    data : ndarray
+        The 2D intensity array.
+    meta : dict
+        ``src_um_per_pix``, ``ref_wavelength_m`` and ``ref_fnum`` where the
+        header supplies ``PIXSCALE``, ``WAVELEN`` (nm) and ``FNUM``, plus
+        ``defocus_waves`` from ``DEFOCUSW``. Missing keywords are simply absent.
+    """
+    with fits.open(path) as hdulist:
+        data = np.asarray(hdulist[0].data, dtype=float)
+        header = hdulist[0].header
+    if data.ndim != 2 or data.size == 0:
+        raise ValueError(f"FITS PSF is not a non-empty 2D array: {path}")
+
+    meta = {}
+    if "PIXSCALE" in header:
+        meta["src_um_per_pix"] = float(header["PIXSCALE"])
+    if "WAVELEN" in header:
+        meta["ref_wavelength_m"] = float(header["WAVELEN"]) * 1e-9
+    if "FNUM" in header:
+        meta["ref_fnum"] = float(header["FNUM"])
+    if "DEFOCUSW" in header:
+        meta["defocus_waves"] = float(header["DEFOCUSW"])
+    return data, meta
+
+
+#: Scaling laws :class:`_ResampledPSF` can use to map its sampled array onto the
+#: optics of a :class:`DetectorPSFContext`. See the class docstring.
+WAVELENGTH_SCALING_MODES = ("despace", "waves", "none")
+
+
+class _ResampledPSF(PSFSource):
+    """A PSF defined as a sampled image at a known source pixel scale (microns).
+
+    The array was computed for *some* wavelength and f-number. Rendering it onto
+    a detector therefore means asking how its spatial scale maps onto the optics
+    in the :class:`DetectorPSFContext`, which is what ``wavelength_scaling``
+    selects. Ignoring the question -- rendering the array at its native sampling
+    whatever it is asked about -- was the pre-#65 behaviour and is now available
+    only by asking for it explicitly with ``wavelength_scaling="none"``.
+
+    Scaling laws
+    ------------
+    A defocused PSF's size on the detector is set by the longitudinal focus error
+    ``dz``: the geometric blur diameter is ``dz / F#``. Which way that moves with
+    wavelength depends on *why* the beam is defocused.
+
+    ``"despace"`` (default)
+        A fixed longitudinal focus error -- a mechanical despace, or a filter
+        substrate of a given thickness sitting in the converging beam. ``dz`` is
+        then a fixed distance, so the blur diameter ``dz / F#`` does not depend
+        on wavelength at all: source colour changes only the fine diffraction
+        structure inside the blur, which is a second-order effect at the Strehl
+        ratios these products model (0.011 for the 1-wave WCC product). Scale
+        factor ``F#_ref / F#``.
+    ``"waves"``
+        A defocus held at a constant number of waves of wavefront error at every
+        wavelength: ``dz = 8 W lambda F#**2``, so the blur diameter is
+        ``8 W lambda F#``. Scale factor ``(lambda / lambda_ref) * (F# / F#_ref)``.
+        Use this if the defocus in your product is specified as a wavefront
+        error rather than as a distance.
+    ``"none"``
+        Render at the array's native sampling, ignoring ``ctx.wavelength_m`` and
+        ``ctx.fnum``. Must be requested explicitly.
+
+    Both metadata-driven laws agree at ``(lambda_ref, F#_ref)``, where the
+    product was computed. Neither needs ``ctx.diameter_m``: the array is sampled
+    in physical microns at the focal plane, and only ``pixel_size_um`` is needed
+    to land it on the detector grid.
+
+    Parameters
+    ----------
+    data : array_like
+        2D PSF intensities.
+    src_um_per_pix : float
+        Sampling of ``data``, in microns per sample.
+    ref_wavelength_m : float, optional
+        Wavelength the array was computed at, in metres.
+    ref_fnum : float, optional
+        f-number the array was computed for.
+    wavelength_scaling : str, optional
+        One of ``WAVELENGTH_SCALING_MODES``. Default ``"despace"``.
+
+    Raises
+    ------
+    ValueError
+        At render time, if the chosen law needs reference metadata the PSF does
+        not carry. Pass ``ref_wavelength_m`` / ``ref_fnum``, or
+        ``wavelength_scaling="none"`` to opt out.
+    """
+
+    def __init__(
+        self,
+        data,
+        src_um_per_pix,
+        ref_wavelength_m=None,
+        ref_fnum=None,
+        wavelength_scaling="despace",
+    ):
         self._data = np.asarray(data, dtype=float)
         if self._data.ndim != 2:
             raise ValueError(f"PSF data must be 2D, got shape {self._data.shape}")
+        if wavelength_scaling not in WAVELENGTH_SCALING_MODES:
+            raise ValueError(
+                f"unknown wavelength_scaling {wavelength_scaling!r}; "
+                f"expected one of {WAVELENGTH_SCALING_MODES}."
+            )
         self.src_um_per_pix = float(src_um_per_pix)
+        self.ref_wavelength_m = (
+            None if ref_wavelength_m is None else float(ref_wavelength_m)
+        )
+        self.ref_fnum = None if ref_fnum is None else float(ref_fnum)
+        self.wavelength_scaling = wavelength_scaling
+
+    def scale_factor(self, ctx):
+        """Factor to multiply ``src_um_per_pix`` by for this context's optics.
+
+        Parameters
+        ----------
+        ctx : DetectorPSFContext
+            The optics and grid being rendered onto.
+
+        Returns
+        -------
+        float
+            1.0 for ``wavelength_scaling="none"``; otherwise the law described in
+            the class docstring.
+        """
+        if self.wavelength_scaling == "none":
+            return 1.0
+        missing = [
+            name
+            for name in ("ref_wavelength_m", "ref_fnum")
+            if getattr(self, name) is None
+        ]
+        if missing:
+            raise ValueError(
+                f"{type(self).__name__} cannot apply "
+                f"wavelength_scaling={self.wavelength_scaling!r} without "
+                f"{' and '.join(missing)}: the PSF array carries no reference "
+                "optics, so ctx.wavelength_m and ctx.fnum cannot be honoured. "
+                "Supply the reference metadata, or pass "
+                'wavelength_scaling="none" to render at native sampling.'
+            )
+        if self.wavelength_scaling == "despace":
+            # Fixed dz: blur diameter dz/F#, no wavelength dependence.
+            return self.ref_fnum / ctx.fnum
+        # "waves": constant wavefront error, blur diameter 8 W lambda F#.
+        return (ctx.wavelength_m / self.ref_wavelength_m) * (ctx.fnum / self.ref_fnum)
 
     def render(self, ctx):
-        zoom_factor = self.src_um_per_pix / ctx.pixel_size_um
+        um_per_pix = self.src_um_per_pix * self.scale_factor(ctx)
+        zoom_factor = um_per_pix / ctx.pixel_size_um
         if zoom_factor <= 0:
             raise ValueError("zoom_factor must be positive (check pixel sizes).")
         zoomed = zoom(self._data, zoom_factor, order=1, mode="constant", cval=0.0)
@@ -164,30 +569,121 @@ class _ResampledPSF(PSFSource):
         return psf
 
     def cache_key(self):
-        return (type(self).__name__, self.src_um_per_pix, id(self._data))
+        return (
+            type(self).__name__,
+            self.src_um_per_pix,
+            self.ref_wavelength_m,
+            self.ref_fnum,
+            self.wavelength_scaling,
+            id(self._data),
+        )
 
 
 class DefocusPSF(_ResampledPSF):
-    """A defocused PSF loaded from a Zemax Huygens text file."""
+    """A defocused PSF loaded from a bundled FITS product or a Zemax .txt export.
 
-    def __init__(self, path, src_um_per_pix=4.0, encoding="utf-16"):
-        super().__init__(load_huygens_psf(path, encoding), src_um_per_pix)
+    A FITS product supplies its own sampling and reference optics from its header
+    (``PIXSCALE``, ``WAVELEN``, ``FNUM``), so the render can honour the optics it
+    is handed; see :class:`_ResampledPSF` for the scaling laws. A raw ``.txt``
+    export only carries the sampling, so scaling it needs ``ref_wavelength_m``
+    and ``ref_fnum`` passed in.
+
+    Parameters
+    ----------
+    path : str
+        Path to a ``.fits`` PSF product or a Zemax Huygens ``.txt`` export.
+    src_um_per_pix : float, optional
+        Override the sampling read from the file.
+    ref_wavelength_m, ref_fnum : float, optional
+        Override the reference optics read from the file.
+    wavelength_scaling : str, optional
+        See :class:`_ResampledPSF`. Default ``"despace"``.
+    encoding : str, optional
+        Encoding of a ``.txt`` export. Default 'utf-16'.
+    """
+
+    def __init__(
+        self,
+        path,
+        src_um_per_pix=None,
+        ref_wavelength_m=None,
+        ref_fnum=None,
+        wavelength_scaling="despace",
+        encoding="utf-16",
+    ):
+        if str(path).lower().endswith((".fits", ".fit", ".fits.gz")):
+            data, meta = load_psf_fits(path)
+        else:
+            data = load_huygens_psf(path, encoding)
+            meta = parse_huygens_header(path, encoding)
+        if src_um_per_pix is None:
+            src_um_per_pix = meta.get("src_um_per_pix")
+        if src_um_per_pix is None:
+            raise ValueError(
+                f"{path} carries no PSF sampling; pass src_um_per_pix explicitly."
+            )
+        super().__init__(
+            data,
+            src_um_per_pix,
+            ref_wavelength_m=(
+                meta.get("ref_wavelength_m")
+                if ref_wavelength_m is None
+                else ref_wavelength_m
+            ),
+            ref_fnum=meta.get("ref_fnum") if ref_fnum is None else ref_fnum,
+            wavelength_scaling=wavelength_scaling,
+        )
         self.path = path
+        self.defocus_waves = meta.get("defocus_waves")
 
     def cache_key(self):
-        return (type(self).__name__, self.src_um_per_pix, self.path)
+        return (
+            type(self).__name__,
+            self.src_um_per_pix,
+            self.ref_wavelength_m,
+            self.ref_fnum,
+            self.wavelength_scaling,
+            self.path,
+        )
 
 
 class CustomPSF(_ResampledPSF):
-    """A custom PSF from an ndarray or a Huygens-format text file (future hook)."""
+    """A custom PSF from an ndarray, a FITS product, or a Huygens .txt export.
 
-    def __init__(self, source, src_um_per_pix, encoding="utf-16"):
-        data = (
-            source
-            if isinstance(source, np.ndarray)
-            else load_huygens_psf(source, encoding)
+    Declare ``ref_wavelength_m`` and ``ref_fnum`` (or read them from a FITS
+    header) if the array should track the optics it is rendered onto; otherwise
+    pass ``wavelength_scaling="none"`` to render it at its native sampling. See
+    :class:`_ResampledPSF`.
+    """
+
+    def __init__(
+        self,
+        source,
+        src_um_per_pix,
+        ref_wavelength_m=None,
+        ref_fnum=None,
+        wavelength_scaling="despace",
+        encoding="utf-16",
+    ):
+        if isinstance(source, np.ndarray):
+            data = source
+        elif str(source).lower().endswith((".fits", ".fit", ".fits.gz")):
+            data, meta = load_psf_fits(source)
+            ref_wavelength_m = (
+                meta.get("ref_wavelength_m")
+                if ref_wavelength_m is None
+                else ref_wavelength_m
+            )
+            ref_fnum = meta.get("ref_fnum") if ref_fnum is None else ref_fnum
+        else:
+            data = load_huygens_psf(source, encoding)
+        super().__init__(
+            data,
+            src_um_per_pix,
+            ref_wavelength_m=ref_wavelength_m,
+            ref_fnum=ref_fnum,
+            wavelength_scaling=wavelength_scaling,
         )
-        super().__init__(data, src_um_per_pix)
 
 
 def saturation_mask_from_image_e(sensor, image_e):
@@ -315,7 +811,7 @@ class ImageSimulator:
             npix=self.npix,
             pixel_size_um=sim.sensor.pixel_size.value,
             plate_scale_mas=plate_scale_mas,
-            wavelength_m=sim.sensor.wavelength.to("m").value,
+            wavelength_m=sim.effective_wavelength.to("m").value,
             diameter_m=sim.telescope.diameter_primary.to("m").value,
             fnum=sim.telescope.f_num,
             jitter_sigma_mas=jitter_sigma_mas,

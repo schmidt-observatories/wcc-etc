@@ -23,8 +23,11 @@ Top-level public API
    ImageSimulator
    SimulatedImage
    AiryPSF
+   PolychromaticPSF
    DefocusPSF
    CustomPSF
+   effective_wavelength
+   photon_weighted_subbands
    get_moon_magnitude
    read_config
    get_sensor_config
@@ -41,6 +44,7 @@ Modules
    sensor
    telescope
    psfsim
+   spectral
    plotting
    astro
    io

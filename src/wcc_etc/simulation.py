@@ -122,6 +122,7 @@ class Simulation(_MetaHolder_):
         self._default_psf = None  # set by from_sensorfilter only
         self._psf_profile = {}
         self._image_render_bundle_cache = {}
+        self._effective_wavelength = None
 
         input_parameters = {
             key: value
@@ -296,6 +297,7 @@ class Simulation(_MetaHolder_):
         # scene drives the count rates / PSF profile: drop derived caches
         self._psf_profile = {}
         self._image_render_bundle_cache = {}
+        self._effective_wavelength = None
 
     def set_sensor(self, sensor_or_config):
         """
@@ -314,6 +316,7 @@ class Simulation(_MetaHolder_):
         self._sensor = sensor
         self._psf_profile = {}  # reset the psf profile
         self._image_render_bundle_cache = {}
+        self._effective_wavelength = None
         # these following entries might depend on sensor for the bandpass
         self._h_spec_observation = None
         self._h_bkgd_observation = None
@@ -335,6 +338,7 @@ class Simulation(_MetaHolder_):
         self._telescope = telescope
         self._psf_profile = {}  # reset the psf profile
         self._image_render_bundle_cache = {}
+        self._effective_wavelength = None
 
     # ------- #
     # update  #
@@ -396,6 +400,7 @@ class Simulation(_MetaHolder_):
                 element.reset()
         self._psf_profile = {}
         self._image_render_bundle_cache = {}
+        self._effective_wavelength = None
 
     def update(self, **kwargs):
         """
@@ -469,6 +474,7 @@ class Simulation(_MetaHolder_):
         # any parameter change can affect the PSF/count rates: drop caches
         self._psf_profile = {}
         self._image_render_bundle_cache = {}
+        self._effective_wavelength = None
 
     def update_telescope(self, **kwargs):
         """
@@ -1352,7 +1358,7 @@ class Simulation(_MetaHolder_):
         """Internal implementation of the Airy PSF profile computation (no warning)."""
         from .airy import get_airy_and_ee_curve
 
-        wavelength = self.sensor.wavelength.to("m")
+        wavelength = self.effective_wavelength.to("m")
         r_psf_mas, psf1d, ee, ee_at_aper = get_airy_and_ee_curve(
             wavelength,
             r_aper_mas=self._meta["r_aper_mas"],  # no default allower
@@ -1473,6 +1479,88 @@ class Simulation(_MetaHolder_):
             if (element := getattr(self, element_name)) is not None
             for k in element.mutable_parameters
         ]
+
+    @property
+    def effective_wavelength(self):
+        """Photon-weighted effective wavelength of the bandpass times the source SED.
+
+        This is the wavelength the PSF is rendered at (see
+        :class:`wcc_etc.psfsim.AiryPSF`). Unlike ``sensor.wavelength`` -- the
+        pivot wavelength, a property of the throughput curve alone -- it moves
+        with the colour of the source, which matters because the diffraction
+        scale is linear in wavelength. Through the WCC broad band the pivot is
+        582 nm for every source, while the photons actually delivered average
+        541 nm for an O5V and 716 nm for an M5V; rendering the M5V PSF at the
+        pivot overpredicts its central-pixel fraction by ~26% and so predicts
+        premature saturation for red sources.
+
+        Falls back to ``sensor.wavelength`` when the simulation carries no
+        source spectrum. Cached, and invalidated by ``update`` / ``set_scene`` /
+        ``set_sensor`` / ``set_telescope`` / ``reset`` like the render caches.
+
+        Returns
+        -------
+        Quantity
+            The effective wavelength, in nm.
+        """
+        if getattr(self, "_effective_wavelength", None) is None:
+            self._effective_wavelength = self._compute_effective_wavelength()
+        return self._effective_wavelength
+
+    def _compute_effective_wavelength(self):
+        """Photon-weight the bandpass by the source SED; fall back to the pivot."""
+        from .spectral import effective_wavelength
+
+        source = None if self.scene is None else self.scene.source
+        if source is None:
+            return self.sensor.wavelength
+        # apply_mag=False: the weighting is scale-free, so skip the normalization.
+        spectrum = source.get_spectrum(apply_mag=False, as_array=False)
+        if spectrum is None:
+            return self.sensor.wavelength
+        return effective_wavelength(self.sensor.bandpass, spectrum)
+
+    def polychromatic_psf(self, n_sub=7, base=None):
+        """A photon-weighted polychromatic PSF for this simulation's band and source.
+
+        The monochromatic default (rendered at :attr:`effective_wavelength`)
+        already removes the colour bias in the PSF *width*; this goes further and
+        coadds ``n_sub`` renders across the band, so the wings and the
+        diffraction ring structure are broadened the way a real broadband PSF is.
+
+        Parameters
+        ----------
+        n_sub : int, optional
+            Number of equal-photon-weight sub-bands. Default 7. Cost is linear
+            in this; 5-9 is plenty for a broad optical band.
+        base : PSFSource, optional
+            PSF rendered at each sub-band wavelength. Defaults to the
+            simulation's own default PSF (``AiryPSF`` unless
+            ``from_sensorfilter`` selected a defocused one).
+
+        Returns
+        -------
+        PolychromaticPSF
+            Pass it as ``psf=`` to ``get_image_snr`` / ``get_peak_pixel`` /
+            ``peak_pixel_fraction`` / ``ImageSimulator.simulate``.
+
+        Examples
+        --------
+        >>> sim.get_peak_pixel(10, psf=sim.polychromatic_psf())  # doctest: +SKIP
+        """
+        from .psfsim import AiryPSF, PolychromaticPSF
+
+        if base is None:
+            base = self._default_psf if self._default_psf is not None else AiryPSF()
+        source = None if self.scene is None else self.scene.source
+        spectrum = (
+            source.get_spectrum(apply_mag=False, as_array=False)
+            if source is not None
+            else None
+        )
+        return PolychromaticPSF.from_bandpass(
+            self.sensor.bandpass, spectrum, n_sub=n_sub, base=base
+        )
 
     # ---------- #
     # cashed     #

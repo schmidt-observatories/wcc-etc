@@ -8,7 +8,9 @@ from scipy.ndimage import zoom as _zoom
 
 from wcc_etc.psfsim import (
     DEFOCUS_1WAVE_PATH,
+    DEFOCUS_1WAVE_TXT_PATH,
     DEFOCUS_2WAVE_PATH,
+    DEFOCUS_2WAVE_TXT_PATH,
     AiryPSF,
     CustomPSF,
     DefocusPSF,
@@ -105,33 +107,33 @@ class TestPSFUtilities:
         assert np.unravel_index(np.argmax(out), out.shape) == (5, 7)
 
     def test_load_huygens_psf_1wave_file_exists(self):
-        assert os.path.exists(DEFOCUS_1WAVE_PATH)
+        assert os.path.exists(DEFOCUS_1WAVE_TXT_PATH)
 
     def test_load_huygens_psf_1wave_shape(self):
-        data = load_huygens_psf(DEFOCUS_1WAVE_PATH)
+        data = load_huygens_psf(DEFOCUS_1WAVE_TXT_PATH)
         assert data.shape == (256, 256)
 
     def test_load_huygens_psf_1wave_is_finite(self):
-        data = load_huygens_psf(DEFOCUS_1WAVE_PATH)
+        data = load_huygens_psf(DEFOCUS_1WAVE_TXT_PATH)
         assert np.all(np.isfinite(data))
 
     def test_load_huygens_psf_1wave_is_positive(self):
-        data = load_huygens_psf(DEFOCUS_1WAVE_PATH)
+        data = load_huygens_psf(DEFOCUS_1WAVE_TXT_PATH)
         assert data.sum() > 0
 
     def test_load_huygens_psf_2wave_file_exists(self):
-        assert os.path.exists(DEFOCUS_2WAVE_PATH)
+        assert os.path.exists(DEFOCUS_2WAVE_TXT_PATH)
 
     def test_load_huygens_psf_2wave_shape(self):
-        data = load_huygens_psf(DEFOCUS_2WAVE_PATH)
+        data = load_huygens_psf(DEFOCUS_2WAVE_TXT_PATH)
         assert data.shape == (256, 256)
 
     def test_load_huygens_psf_2wave_is_finite(self):
-        data = load_huygens_psf(DEFOCUS_2WAVE_PATH)
+        data = load_huygens_psf(DEFOCUS_2WAVE_TXT_PATH)
         assert np.all(np.isfinite(data))
 
     def test_load_huygens_psf_2wave_is_positive(self):
-        data = load_huygens_psf(DEFOCUS_2WAVE_PATH)
+        data = load_huygens_psf(DEFOCUS_2WAVE_TXT_PATH)
         assert data.sum() > 0
 
     def test_detector_context_default_jitter(self):
@@ -203,13 +205,17 @@ class TestPSFSource:
     def test_custom_psf_output_shape(self):
         arr = np.zeros((51, 51))
         arr[25, 25] = 1.0
-        psf = CustomPSF(arr, src_um_per_pix=3.76).render(_grid_ctx(3.76, npix=64))
+        psf = CustomPSF(arr, src_um_per_pix=3.76, wavelength_scaling="none").render(
+            _grid_ctx(3.76, npix=64)
+        )
         assert psf.shape == (64, 64)
 
     def test_custom_psf_normalized(self):
         arr = np.zeros((51, 51))
         arr[25, 25] = 1.0
-        psf = CustomPSF(arr, src_um_per_pix=3.76).render(_grid_ctx(3.76, npix=64))
+        psf = CustomPSF(arr, src_um_per_pix=3.76, wavelength_scaling="none").render(
+            _grid_ctx(3.76, npix=64)
+        )
         assert psf.sum() == pytest.approx(1.0, abs=1e-6)
 
 

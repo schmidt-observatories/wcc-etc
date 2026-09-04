@@ -23,13 +23,17 @@ __all__ = [
     "plot_lightcurve_bokeh",
     "download_exoplanet_archive",
     "load_exoplanet_archive",
+    "effective_wavelength",
+    "photon_weighted_subbands",
+    "PolychromaticPSF",
 ]
 
 from lazuli_transit import download_exoplanet_archive, load_exoplanet_archive
 
-# Bind the `airy` and `psfsim` submodules as package attributes, so
-# `wcc_etc.airy` / `wcc_etc.psfsim` work after a bare `import wcc_etc`.
-from . import airy, psfsim  # noqa: F401  (re-export as package attributes)
+# Bind the `airy`, `psfsim` and `spectral` submodules as package attributes,
+# so `wcc_etc.airy` / `wcc_etc.psfsim` / `wcc_etc.spectral` work after a bare
+# `import wcc_etc`.
+from . import airy, psfsim, spectral  # noqa: F401  (re-export as package attributes)
 from .astro import get_moon_magnitude
 from .io import get_pickles_spectrum_filename, get_sensor_config, read_config
 from .lightcurve import FluxModel, LightCurve, LightCurveSimulator, TransitModel
@@ -54,8 +58,10 @@ from .psfsim import (
     CustomPSF,
     DefocusPSF,
     ImageSimulator,
+    PolychromaticPSF,
     SimulatedImage,
 )
 from .scene import Scene, get_scene, get_scene_element, get_scene_from_file
 from .sensor import Sensor
 from .simulation import Simulation
+from .spectral import effective_wavelength, photon_weighted_subbands
