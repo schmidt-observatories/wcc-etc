@@ -242,7 +242,13 @@ _SPECTRUM_PARAMS = {
 
 
 def get_scene(
-    name, mag, host=None, host_prop={}, background="zodi", background_prop={}, **kwargs
+    name,
+    mag,
+    host=None,
+    host_prop=None,
+    background="zodi",
+    background_prop=None,
+    **kwargs,
 ):
     """
     Get a Scene object with a source, an optional host, and an optional background.
@@ -255,12 +261,12 @@ def get_scene(
         Magnitude of the source.
     host : str, optional
         Name of the host spectrum. Default is None.
-    host_prop : dict, optional
-        Properties for the host spectrum. Default is {}.
+    host_prop : dict or None, optional
+        Properties for the host spectrum. None is treated as {}.
     background : str, optional
         Name of the background spectrum. Default is "zodi".
-    background_prop : dict, optional
-        Properties for the background spectrum. Default is {}.
+    background_prop : dict or None, optional
+        Properties for the background spectrum. None is treated as {}.
     **kwargs
         Additional keyword arguments passed to get_scene_element for the source.
 
@@ -269,6 +275,9 @@ def get_scene(
     Scene
         The initialized Scene object.
     """
+    host_prop = host_prop or {}
+    background_prop = background_prop or {}
+
     source = get_scene_element(name, mag=mag, **kwargs)
     if host is None and not host_prop:
         host = None
