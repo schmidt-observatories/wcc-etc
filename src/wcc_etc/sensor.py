@@ -254,6 +254,31 @@ class Sensor(_MetaHolder_):
             * u.arcsec
         )  # arcsec/pix
 
+    def show(self, ax=None, label=None, **kwargs):
+        """
+        Plot the sensor's filter throughput curve.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on. If None, a new figure is created.
+        label : str, optional
+            Legend label, passed to ax.plot.
+        **kwargs
+            Keyword arguments passed to ax.plot.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The figure object.
+        """
+        from .plotting import plot_bandpass_mpl
+
+        fig, _ax, _curve = plot_bandpass_mpl(
+            self.bandpass, ax=ax, label=label, **kwargs
+        )
+        return fig
+
     # ================ #
     #  Properties      #
     # ================ #

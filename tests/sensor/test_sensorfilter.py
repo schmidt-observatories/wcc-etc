@@ -199,3 +199,28 @@ class TestImageSimulatorFromSensorfilter:
         imsim = ImageSimulator.from_sensorfilter("zwo:r", make_scene(), npix=64)
         result = imsim.simulate(60, add_noise=False)
         assert result.image_e.max() > 0
+
+
+class TestDefaultPsfProperty:
+    """`default_psf` is the public read of the focus-level PSF, and always
+    resolves to a usable PSF rather than None."""
+
+    def test_falls_back_to_airy_when_unset(self):
+        """A simulation built any other way is diffraction limited."""
+        sim = Simulation(telescope=None, sensor=None, scene=None)
+        assert isinstance(sim.default_psf, AiryPSF)
+
+    def test_0wave_resolves_to_airy(self):
+        """An in-focus label reads back as an AiryPSF."""
+        sim = Simulation.from_sensorfilter("zwo:r", make_scene())
+        assert isinstance(sim.default_psf, AiryPSF)
+
+    def test_2wave_resolves_to_defocus(self):
+        """A 2-wave label reads back as a DefocusPSF."""
+        sim = Simulation.from_sensorfilter("zwo:bb2", make_scene())
+        assert isinstance(sim.default_psf, DefocusPSF)
+
+    def test_matches_the_private_attribute_when_set(self):
+        """The property returns exactly what from_sensorfilter stored."""
+        sim = Simulation.from_sensorfilter("zwo:r+1", make_scene())
+        assert sim.default_psf is sim._default_psf

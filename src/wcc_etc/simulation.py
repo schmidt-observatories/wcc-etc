@@ -2,16 +2,17 @@ import warnings
 
 import numpy as np
 from astropy import units as u
+
 from .io import (
     _SENSORFILTER_FOCUS,
     _SENSORFILTER_IMPLEMENTED,
     get_sensor_config,
     resolve_bandpass,
 )
-from .telescope import Telescope
-from .sensor import Sensor
-from .scene import Scene
 from .meta import _MetaHolder_
+from .scene import Scene
+from .sensor import Sensor
+from .telescope import Telescope
 from .utils import list_of_quantity_to_array
 
 # import logging
@@ -239,7 +240,7 @@ class Simulation(_MetaHolder_):
 
         The label must be a key in sensor_info (e.g. 'zwo:r', 'zwo:r+1',
         'qcmos:bb'). The PSF matching the sensor's focus_level is stored as
-        _default_psf; get_image_snr uses it when no psf= argument is given.
+        `default_psf`; get_image_snr uses it when no psf= argument is given.
 
         Parameters
         ----------
@@ -799,7 +800,8 @@ class Simulation(_MetaHolder_):
         + sky_per_pix + diffuse_per_pix + dark,
         where peak_pixel_fraction is the brightest pixel of the *rendered* PSF
         (psf_norm.max()), so defocused configs are handled correctly. `psf`
-        defaults to _default_psf (set by from_sensorfilter), else AiryPSF.
+        defaults to `default_psf` (diffraction-limited unless the simulation
+        was built by from_sensorfilter).
         Saturation is per-frame (per-frame time = time / n_reads). Linear in
         time, so scalar or array `time` both work.
         """
@@ -813,9 +815,7 @@ class Simulation(_MetaHolder_):
         tf = (time / n_reads).to(u.second).value  # per-frame seconds (scalar or array)
 
         if psf is None:
-            from .psfsim import AiryPSF
-
-            psf = self._default_psf if self._default_psf is not None else AiryPSF()
+            psf = self.default_psf
         b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
 
         dark_rate_per_pix = self.sensor.dark_current.to(
@@ -875,13 +875,10 @@ class Simulation(_MetaHolder_):
         actual (possibly defocused) PSF.
 
         PSF-aware replacement for the retired psf_profile['peak_pixel_fraction']
-        (which was in-focus-Airy only). `psf` defaults to _default_psf if set,
-        else AiryPSF().
+        (which was in-focus-Airy only). `psf` defaults to `default_psf`.
         """
         if psf is None:
-            from .psfsim import AiryPSF
-
-            psf = self._default_psf if self._default_psf is not None else AiryPSF()
+            psf = self.default_psf
         b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
         return float(b["psf_norm"].max())
 
@@ -984,8 +981,8 @@ class Simulation(_MetaHolder_):
             floats; a 1-D array yields a dict of arrays over magnitude. `time` and
             `mags` may not both be arrays. Requires a scene with a source.
         psf : PSFSource, optional
-            PSF model. If None, uses _default_psf (set by from_sensorfilter)
-            when available, otherwise falls back to AiryPSF().
+            PSF model. If None, uses `default_psf` (the focus-level PSF when
+            built by from_sensorfilter, otherwise a diffraction-limited AiryPSF).
         r_aper_mas : float, optional
             Fixed aperture radius (mas).
         ee_frac : float, optional
@@ -1015,7 +1012,6 @@ class Simulation(_MetaHolder_):
             as bool) when `time` or `mags` is an array.
         """
         from .psfsim import (
-            AiryPSF,
             aperture_snr_radial,
             saturation_mask_from_image_e,
             select_aperture,
@@ -1030,7 +1026,7 @@ class Simulation(_MetaHolder_):
 
         n_reads = self._resolve_n_reads(n_reads)
         if psf is None:
-            psf = self._default_psf if self._default_psf is not None else AiryPSF()
+            psf = self.default_psf
 
         # validate mags inputs before the (expensive) render bundle
         m0 = None
@@ -1169,17 +1165,17 @@ class Simulation(_MetaHolder_):
         Parameters
         ----------
         psf : PSFSource, optional
-            PSF model. If None, uses _default_psf (set by from_sensorfilter)
-            when available, otherwise falls back to AiryPSF().
+            PSF model. If None, uses `default_psf` (the focus-level PSF when
+            built by from_sensorfilter, otherwise a diffraction-limited AiryPSF).
         warn : bool, optional
             If True (default), warn when the rendered image saturates at the
             solved time; 'n_saturated'/'saturated' are returned regardless.
         """
-        from .psfsim import AiryPSF, aperture_time_for_snr, saturation_mask_from_image_e
+        from .psfsim import aperture_time_for_snr, saturation_mask_from_image_e
 
         n_reads = self._resolve_n_reads(n_reads)
         if psf is None:
-            psf = self._default_psf if self._default_psf is not None else AiryPSF()
+            psf = self.default_psf
 
         b = self._image_render_bundle(psf, jitter_sigma_mas, npix, oversample)
 
@@ -1511,6 +1507,18 @@ class Simulation(_MetaHolder_):
         }
 
     @property
+    def default_psf(self):
+        """The PSF this simulation uses when no ``psf=`` argument is given.
+
+        ``from_sensorfilter`` sets this from the filter's focus level (an
+        ``AiryPSF`` for ``0wave``, a ``DefocusPSF`` for ``1wave`` / ``2wave``);
+        every other construction path leaves it diffraction limited.
+        """
+        from .psfsim import AiryPSF
+
+        return self._default_psf if self._default_psf is not None else AiryPSF()
+
+    @property
     def mutable_parameters(self):
         """
         List of all mutable parameters (including sub-elements).
@@ -1590,10 +1598,10 @@ class Simulation(_MetaHolder_):
         --------
         >>> sim.get_peak_pixel(10, psf=sim.polychromatic_psf())  # doctest: +SKIP
         """
-        from .psfsim import AiryPSF, PolychromaticPSF
+        from .psfsim import PolychromaticPSF
 
         if base is None:
-            base = self._default_psf if self._default_psf is not None else AiryPSF()
+            base = self.default_psf
         source = None if self.scene is None else self.scene.source
         spectrum = (
             source.get_spectrum(apply_mag=False, as_array=False)

@@ -7,6 +7,42 @@ and the design specs under ``docs/superpowers/``.
 Unreleased
 ----------
 
+Plotting and PSF introspection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+New public API, each replacing something the docs or a notebook previously had
+to hand-roll:
+
+- :attr:`~wcc_etc.Simulation.default_psf` — the PSF used when ``psf=`` is
+  omitted, replacing reads of the private ``_default_psf``. Falls back to a
+  diffraction-limited :class:`~wcc_etc.AiryPSF`. Every internal call site,
+  including :meth:`~wcc_etc.Simulation.polychromatic_psf`, now goes through it.
+- :meth:`~wcc_etc.ImageSimulator.render_psf` — the bare normalized PSF on the
+  detector grid, replacing manual construction of the private render context.
+  It builds that context the same way ``simulate`` does, so it honours the
+  source-weighted effective wavelength from issue #65.
+- :attr:`~wcc_etc.ImageSimulator.plate_scale_mas` and
+  :attr:`~wcc_etc.ImageSimulator.default_psf`.
+- ``plot_bandpass_mpl`` and :meth:`~wcc_etc.Sensor.show` — filter throughput
+  curves.
+- ``label=`` and ``**kwargs`` passthrough on ``plot_radial_mpl``,
+  ``plot_encircled_energy_mpl`` and ``plot_bandpass_mpl``, so overlaid curves
+  can carry a legend without reaching into ``ax.lines``.
+- ``wave=`` and ``flux_unit=`` on
+  :meth:`~wcc_etc.scene.SceneElement.get_spectrum` and
+  :meth:`~wcc_etc.scene.SceneElement.show`, so a source can be plotted over a
+  chosen grid in F\ :sub:`lambda` rather than only PHOTLAM.
+
+Behaviour change
+~~~~~~~~~~~~~~~~
+
+- :meth:`~wcc_etc.ImageSimulator.simulate` now defaults to ``default_psf``
+  instead of always :class:`~wcc_etc.AiryPSF`. For a simulator built by
+  ``from_sensorfilter`` with a defocused label, ``simulate()`` without ``psf=``
+  now renders that filter's defocus PSF, matching what ``get_image_snr`` has
+  always done. Every other construction path is unaffected. Pass ``psf=``
+  explicitly to override.
+
 - **Host and diffuse elements are classified by** ``surface_brightness``
   **, not by element name** (issue #63). A host given as an ordinary
   integrated magnitude used to have its *total* count rate added to

@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from synphot import units as su
 
+from tests.helpers import make_scene
 from wcc_etc.scene import Scene, SceneElement, broadcast_mapping, get_scene_from_file
 
 
@@ -145,3 +146,68 @@ class TestSceneUpdate:
         scene.update(source__teff=3000)
         after = _ratio(scene.source.get_spectrum(apply_mag=False), 4500, 7500)
         assert not np.isclose(after, before, rtol=1e-3)
+
+
+class TestSpectrumSamplingControls:
+    """get_spectrum / show accept an explicit wavelength grid and flux unit, so
+    callers can plot F_lambda over the optical without resampling by hand."""
+
+    def test_wave_sets_the_sampling_grid(self):
+        """as_array sampling honors an explicit wavelength grid."""
+        scene = make_scene(name="blackbody", teff=5500)
+        grid = np.arange(4000.0, 8000.0, 100.0)
+        wave, _flux = scene.source.get_spectrum(as_array=True, wave=grid)
+        assert wave.size == grid.size
+
+    def test_wave_defaults_to_the_native_waveset(self):
+        """Without wave= the spectrum's own waveset is used."""
+        scene = make_scene(name="blackbody", teff=5500)
+        wave, _flux = scene.source.get_spectrum(as_array=True)
+        assert wave.max().value > 20000.0
+
+    def test_flux_unit_converts_the_flux(self):
+        """flux_unit='flam' returns erg/s/cm^2/A rather than PHOTLAM."""
+        scene = make_scene(name="blackbody", teff=5500)
+        _wave, flux = scene.source.get_spectrum(as_array=True, flux_unit="flam")
+        assert flux.unit.to_string() == "FLAM"
+
+    def test_flux_unit_defaults_to_photlam(self):
+        """Without flux_unit the historic PHOTLAM sampling is unchanged."""
+        scene = make_scene(name="blackbody", teff=5500)
+        _wave, flux = scene.source.get_spectrum(as_array=True)
+        assert flux.unit.to_string() == "PHOTLAM"
+
+    def test_powerlaw_flam_follows_the_alpha_exponent(self):
+        """Sampled in FLAM, a powerlaw source obeys F_lambda ~ lambda^alpha."""
+        alpha = -1.0
+        scene = make_scene(name="powerlaw", alpha=alpha)
+        grid = np.array([4500.0, 7500.0])
+        _wave, flux = scene.source.get_spectrum(
+            as_array=True, wave=grid, flux_unit="flam"
+        )
+        ratio = float(flux[0] / flux[1])
+        assert ratio == pytest.approx((4500.0 / 7500.0) ** alpha, rel=1e-3)
+
+    def test_show_labels_the_axis_with_the_flux_unit(self):
+        """The y label names the unit actually plotted."""
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        scene = make_scene(name="blackbody", teff=5500)
+        _fig, ax = plt.subplots()
+        scene.source.show(ax=ax, flux_unit="flam")
+        assert ax.get_ylabel() == "Flux [FLAM]"
+
+    def test_show_forwards_the_label_to_the_line(self):
+        """label= reaches ax.plot so overlaid spectra can carry a legend."""
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        scene = make_scene(name="blackbody", teff=5500)
+        _fig, ax = plt.subplots()
+        scene.source.show(ax=ax, label="5500 K")
+        assert ax.lines[0].get_label() == "5500 K"

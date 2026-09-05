@@ -5,6 +5,7 @@ Every function accepts either a SimulatedImage (positional `source`) or explicit
 raw arrays as keywords, so the Flask web portal can pass arrays directly.
 """
 
+import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.visualization import HistEqStretch, LogStretch
@@ -251,12 +252,16 @@ def plot_radial_mpl(
     annulus_width=1,
     show_hwhm=True,
     title="",
+    label=None,
     ax=None,
+    **kwargs,
 ):
     """Azimuthally-averaged radial profile of the simulated image.
 
     Uses image_clean by default (noise=True uses image_e). units='mas' scales the
-    radius by pixel_scale_mas. Returns (fig, ax, (radius, profile))."""
+    radius by pixel_scale_mas. `label` and any extra keyword arguments are passed
+    to ax.plot, so several profiles can be overlaid on one axis with a legend.
+    Returns (fig, ax, (radius, profile))."""
     ie, ic, _, ps = _resolve_inputs(
         source,
         image_e=image_e,
@@ -275,7 +280,7 @@ def plot_radial_mpl(
         fig, ax = plt.subplots()
     else:
         fig = ax.figure
-    ax.plot(r, prof)
+    ax.plot(r, prof, label=label, **kwargs)
     if show_hwhm:
         hwhm = calc_hwhm(r, prof)
         if len(hwhm):
@@ -305,15 +310,18 @@ def plot_encircled_energy_mpl(
     units="mas",
     ee_target=0.9,
     title="",
+    label=None,
     ax=None,
+    **kwargs,
 ):
     """Encircled-energy curve (normalized to 1) of the simulated image.
 
     Uses image_clean by default. units='mas' uses the mas radius from
     psf_to_encircled_energy; units='pix' divides by pixel_scale_mas. ee_target
     defaults to 0.9 (marks the 90% encircled-energy radius); pass ee_target=None
-    to disable the marker or another fraction to override. Returns
-    (fig, ax, (radius, ee))."""
+    to disable the marker or another fraction to override. `label` and any extra
+    keyword arguments are passed to ax.plot, so several curves can be overlaid on
+    one axis with a legend. Returns (fig, ax, (radius, ee))."""
     ie, ic, _, ps = _resolve_inputs(
         source,
         image_e=image_e,
@@ -332,7 +340,7 @@ def plot_encircled_energy_mpl(
         fig, ax = plt.subplots()
     else:
         fig = ax.figure
-    ax.plot(r, ee)
+    ax.plot(r, ee, label=label, **kwargs)
     if ee_target is not None:
         idx = int(np.searchsorted(ee, ee_target))
         if 0 < idx < len(r):
@@ -351,6 +359,49 @@ def plot_encircled_energy_mpl(
     ax.set_title(title)
     ax.grid(True, alpha=0.3, linewidth=0.3)
     return fig, ax, (r, ee)
+
+
+def resolve_bandpass_curve(bandpass, wave=None):
+    """Return (wavelength_angstrom, throughput) for a bandpass-like object.
+
+    Accepts a synphot SpectralElement, or anything carrying one on a `.bandpass`
+    attribute (e.g. a Sensor). `wave` overrides the sampling grid and may be a
+    plain array in Angstrom or an astropy Quantity."""
+    bp = getattr(bandpass, "bandpass", bandpass)
+    if wave is None:
+        wave = bp.waveset
+    if not hasattr(wave, "to"):
+        wave = np.asarray(wave, dtype=float) * u.AA
+    return wave.to(u.AA).value, np.asarray(bp(wave).value, dtype=float)
+
+
+def plot_bandpass_mpl(
+    bandpass,
+    *,
+    wave=None,
+    title="",
+    label=None,
+    ax=None,
+    **kwargs,
+):
+    """Plot a filter throughput curve.
+
+    `bandpass` is a synphot SpectralElement or an object carrying one (a Sensor).
+    `wave` overrides the sampling grid; `label` and extra keyword arguments go to
+    ax.plot so several filters can be overlaid. Returns
+    (fig, ax, (wavelength_angstrom, throughput))."""
+    w, t = resolve_bandpass_curve(bandpass, wave=wave)
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    ax.plot(w, t, label=label, **kwargs)
+    ax.set_xlabel("Wavelength [A]")
+    ax.set_ylabel("Throughput")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3, linewidth=0.3)
+    return fig, ax, (w, t)
 
 
 def _finish_bokeh(obj, return_):

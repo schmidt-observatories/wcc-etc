@@ -4,15 +4,24 @@ import wcc_etc
 
 
 def make_scene(
-    name="G5V", mag=15, bandpass="johnson_r", background="zodi", background_mag=22.5
+    name="G5V",
+    mag=15,
+    bandpass="johnson_r",
+    background="zodi",
+    background_mag=22.5,
+    **extra,
 ):
-    """Build a standard scene with a zodi background."""
+    """Build a standard scene with a zodi background.
+
+    Extra keyword arguments go straight to get_scene, so parametric sources can
+    reuse this factory (e.g. make_scene(name="blackbody", teff=5500))."""
     return wcc_etc.get_scene(
         name=name,
         mag=mag,
         background=background,
         bandpass=bandpass,
         background_prop={"bandpass": bandpass, "mag": background_mag},
+        **extra,
     )
 
 
