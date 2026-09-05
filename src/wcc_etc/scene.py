@@ -595,7 +595,9 @@ class SceneElement(_MetaHolder_):
 
         return mag
 
-    def get_spectrum(self, apply_mag=True, as_array=False, area=None):
+    def get_spectrum(
+        self, apply_mag=True, as_array=False, area=None, wave=None, flux_unit=None
+    ):
         """
         Get the spectrum of the element.
 
@@ -607,6 +609,12 @@ class SceneElement(_MetaHolder_):
             Whether to return the spectrum as a wavelength/flux array pair. Default is False.
         area : float or Quantity, optional
             The area for surface brightness normalization. Default is None.
+        wave : array-like or Quantity, optional
+            Wavelength grid to sample on when as_array is True. Defaults to the
+            spectrum's native waveset, which can span far beyond the optical.
+        flux_unit : str or Unit, optional
+            Flux unit for the as_array sampling, e.g. 'flam' for
+            erg/s/cm^2/A or 'fnu'. Defaults to synphot's PHOTLAM.
 
         Returns
         -------
@@ -631,7 +639,8 @@ class SceneElement(_MetaHolder_):
             return None
 
         if as_array:
-            spectrum = spectrum._get_arrays(None)
+            kwargs = {} if flux_unit is None else {"flux_unit": flux_unit}
+            spectrum = spectrum._get_arrays(wave, **kwargs)
 
         return spectrum
 
@@ -660,7 +669,7 @@ class SceneElement(_MetaHolder_):
 
         return Observation(spectrum, band, force="extrap")
 
-    def show(self, ax=None, apply_mag=True, **kwargs):
+    def show(self, ax=None, apply_mag=True, wave=None, flux_unit=None, **kwargs):
         """
         Show the spectrum or host flux.
 
@@ -670,8 +679,14 @@ class SceneElement(_MetaHolder_):
             Axes to plot on. If None, a new figure is created.
         apply_mag : bool, optional
             Whether to apply magnitude normalization. Default is True.
+        wave : array-like or Quantity, optional
+            Wavelength grid to plot on, in Angstrom if unitless. Defaults to the
+            spectrum's native waveset.
+        flux_unit : str or Unit, optional
+            Flux unit for the y axis, e.g. 'flam' for erg/s/cm^2/A. Defaults to
+            synphot's PHOTLAM.
         **kwargs
-            Keyword arguments passed to ax.plot.
+            Keyword arguments passed to ax.plot (e.g. label, color, ls).
 
         Returns
         -------
@@ -686,12 +701,14 @@ class SceneElement(_MetaHolder_):
             fig = ax.figure
 
         # data to show
-        lbda, flux = self.get_spectrum(as_array=True, apply_mag=apply_mag)
+        lbda, flux = self.get_spectrum(
+            as_array=True, apply_mag=apply_mag, wave=wave, flux_unit=flux_unit
+        )
 
         # plot
         ax.plot(lbda, flux, **kwargs)
         ax.set_xlabel("Wavelength [A]")
-        ax.set_ylabel("Flux")
+        ax.set_ylabel(f"Flux [{flux.unit}]" if hasattr(flux, "unit") else "Flux")
         return fig
 
     # ------------ #

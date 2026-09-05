@@ -40,6 +40,7 @@ __all__ = [
     "plot_image_bokeh",
     "plot_image_row_mpl",
     "plot_image_row_bokeh",
+    "plot_bandpass_mpl",
     "plot_radial_mpl",
     "plot_radial_bokeh",
     "plot_encircled_energy_mpl",
@@ -61,6 +62,7 @@ from .io import get_pickles_spectrum_filename, get_sensor_config, read_config
 from .lightcurve import FluxModel, LightCurve, LightCurveSimulator, TransitModel
 from .plotting import (
     WCC_STYLE,
+    plot_bandpass_mpl,
     plot_encircled_energy_bokeh,
     plot_encircled_energy_mpl,
     plot_image_bokeh,

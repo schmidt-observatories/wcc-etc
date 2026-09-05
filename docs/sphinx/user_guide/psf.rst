@@ -316,7 +316,52 @@ Automatic PSF selection by focus level
 When you build a simulation with
 :meth:`~wcc_etc.Simulation.from_sensorfilter`, an appropriate default PSF
 (in-focus vs. defocused) is selected for that sensor:filter and used whenever
-you omit ``psf=`` in the SNR / image methods.
+you omit ``psf=`` — in ``simulate``, ``render_psf``, ``get_image_snr`` and
+``get_image_exptime_for_snr`` alike. Read it back with
+:attr:`~wcc_etc.Simulation.default_psf`, which falls back to a
+diffraction-limited :class:`~wcc_etc.AiryPSF` for simulations built any other
+way:
+
+.. code-block:: python
+
+   sim = Simulation.from_sensorfilter("zwo:bb2", scene)
+   type(sim.default_psf).__name__        # 'DefocusPSF'
+
+Rendering a PSF on its own
+--------------------------
+
+:meth:`~wcc_etc.ImageSimulator.render_psf` returns the bare PSF on the detector
+grid, normalized to unit sum — no source flux, no background, no noise. It is
+the right tool for comparing PSF shapes, peak-pixel fractions, radial profiles
+and encircled energy across focus levels or jitter values. Because it builds
+its render context the same way ``simulate`` does, it honours the
+source-weighted :math:`\lambda_\mathrm{eff}` described above.
+
+Pair it with :attr:`~wcc_etc.ImageSimulator.plate_scale_mas` to feed the
+plotting helpers in milliarcseconds. The peak of the normalized PSF is the
+central-pixel fraction that sets when the detector saturates — here it falls
+by a factor of ~200 from in-focus to two waves of defocus:
+
+.. plot::
+   :context: close-figs
+
+   imsim_r = ImageSimulator.from_sensor_and_scene("sony:r", scene_g5, npix=200)
+
+   fig, ax = plt.subplots()
+   for label, psf in panels:
+       psf_img = imsim_r.render_psf(psf, jitter_sigma_mas=0.0, npix=128)
+       plot_radial_mpl(
+           image_clean=psf_img,
+           pixel_scale_mas=imsim_r.plate_scale_mas,
+           units="mas",
+           ax=ax,
+           show_hwhm=False,
+           label=f"{label} — peak {psf_img.max():.4f}",
+       )
+   ax.set_yscale("log")
+   ax.set_xlabel("Radius [mas]")
+   ax.set_ylabel("Normalized PSF (sum = 1)")
+   ax.legend()
 
 Simulating an image
 -------------------

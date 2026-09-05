@@ -792,13 +792,58 @@ class ImageSimulator:
     def from_sensorfilter(cls, sensorfilter, scene, npix=300, oversample=11):
         """Build an ImageSimulator from a sensorfilter label (e.g. 'zwo:r+1').
 
-        Sets _default_psf on the underlying Simulation (accessible via
-        self.sim._default_psf) based on the sensor's focus_level in sensor_info.
-        Note: simulate() still requires an explicit psf= argument; _default_psf
-        is used by Simulation.get_image_snr and get_image_exptime_for_snr.
+        The PSF is chosen from the sensor's focus_level in sensor_info and
+        exposed as `default_psf`. simulate(), get_image_snr(), and
+        get_image_exptime_for_snr() all use it when no psf= argument is given.
         """
         sim = Simulation.from_sensorfilter(sensorfilter, scene)
         return cls(sim, npix=npix, oversample=oversample)
+
+    @property
+    def plate_scale_mas(self):
+        """Detector plate scale in mas/pixel, from the sensor + telescope."""
+        return (
+            self.sim.sensor.get_plate_scale(self.sim.telescope).to("arcsec/pix").value
+            * 1000.0
+        )
+
+    @property
+    def default_psf(self):
+        """The PSF used when ``simulate()`` is called without ``psf=``."""
+        return self.sim.default_psf
+
+    def render_psf(self, psf=None, jitter_sigma_mas=None, npix=None, center=None):
+        """
+        Render a PSF onto the detector grid, normalized to unit sum.
+
+        This is the bare PSF with no source flux, background, or noise — useful
+        for comparing PSF shapes, peak-pixel fractions, radial profiles, and
+        encircled energy across focus levels or jitter values. Pair it with
+        `plate_scale_mas` to plot in mas.
+
+        Parameters
+        ----------
+        psf : PSFSource, optional
+            PSF model to render. Defaults to `default_psf`.
+        jitter_sigma_mas : float, optional
+            Override the telescope jitter (mas). Defaults to the telescope value;
+            pass 0 to see the un-blurred diffraction limit.
+        npix : int, optional
+            Override the (square) grid size for this render only.
+        center : tuple, optional
+            Sub-pixel (cx, cy) center. Defaults to the grid center.
+
+        Returns
+        -------
+        numpy.ndarray
+            The (npix, npix) normalized PSF image (sum = 1).
+        """
+        if psf is None:
+            psf = self.default_psf
+        ctx = self._context(jitter_sigma_mas=jitter_sigma_mas, center=center)
+        if npix is not None:
+            ctx.npix = int(npix)
+        return psf.render(ctx)
 
     def _context(self, jitter_sigma_mas=None, center=None):
         sim = self.sim
@@ -837,7 +882,9 @@ class ImageSimulator:
             Exposure time (seconds if a bare float). Defaults to the
             Simulation's meta['time'].
         psf : PSFSource, optional
-            PSF model to render. Defaults to AiryPSF() (diffraction limited).
+            PSF model to render. Defaults to `default_psf` — diffraction-limited
+            unless the simulation came from `from_sensorfilter`, in which case it
+            is the PSF for that filter's focus level.
         jitter_sigma_mas : float, optional
             Override the telescope jitter (mas). Defaults to the telescope value.
         center : tuple, optional
@@ -863,7 +910,7 @@ class ImageSimulator:
             time = time * u.second
 
         if psf is None:
-            psf = AiryPSF()
+            psf = self.default_psf
         ctx = self._context(jitter_sigma_mas=jitter_sigma_mas, center=center)
         psf_norm = psf.render(ctx)  # sum = 1
 

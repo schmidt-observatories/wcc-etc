@@ -33,11 +33,12 @@ zodiacal background, imaged through ``sony:r``:
    :nofigs:
 
    import matplotlib.pyplot as plt
+   import numpy as np
    import wcc_etc
    from wcc_etc import (
-       get_scene, ImageSimulator, AiryPSF, DefocusPSF, DEFOCUS_2WAVE_PATH,
-       plot_image_mpl, plot_image_row_mpl, plot_radial_mpl,
-       plot_encircled_energy_mpl,
+       get_scene, ImageSimulator, Sensor, Simulation, AiryPSF, DefocusPSF,
+       DEFOCUS_2WAVE_PATH, plot_image_mpl, plot_image_row_mpl, plot_radial_mpl,
+       plot_encircled_energy_mpl, plot_bandpass_mpl,
    )
 
    wcc_etc.set_wcc_style()
@@ -71,6 +72,9 @@ The plots
    * - ``plot_encircled_energy_mpl`` / ``plot_encircled_energy_bokeh``
      - The encircled-energy curve (normalized to 1) with an optional
        ``ee_target=`` marker.
+   * - ``plot_bandpass_mpl``
+     - A filter throughput curve, from a synphot ``SpectralElement`` or anything
+       carrying one (a :class:`~wcc_etc.Sensor`). matplotlib only.
 
 A single image
 ~~~~~~~~~~~~~~
@@ -139,6 +143,7 @@ the background:
        units="mas",
        ax=ax,
        show_hwhm=False,
+       label="image_clean (noise=False)",
    )
    plot_radial_mpl(
        image_e=img.image_e,
@@ -147,9 +152,8 @@ the background:
        noise=True,
        ax=ax,
        show_hwhm=False,
+       label="image_e (noise=True)",
    )
-   ax.lines[0].set_label("image_clean (noise=False)")
-   ax.lines[1].set_label("image_e (noise=True)")
    ax.set_yscale("log")
    ax.legend()
 
@@ -184,9 +188,11 @@ Return values and embedding
    # bokeh: components for a web template
    script, div = img.plot_image(backend="bokeh", return_="components")
 
-Because the 1-D helpers hand back the profile they plotted, the returned
-``(r, prof)`` is what you use to build a labelled overlay — here an in-focus
-Airy PSF against two waves of defocus:
+``plot_radial_mpl``, ``plot_encircled_energy_mpl`` and ``plot_bandpass_mpl``
+forward ``label=`` and any other extra keyword arguments straight to
+``ax.plot``, which is what makes a labelled overlay legible — here an in-focus
+Airy PSF against two waves of defocus. (The helpers also hand back the
+``(r, prof)`` they plotted, if you would rather draw it yourself.)
 
 .. plot::
    :context: close-figs
@@ -197,14 +203,59 @@ Airy PSF against two waves of defocus:
    )
 
    fig, ax = plt.subplots()
-   _, _, (r_a, prof_a) = plot_radial_mpl(
-       clean_airy, units="mas", ax=ax, show_hwhm=False
+   plot_radial_mpl(
+       clean_airy, units="mas", ax=ax, show_hwhm=False, label="in-focus (Airy)"
    )
-   _, _, (r_d, prof_d) = plot_radial_mpl(
-       clean_defocus, units="mas", ax=ax, show_hwhm=False
+   plot_radial_mpl(
+       clean_defocus, units="mas", ax=ax, show_hwhm=False,
+       label="+2 waves defocus",
    )
-   ax.lines[0].set_label("in-focus (Airy)")
-   ax.lines[1].set_label("+2 waves defocus")
    ax.set_yscale("log")
    ax.set_xlim(0, 800)
    ax.legend()
+
+Filter throughput
+-----------------
+
+``plot_bandpass_mpl`` draws a filter curve from a synphot ``SpectralElement``
+or from anything carrying one, so a :class:`~wcc_etc.Sensor` can be passed
+directly. Overlaying the sensors shows what each ``kind:band`` actually
+selects:
+
+.. plot::
+   :context: close-figs
+
+   fig, ax = plt.subplots()
+   for label in ("sony:r", "sony:bb", "qcmos:r"):
+       plot_bandpass_mpl(Sensor.from_config(label), ax=ax, label=label)
+   ax.legend()
+
+Objects that plot themselves
+----------------------------
+
+Two objects know how to draw themselves onto a supplied axis, which is the
+quickest check that the scene and filter are the ones you intended:
+
+.. plot::
+   :context: close-figs
+
+   scene = get_scene("G5V", mag=12, background="zodi", bandpass="johnson_r")
+   sim = Simulation.from_sensor_and_scene("sony:r", scene)
+
+   fig, (ax_src, ax_filt) = plt.subplots(1, 2, figsize=(11, 4))
+
+   # the source spectrum, on your own grid and in your own flux unit
+   sim.scene.source.show(
+       ax=ax_src, wave=np.arange(3500, 9500, 5.0), flux_unit="flam"
+   )
+
+   # the sensor's filter throughput
+   sim.sensor.show(ax=ax_filt, label="sony:r")
+   ax_filt.legend()
+
+:meth:`~wcc_etc.scene.SceneElement.show` takes ``wave=`` (an explicit
+wavelength grid, defaulting to the spectrum's native waveset, which can run far
+past the optical) and ``flux_unit=`` (``'flam'`` for erg/s/cm²/Å, ``'fnu'``,
+defaulting to synphot's PHOTLAM). :meth:`~wcc_etc.Sensor.show` is a thin
+wrapper over ``plot_bandpass_mpl``. Both forward extra keyword arguments to
+``ax.plot``.

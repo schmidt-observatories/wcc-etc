@@ -547,3 +547,62 @@ class TestStyle:
         s = _gaussian_simimg()
         fig2, ax2, _ = plotting.plot_encircled_energy_mpl(s, units="pix")
         assert any(gl.get_visible() for gl in ax2.get_xgridlines())
+
+
+class TestOverlayLabels:
+    """plot_radial_mpl / plot_encircled_energy_mpl forward label= and **kwargs to
+    ax.plot, so several profiles can be overlaid on one axis with a legend."""
+
+    def test_radial_label_reaches_the_line(self):
+        """label= lands on the radial profile line."""
+        s = _gaussian_simimg()
+        _fig, ax, _curve = plotting.plot_radial_mpl(s, units="pix", label="in-focus")
+        assert ax.lines[0].get_label() == "in-focus"
+
+    def test_ee_label_reaches_the_line(self):
+        """label= lands on the encircled-energy line."""
+        s = _gaussian_simimg()
+        _fig, ax, _curve = plotting.plot_encircled_energy_mpl(
+            s, units="pix", label="in-focus"
+        )
+        assert ax.lines[0].get_label() == "in-focus"
+
+    def test_radial_extra_kwargs_reach_the_line(self):
+        """Unrecognized keyword arguments are forwarded to ax.plot."""
+        s = _gaussian_simimg()
+        _fig, ax, _curve = plotting.plot_radial_mpl(s, units="pix", ls="--")
+        assert ax.lines[0].get_linestyle() == "--"
+
+    def test_ee_extra_kwargs_reach_the_line(self):
+        """Unrecognized keyword arguments are forwarded to ax.plot."""
+        s = _gaussian_simimg()
+        _fig, ax, _curve = plotting.plot_encircled_energy_mpl(
+            s, units="pix", ls="--", ee_target=None
+        )
+        assert ax.lines[0].get_linestyle() == "--"
+
+    def test_radial_overlays_accumulate_on_one_axis(self):
+        """Two labelled radial profiles share an axis and both carry their label."""
+        s = _gaussian_simimg()
+        _fig, ax, _curve = plotting.plot_radial_mpl(
+            s, units="pix", label="a", show_hwhm=False
+        )
+        plotting.plot_radial_mpl(s, units="pix", label="b", show_hwhm=False, ax=ax)
+        assert [line.get_label() for line in ax.lines] == ["a", "b"]
+
+    def test_ee_overlays_accumulate_on_one_axis(self):
+        """Two labelled EE curves share an axis and both carry their label."""
+        s = _gaussian_simimg()
+        _fig, ax, _curve = plotting.plot_encircled_energy_mpl(
+            s, units="pix", label="a", ee_target=None
+        )
+        plotting.plot_encircled_energy_mpl(
+            s, units="pix", label="b", ee_target=None, ax=ax
+        )
+        assert [line.get_label() for line in ax.lines] == ["a", "b"]
+
+    def test_radial_label_defaults_to_unset(self):
+        """With no label the line keeps matplotlib's auto label."""
+        s = _gaussian_simimg()
+        _fig, ax, _curve = plotting.plot_radial_mpl(s, units="pix", show_hwhm=False)
+        assert ax.lines[0].get_label().startswith("_")
