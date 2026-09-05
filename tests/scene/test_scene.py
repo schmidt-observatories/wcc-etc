@@ -6,7 +6,13 @@ import pytest
 from synphot import units as su
 
 from tests.helpers import make_scene
-from wcc_etc.scene import Scene, SceneElement, broadcast_mapping, get_scene_from_file
+from wcc_etc.scene import (
+    Scene,
+    SceneElement,
+    broadcast_mapping,
+    get_scene,
+    get_scene_from_file,
+)
 
 
 class TestBroadcastMapping:
@@ -119,6 +125,34 @@ class TestGetSceneFromFile:
         sp = scene.source.get_spectrum(apply_mag=False)
         flam = sp(np.array([4000.0, 5000.0, 6000.0]) * u.AA, flux_unit=su.FLAM).value
         assert np.allclose(flam, [1e-16, 2e-16, 3e-16])
+
+
+class TestGetScenePropDefaults:
+    """host_prop / background_prop passed as None must behave like {} (#66)."""
+
+    def test_none_host_prop_builds_the_host(self):
+        scene = get_scene("G5IV", mag=20, host="G2V", host_prop=None, background=None)
+        assert scene.host is not None
+
+    def test_none_background_prop_builds_the_background(self):
+        scene = get_scene("G5IV", mag=20, background="zodi", background_prop=None)
+        assert scene.background is not None
+
+
+class TestGetSceneFromFileDefaults:
+    """The documented default call must work (#66)."""
+
+    def test_default_call_returns_a_scene(self, tmp_path):
+        specfile = tmp_path / "source.txt"
+        specfile.write_text("4000 1e-16\n5000 2e-16\n6000 3e-16\n")
+        scene = get_scene_from_file(str(specfile), mag=20)
+        assert isinstance(scene, Scene)
+
+    def test_default_call_builds_the_zodi_background(self, tmp_path):
+        specfile = tmp_path / "source.txt"
+        specfile.write_text("4000 1e-16\n5000 2e-16\n6000 3e-16\n")
+        scene = get_scene_from_file(str(specfile), mag=20)
+        assert scene.background is not None
 
 
 class TestSceneUpdate:
