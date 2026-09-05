@@ -35,6 +35,7 @@ extensions = [
     "sphinx.ext.intersphinx",  # cross-link to numpy/astropy/etc docs
     "sphinx.ext.mathjax",  # render LaTeX math
     "nbsphinx",  # render the tutorial Jupyter notebooks
+    "matplotlib.sphinxext.plot_directive",  # execute the user-guide plots
 ]
 
 # Optional: enable Markdown authoring if myst-parser is installed.
@@ -79,10 +80,16 @@ napoleon_use_param = True
 napoleon_use_ivar = True
 
 # -- nbsphinx ----------------------------------------------------------------
-# Use the outputs already saved in the notebooks; do not re-execute at build
-# time (keeps RTD/CI fast and free of the full scientific stack at run time).
-nbsphinx_execute = "never"
+# Execute the tutorials at build time. The `jupyter-nb-clear-output` pre-commit
+# hook strips every notebook's outputs, so anything committed carries no figures
+# at all -- with nbsphinx_execute = "never" the published tutorials rendered as
+# bare code cells with nothing underneath. Executing here keeps the figures and
+# printed numbers in the docs guaranteed consistent with the code that built
+# them, and (with allow_errors off) turns the tutorials into a smoke test: a
+# notebook that no longer runs against the current API fails the docs build.
+nbsphinx_execute = "always"
 nbsphinx_allow_errors = False
+nbsphinx_timeout = 600  # seconds per cell; the PSF sweeps are the slow ones
 nbsphinx_prolog = """
 .. note::
 
@@ -90,6 +97,20 @@ nbsphinx_prolog = """
    ``notebooks/{{ env.doc2path(env.docname, base=None)|basename }}`` in the
    repository. You can download it and run it interactively.
 """
+
+# -- matplotlib plot_directive -----------------------------------------------
+# The user-guide pages illustrate the plotting helpers with `.. plot::` blocks,
+# which are executed at build time. As with the notebooks, this keeps every
+# figure in the docs consistent with the code printed above it, and a helper
+# that stops working takes the docs build down with it rather than leaving a
+# stale PNG in place.
+plot_include_source = True
+plot_html_show_source_link = False
+plot_html_show_formats = False
+plot_formats = [("png", 150)]
+# `set_wcc_style()` is called explicitly in the pages' setup blocks, so do not
+# reset rcParams between directives sharing a `:context:`.
+plot_apply_rcparams = False
 
 # -- intersphinx -------------------------------------------------------------
 intersphinx_mapping = {

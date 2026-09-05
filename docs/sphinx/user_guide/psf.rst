@@ -106,6 +106,39 @@ by 36 % and therefore predicted saturation well before it actually occurs
 (and underpredicted it for blue sources). Since WCC's purpose is broadband
 context imaging, the broad bands are the common case, not the edge case.
 
+.. plot::
+   :context: reset
+
+   import matplotlib.pyplot as plt
+   import wcc_etc
+   from wcc_etc import (
+       get_scene, Simulation, ImageSimulator, AiryPSF, DefocusPSF,
+       DEFOCUS_1WAVE_PATH, DEFOCUS_2WAVE_PATH, plot_image_mpl, plot_radial_mpl,
+   )
+
+   wcc_etc.set_wcc_style()
+
+   TYPES = ["O5V", "A0V", "G5V", "K5V", "M5V"]
+   lam_eff = []
+   for spectral_type in TYPES:
+       scene_st = get_scene(
+           spectral_type, mag=12, background="zodi", bandpass="johnson_r"
+       )
+       sim_st = Simulation.from_sensor_and_scene("sony:bb", scene_st)
+       lam_eff.append(sim_st.effective_wavelength.to_value("nm"))
+
+   pivot = sim_st.sensor.wavelength.to_value("nm")
+
+   fig, ax = plt.subplots(figsize=(6.5, 4.0))
+   ax.plot(TYPES, lam_eff, "o-", label=r"source-weighted $\lambda_\mathrm{eff}$")
+   ax.axhline(
+       pivot, ls="--", color="0.45", label=f"filter pivot ({pivot:.1f} nm)"
+   )
+   ax.set_xlabel("Source spectral type")
+   ax.set_ylabel("Wavelength (nm)")
+   ax.set_title("sony:bb — the PSF wavelength follows the source")
+   ax.legend()
+
 .. note::
 
    This is the resolution of issue #65, which offered a choice between
@@ -139,6 +172,37 @@ few percent (a coadd of narrower and wider PSFs peaks slightly above the PSF at
 the mean wavelength), so it is a refinement on top of the
 :math:`\lambda_\mathrm{eff}` fix rather than a second large correction.
 
+On an M5V source the coadd fills in the monochromatic diffraction minima and
+takes the tops off the maxima, while leaving the overall width alone. The
+comparison below switches jitter off (``jitter_sigma_mas=0``) and zooms into
+the core — at the telescope's real jitter the ring structure is smeared out and
+the two profiles lie on top of each other:
+
+.. plot::
+   :context: close-figs
+
+   scene_m5 = get_scene("M5V", mag=12, background="zodi", bandpass="johnson_r")
+   sim_m5 = Simulation.from_sensor_and_scene("sony:bb", scene_m5)
+   imsim_m5 = ImageSimulator.from_sensor_and_scene("sony:bb", scene_m5, npix=200)
+
+   mono = imsim_m5.simulate(
+       time=30, psf=AiryPSF(), add_noise=False, jitter_sigma_mas=0.0
+   )
+   poly = imsim_m5.simulate(
+       time=30, psf=sim_m5.polychromatic_psf(n_sub=7),
+       add_noise=False, jitter_sigma_mas=0.0,
+   )
+
+   fig, ax = plt.subplots()
+   plot_radial_mpl(mono, units="mas", ax=ax, show_hwhm=False)
+   plot_radial_mpl(poly, units="mas", ax=ax, show_hwhm=False)
+   ax.lines[0].set_label(r"monochromatic at $\lambda_\mathrm{eff}$")
+   ax.lines[1].set_label("polychromatic coadd, n_sub=7")
+   ax.set_yscale("log")
+   ax.set_xlim(0, 400)
+   ax.set_ylim(1e2, 3e6)
+   ax.legend()
+
 Bundled defocus PSFs
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -160,6 +224,26 @@ the array onto the optics it is asked about. The raw Zemax ``.txt`` exports also
 ship, as ``wcc_etc.psfsim.DEFOCUS_1WAVE_TXT_PATH`` /
 ``DEFOCUS_2WAVE_TXT_PATH``; regenerate the FITS from them with
 :func:`wcc_etc.psfsim.huygens_txt_to_fits`.
+
+What the two products look like on the detector, against an in-focus Airy PSF
+for scale (noiseless, same source and exposure in each panel):
+
+.. plot::
+   :context: close-figs
+
+   scene_g5 = get_scene("G5V", mag=12, background="zodi", bandpass="johnson_r")
+   imsim_g5 = ImageSimulator.from_sensor_and_scene("sony:r", scene_g5, npix=200)
+
+   panels = [
+       ("in-focus (Airy)", AiryPSF()),
+       ("1 wave defocus", DefocusPSF(DEFOCUS_1WAVE_PATH)),
+       ("2 waves defocus", DefocusPSF(DEFOCUS_2WAVE_PATH)),
+   ]
+
+   fig, axes = plt.subplots(1, 3, figsize=(14, 4.2))
+   for ax, (label, psf) in zip(axes, panels):
+       image = imsim_g5.simulate(time=30, psf=psf, add_noise=False)
+       plot_image_mpl(image, ax=ax, units="mas", colorbar=False, title=label)
 
 .. _resampled-psf-scaling:
 
