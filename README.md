@@ -17,8 +17,10 @@ cd wcc-etc
 
 ## **2. Install the Package**
 
-Core install:
+Core install (two steps — `lazuli-transit` is not on PyPI, so the copy
+vendored in this repo has to be installed first):
 ```sh
+pip install -e ./packages/lazuli-transit
 pip install -e .
 ```
 

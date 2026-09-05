@@ -19,13 +19,23 @@ from wcc_etc.lightcurve import (
 # batman 2.5.1: t0=0, per=1, rp=0.1, a=15, inc=87, ecc=0, w=90,
 # limb_dark="quadratic", u=(0.1, 0.3), exp_time=300 s, supersample_factor=1001
 BATMAN_EXP300_T = np.linspace(-0.012, 0.012, 13)
-BATMAN_EXP300_F = np.array([
-    1.0, 1.0, 0.9987877958430657,
-    0.9943466268616378, 0.9908914325987047, 0.9901756398030463,
-    0.9900489441023405, 0.9901756398030465, 0.9908914325987045,
-    0.9943466268616378, 0.9987877958430657, 1.0,
-    1.0,
-])
+BATMAN_EXP300_F = np.array(
+    [
+        1.0,
+        1.0,
+        0.9987877958430657,
+        0.9943466268616378,
+        0.9908914325987047,
+        0.9901756398030463,
+        0.9900489441023405,
+        0.9901756398030465,
+        0.9908914325987045,
+        0.9943466268616378,
+        0.9987877958430657,
+        1.0,
+        1.0,
+    ]
+)
 
 
 class _ConstDip(FluxModel):
@@ -143,8 +153,15 @@ class TestExposureIntegration:
 
     def _transit_sim(self):
         model = TransitModel(
-            t0=0.0, per=1.0, rp=0.1, a=15.0, inc=87.0, ecc=0.0, w=90.0,
-            limb_dark="quadratic", u=(0.1, 0.3),
+            t0=0.0,
+            per=1.0,
+            rp=0.1,
+            a=15.0,
+            inc=87.0,
+            ecc=0.0,
+            w=90.0,
+            limb_dark="quadratic",
+            u=(0.1, 0.3),
         )
         return LightCurveSimulator(_FakeSim(1e9), model)
 
@@ -200,9 +217,7 @@ class TestExposureIntegration:
     def test_instantaneous_sampling_misses_the_smearing(self):
         """The bug this guards: point sampling is off the finite-exposure curve."""
         pytest.importorskip("jaxoplanet")
-        lc = self._transit_sim().simulate(
-            BATMAN_EXP300_T, 300.0, seed=0, supersample=1
-        )
+        lc = self._transit_sim().simulate(BATMAN_EXP300_T, 300.0, seed=0, supersample=1)
         assert np.max(np.abs(lc.flux_clean - BATMAN_EXP300_F)) > 1e-4
 
     def test_zero_supersample_rejected(self):

@@ -1,4 +1,5 @@
 """Tests for SDSS bandpass support (sdss_u/g/r/i/z) loaded from local data."""
+
 import pytest
 from synphot import SpectralElement
 
@@ -26,8 +27,10 @@ def test_resolve_bandpass_loads_sdss_filters(name, expected_a):
 
 
 def test_resolve_bandpass_is_case_insensitive():
-    assert resolve_bandpass("SDSS_G").avgwave().to("Angstrom").value == \
-        resolve_bandpass("sdss_g").avgwave().to("Angstrom").value
+    assert (
+        resolve_bandpass("SDSS_G").avgwave().to("Angstrom").value
+        == resolve_bandpass("sdss_g").avgwave().to("Angstrom").value
+    )
 
 
 def test_resolve_bandpass_falls_back_to_synphot_builtin():
@@ -42,8 +45,15 @@ def test_resolve_bandpass_passes_through_spectral_element():
 
 
 def test_scene_element_accepts_sdss_bandpass():
-    elem = get_scene_element({"spectrum": "blackbody", "mag": 20, "magsys": "abmag",
-                              "teff": 5800, "bandpass": "sdss_g"})
+    elem = get_scene_element(
+        {
+            "spectrum": "blackbody",
+            "mag": 20,
+            "magsys": "abmag",
+            "teff": 5800,
+            "bandpass": "sdss_g",
+        }
+    )
     band = elem.band
     assert isinstance(band, SpectralElement)
     assert abs(band.avgwave().to("Angstrom").value - 4700) < 400

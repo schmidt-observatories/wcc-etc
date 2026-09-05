@@ -27,6 +27,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest
           pip install jaxoplanet   # transit backend; physics tests skip without it
+          # Two steps, exactly as the README "Installation" section documents:
+          # lazuli-transit is not on PyPI, so the in-repo copy installs first.
           pip install -e ./packages/lazuli-transit
           pip install -e .
 
@@ -34,3 +36,90 @@ jobs:
         run: |
           pytest
           pytest packages/lazuli-transit/tests
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      # Gated on F (undefined names, unused imports) and on formatting.
+      # E, I and UP are reported but not gated yet — see issue #71.
+      - name: ruff check (F)
+        run: ruff check src packages/lazuli-transit/src tests --select F
+
+      - name: ruff format
+        run: ruff format --check src packages/lazuli-transit/src tests
+
+      - name: ruff check (E, I, UP) — advisory
+        continue-on-error: true
+        run: ruff check src packages/lazuli-transit/src --select E,I,UP
+
+  typecheck:
+    runs-on: ubuntu-latest
+    # Advisory until the existing errors are cleared (issue #68), then drop
+    # continue-on-error and make this a required check.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install
+        run: |
+          pip install mypy
+          pip install -e ./packages/lazuli-transit
+          pip install -e .
+
+      - name: mypy
+        run: mypy src/wcc_etc
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build sdist and wheel
+        run: |
+          pip install build twine
+          python -m build
+          twine check dist/*
+
+      - name: Audit artifact contents
+        run: python .github/scripts/audit_artifacts.py
+
+      - name: Smoke-test the installed wheel
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --upgrade pip
+          /tmp/smoke/bin/pip install ./packages/lazuli-transit
+          /tmp/smoke/bin/pip install dist/*.whl
+          cd /tmp   # import the installed wheel, not the source tree
+          /tmp/smoke/bin/python - <<'EOF'
+          # The README Quick Start, verbatim.
+          from wcc_etc import get_scene, Simulation
+
+          scene = get_scene("K3IV", mag=20, host=None, background="zodi")
+          sim = Simulation.from_sensor_and_scene("sony:bb", scene)
+          snr = sim.get_snr(10)["snr"]
+          assert snr > 0, snr
+          print("installed-wheel SNR:", snr)
+          EOF
