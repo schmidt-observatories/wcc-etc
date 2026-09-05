@@ -65,9 +65,6 @@ jobs:
 
   typecheck:
     runs-on: ubuntu-latest
-    # Advisory until the existing errors are cleared (issue #68), then drop
-    # continue-on-error and make this a required check.
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -83,7 +80,12 @@ jobs:
           pip install -e ./packages/lazuli-transit
           pip install -e .
 
-      - name: mypy
+      # Advisory until the existing errors are cleared (issue #68), then drop
+      # continue-on-error and make this a required check. It has to sit on the
+      # step, not the job: job-level continue-on-error still reports the job as
+      # failed to the checks API, which would show a red X on every PR.
+      - name: mypy — advisory
+        continue-on-error: true
         run: mypy src/wcc_etc
 
   build:
