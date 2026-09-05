@@ -633,8 +633,22 @@ class Simulation(_MetaHolder_):
     def _count_rate_components(self, band=None):
         """PSF-independent count-rate primitives for the 2D path (electron/s).
 
-        Returns total source rate (point source, no aperture) and per-pixel
-        sky/diffuse rates (surface brightness evaluated at one detector pixel).
+        Elements are classified by their own ``surface_brightness`` flag, never
+        by their name (issue #63). synphot applies ``area`` only to
+        surface-brightness elements, so those come back per pixel; every other
+        element comes back as a TOTAL rate that must be distributed spatially.
+
+        Returns
+        -------
+        dict with keys
+            ``source_rate_total`` : the source, total electron/s.
+            ``background_rate_per_pix`` : the sky element, electron/s/pixel.
+            ``diffuse_rate_per_pix`` : other surface-brightness elements (e.g. a
+                resolved host given in mag/arcsec^2), electron/s/pixel.
+            ``contaminant_rate_total`` : non-surface-brightness elements other
+                than the source (e.g. an unresolved host), total electron/s.
+                Co-located with the source and rendered through the same PSF.
+
         Unlike get_countrates, this does NOT apply the Airy ee_at_aper, so it is
         independent of compute_psf_profile and correct for any PSF. The rendered
         PSF (in _image_render_bundle) handles spatial distribution.
@@ -654,25 +668,38 @@ class Simulation(_MetaHolder_):
             band=band, area=pixel_area_arcsec2, as_dict=True
         )
 
+        sb_flags = self.scene.call_down("mag_is_surface_brightness", as_dict=True)
+
         source_rate_total = 0.0
         background_rate_per_pix = 0.0
         diffuse_rate_per_pix = 0.0
+        contaminant_rate_total = 0.0
         for name, o in obs.items():
             if o is None:
                 continue
             rate = (
                 (o.countrate(area=surf) * u.electron / u.ct).to(u.electron / u.s).value
             )
-            if name == "source":
+            if sb_flags.get(name, False):
+                # mag/arcsec^2: synphot already evaluated this at one pixel.
+                if name == "background":
+                    background_rate_per_pix = rate
+                else:
+                    diffuse_rate_per_pix += rate
+            elif name == "source":
                 source_rate_total = rate
-            elif name == "background":
-                background_rate_per_pix = rate
             else:
-                diffuse_rate_per_pix += rate
+                # A total rate for an element with no spatial extent: treat it
+                # as unresolved and co-located with the source, so it is spread
+                # by the PSF. Replicating this total into every pixel is the
+                # #63 bug. An extended host must be given as a surface
+                # brightness (mag/arcsec^2) to be treated per-pixel.
+                contaminant_rate_total += rate
         return {
             "source_rate_total": source_rate_total,
             "background_rate_per_pix": background_rate_per_pix,
             "diffuse_rate_per_pix": diffuse_rate_per_pix,
+            "contaminant_rate_total": contaminant_rate_total,
         }
 
     def get_signal_and_variance(self, time=None, units="e-", n_reads=None):
@@ -768,7 +795,8 @@ class Simulation(_MetaHolder_):
     ):
         """Brightest-pixel value for the actual (possibly defocused) PSF.
 
-        Peak = source_rate_total * peak_pixel_fraction + sky_per_pix + dark,
+        Peak = (source + unresolved contaminants) * peak_pixel_fraction
+        + sky_per_pix + diffuse_per_pix + dark,
         where peak_pixel_fraction is the brightest pixel of the *rendered* PSF
         (psf_norm.max()), so defocused configs are handled correctly. `psf`
         defaults to _default_psf (set by from_sensorfilter), else AiryPSF.
@@ -794,12 +822,14 @@ class Simulation(_MetaHolder_):
             u.electron / (u.s * u.pix)
         ).value
         peak_rate = (
-            b["source_rate_total"] * float(b["psf_norm"].max())
+            (b["source_rate_total"] + b["contaminant_rate_total"])
+            * float(b["psf_norm"].max())
             + b["background_rate_per_pix"]
+            + b["diffuse_rate_per_pix"]
             + dark_rate_per_pix
         )  # electron / s in the brightest pixel
-        # host/diffuse elements are excluded from the saturation budget by design
-        # (matches _per_frame_clean_image_e and get_image_snr saturation check)
+        # Same budget as _per_frame_clean_image_e / ImageSimulator.simulate:
+        # unresolved contaminants ride the PSF, resolved ones are per-pixel (#63)
         peak_e = (peak_rate * tf) * u.electron
 
         if units in ["e", "e-", "electron"]:
@@ -883,6 +913,7 @@ class Simulation(_MetaHolder_):
         source_rate_total = comps["source_rate_total"]
         diffuse_rate_per_pix = comps["diffuse_rate_per_pix"]
         background_rate_per_pix = comps["background_rate_per_pix"]
+        contaminant_rate_total = comps["contaminant_rate_total"]
 
         bundle = {
             "psf_norm": psf_norm,
@@ -890,6 +921,7 @@ class Simulation(_MetaHolder_):
             "source_rate_total": source_rate_total,
             "diffuse_rate_per_pix": diffuse_rate_per_pix,
             "background_rate_per_pix": background_rate_per_pix,
+            "contaminant_rate_total": contaminant_rate_total,
         }
         cache[key] = bundle
         return bundle
@@ -897,17 +929,21 @@ class Simulation(_MetaHolder_):
     def _per_frame_clean_image_e(self, b, tf, source_scale=1.0):
         """Per-frame clean electron image for the saturation test.
 
-        Budget is source + background + dark (host excluded), matching
-        ImageSimulator.simulate and get_peak_pixel. `b` is an
+        Budget is source + unresolved contaminants (both through the PSF) +
+        background + diffuse + dark — the same charge every other API sees
+        (ImageSimulator.simulate, get_peak_pixel, the get_image_snr saturation
+        check). Issue #63: these used to disagree about the host. `b` is an
         _image_render_bundle dict; `tf` is the per-frame integration time
         (total time / n_reads); `source_scale` scales the source flux.
         """
         dark_rate_per_pix = self.sensor.dark_current.to(
             u.electron / (u.s * u.pix)
         ).value
+        psf_rate = b["source_rate_total"] * source_scale + b["contaminant_rate_total"]
         return (
-            (b["source_rate_total"] * source_scale * tf) * b["psf_norm"]
+            (psf_rate * tf) * b["psf_norm"]
             + b["background_rate_per_pix"] * tf
+            + b["diffuse_rate_per_pix"] * tf
             + dark_rate_per_pix * tf
         )
 
@@ -1025,12 +1061,15 @@ class Simulation(_MetaHolder_):
 
         def _snr_at(t_sec, source_scale=1.0):
             source_e_total = b["source_rate_total"] * source_scale * t_sec
-            # Sky (background) + host (diffuse) both contribute per-pixel shot noise.
-            # The sky term lives in background_rate_per_pix and MUST be included here
-            # (it is what makes faint sources sky-limited); omitting it overstates SNR.
+            # Sky and any *resolved* (surface-brightness) element contribute
+            # per-pixel shot noise. The sky term lives in background_rate_per_pix
+            # and MUST be included here (it is what makes faint sources
+            # sky-limited); omitting it overstates SNR.
             diffuse_per_pix = (
                 b["diffuse_rate_per_pix"] + b["background_rate_per_pix"]
             ) * t_sec
+            # An unresolved host rides the source PSF instead (#63).
+            contaminant_e_total = b["contaminant_rate_total"] * t_sec
             dark_per_pix = dark_rate_per_pix * t_sec
             prof = aperture_snr_radial(
                 b["psf_norm"],
@@ -1039,6 +1078,7 @@ class Simulation(_MetaHolder_):
                 diffuse_per_pix,
                 dark_per_pix,
                 read_noise,
+                contaminant_e_total=contaminant_e_total,
             )
             idx = select_aperture(
                 prof, r_aper_mas=r_aper_mas, ee_frac=ee_frac, optimize=optimize
@@ -1151,8 +1191,9 @@ class Simulation(_MetaHolder_):
         if not optimize and r_aper_mas is None and ee_frac is None:
             r_aper_mas = self._meta.get("r_aper_mas")
 
-        # Sky (background) + host (diffuse) both contribute per-pixel shot noise;
-        # the sky term must be included or the solved exposure time is too short.
+        # Sky + resolved (surface-brightness) elements contribute per-pixel shot
+        # noise; the sky term must be included or the solved time is too short.
+        # An unresolved host rides the source PSF instead (#63).
         diffuse_rate_per_pix = b["diffuse_rate_per_pix"] + b["background_rate_per_pix"]
         result = aperture_time_for_snr(
             b["psf_norm"],
@@ -1166,10 +1207,11 @@ class Simulation(_MetaHolder_):
             r_aper_mas=r_aper_mas,
             ee_frac=ee_frac,
             optimize=optimize,
+            contaminant_rate_total=b["contaminant_rate_total"],
         )
 
         # saturated-pixel count at the solved time, on the per-frame clean image
-        # (source + background + dark; host excluded), matching get_image_snr/simulate.
+        # (one shared budget, matching get_image_snr / simulate / get_peak_pixel).
         image_e = self._per_frame_clean_image_e(b, result["time_s"] / n_reads)
         mask = saturation_mask_from_image_e(self.sensor, image_e)
         result["n_saturated"] = int(mask.sum())

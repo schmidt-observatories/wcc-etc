@@ -868,14 +868,17 @@ class ImageSimulator:
         psf_norm = psf.render(ctx)  # sum = 1
 
         comps = sim._count_rate_components()
-        source_e_total = comps["source_rate_total"] * time.to(u.s).value
-        source_image = source_e_total * psf_norm
-        background_per_pix = comps["background_rate_per_pix"] * time.to(u.s).value
-        diffuse_per_pix = comps["diffuse_rate_per_pix"] * time.to(u.s).value
-        # The rendered image includes diffuse/host flux; the saturation budget
-        # (get_peak_pixel / is_saturated / _per_frame_clean_image_e) deliberately
-        # does NOT (approved budget = source + background + dark, host excluded).
-        # Do not "align" these — the difference is intentional.
+        t_s = time.to(u.s).value
+        source_e_total = comps["source_rate_total"] * t_s
+        # Unresolved contaminants (e.g. an unresolved host) are co-located with
+        # the source and share its PSF; only surface-brightness elements are
+        # per-pixel. Issue #63: the host used to be added to every pixel here.
+        contaminant_e_total = comps["contaminant_rate_total"] * t_s
+        source_image = (source_e_total + contaminant_e_total) * psf_norm
+        background_per_pix = comps["background_rate_per_pix"] * t_s
+        diffuse_per_pix = comps["diffuse_rate_per_pix"] * t_s
+        # One charge budget shared with get_peak_pixel / is_saturated /
+        # _per_frame_clean_image_e / get_image_snr.
         bkg_per_pix = background_per_pix + diffuse_per_pix
         # dark current per pixel (uniform)
         dark_per_pix = (sim.sensor.dark_current * time).to(u.electron / u.pix).value
@@ -1618,7 +1621,13 @@ def _radial_cumulative(psf_norm, plate_scale_mas):
 
 
 def aperture_snr_radial(
-    psf_norm, plate_scale_mas, source_e_total, diffuse_per_pix, dark_per_pix, read_noise
+    psf_norm,
+    plate_scale_mas,
+    source_e_total,
+    diffuse_per_pix,
+    dark_per_pix,
+    read_noise,
+    contaminant_e_total=0.0,
 ):
     """
     SNR as a function of circular-aperture radius for a rendered PSF.
@@ -1636,9 +1645,14 @@ def aperture_snr_radial(
     source_e_total : float
         Total source electrons (all of the PSF, before aperture clipping).
     diffuse_per_pix, dark_per_pix : float
-        Per-pixel sky+host and dark-current electrons.
+        Per-pixel diffuse (sky / resolved host) and dark-current electrons.
     read_noise : float
         Read noise (electrons rms per pixel).
+    contaminant_e_total : float, optional
+        Total electrons from unresolved contaminants co-located with the source
+        (e.g. an unresolved host). Distributed by the same PSF as the source, so
+        it adds ``contaminant_e_total * enclosed_fraction`` of shot-noise
+        variance inside each aperture, and contributes no signal. Default 0.
 
     Returns
     -------
@@ -1648,8 +1662,11 @@ def aperture_snr_radial(
     r_mas, enclosed, n_pix = _radial_cumulative(psf_norm, plate_scale_mas)
 
     signal = source_e_total * enclosed
+    # An unresolved contaminant shares the source's PSF: its in-aperture charge
+    # scales with the enclosed fraction, not with the pixel count. See issue #63.
+    contaminant = contaminant_e_total * enclosed
     per_pix_var = diffuse_per_pix + dark_per_pix + read_noise**2
-    noise = np.sqrt(signal + per_pix_var * n_pix)
+    noise = np.sqrt(signal + contaminant + per_pix_var * n_pix)
     snr = np.divide(signal, noise, out=np.zeros_like(signal), where=noise > 0)
 
     return {
@@ -1694,6 +1711,7 @@ def aperture_time_for_snr(
     r_aper_mas=None,
     ee_frac=None,
     optimize=False,
+    contaminant_rate_total=0.0,
 ):
     """
     Exposure time (s) to reach `snr` for a rendered PSF, per aperture mode.
@@ -1709,7 +1727,12 @@ def aperture_time_for_snr(
     r_mas, enclosed, n_pix = _radial_cumulative(psf_norm, plate_scale_mas)
 
     A = source_rate_total * enclosed
-    B = A + (diffuse_rate_per_pix + dark_rate_per_pix) * n_pix
+    # Unresolved contaminants follow the PSF (enclosed), not the pixel count.
+    B = (
+        A
+        + contaminant_rate_total * enclosed
+        + (diffuse_rate_per_pix + dark_rate_per_pix) * n_pix
+    )
     C = n_reads * read_noise**2 * n_pix
     t = solve_time_for_snr(snr, A, B, C)  # array over radii
 

@@ -29,6 +29,42 @@ Building a scene
 ``host_prop`` and ``background_prop`` are dictionaries of keyword arguments
 forwarded to the host and background elements, mirroring the source keywords.
 
+.. _host-spatial-treatment:
+
+How an element is distributed on the detector
+---------------------------------------------
+
+Every element is classified by its own ``surface_brightness`` flag — never by
+its name — and that flag decides how its light is spread over pixels:
+
+``surface_brightness=False`` (the default for source and host)
+    The magnitude is an **integrated** magnitude, so the count rate is a
+    *total*. The element is treated as **unresolved and co-located with the
+    source**: it is rendered through the same PSF, contributing
+    ``total x enclosed_fraction`` inside an aperture. A host declared this way
+    adds shot noise and peak-pixel charge, but never counts as signal.
+
+``surface_brightness=True`` (the default for ``zodi``/``background``)
+    The magnitude is per square arcsecond, so the count rate is **per pixel**
+    and is applied uniformly across the detector — the right treatment for the
+    sky and for a **resolved, extended** host.
+
+.. code-block:: python
+
+   # unresolved companion/host: total rate, follows the source PSF
+   get_scene("G5V", mag=20, host={"name": "G5V", "mag": 16})
+
+   # resolved, extended host: mag per arcsec^2, uniform per pixel
+   get_scene("G5V", mag=20,
+             host={"name": "G5V", "mag": 22, "surface_brightness": True})
+
+.. note::
+
+   A host with a genuine spatial profile (Sersic, Gaussian half-light radius)
+   cannot be expressed yet. Model an extended host as a surface brightness;
+   declaring it as an integrated magnitude will concentrate all of its light
+   into the PSF core and overstate the peak pixel.
+
 Magnitude systems
 -----------------
 
