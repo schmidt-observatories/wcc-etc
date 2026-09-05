@@ -1,14 +1,98 @@
 Scenes, sources, and backgrounds
 ================================
 
-A :class:`~wcc_etc.Scene` describes everything on the sky. It is built from up
-to three :class:`~wcc_etc.scene.SceneElement` objects:
+A :class:`~wcc_etc.Scene` describes everything on the sky. It is built from
+exactly three :class:`~wcc_etc.scene.SceneElement` slots — there is no way to
+add a fourth:
 
-- **source** — the object you are observing (required),
-- **host** — an optional underlying/host spectrum,
-- **background** — an optional sky background.
+- **source** — what you are measuring (required),
+- **host** — any *other* object whose light lands in the same aperture,
+- **background** — the diffuse sky.
 
 The fastest way to build one is :func:`~wcc_etc.get_scene`.
+
+.. _which-slot:
+
+What goes in which slot
+-----------------------
+
+**The slots are roles, not object types.** The same star is a ``source`` when
+you are measuring it and a ``host`` when it is sitting next to something else
+you are measuring. Ask two questions:
+
+**1. Am I measuring it?** Only ``source`` contributes *signal*. ``host`` and
+``background`` contribute photons — and therefore shot noise and saturation
+charge — but never signal. There is one ``source`` per scene.
+
+**2. Is it resolved?** This is set by ``surface_brightness`` and decides how
+the light is spread over pixels. It matters far more than which slot the
+element sits in; see :ref:`host-spatial-treatment`.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 37 37
+
+   * -
+     - I am measuring it
+     - It is contaminating my aperture
+   * - **Unresolved / compact**
+     - ``source``
+     - ``host`` (default, ``surface_brightness=False``) — rides the source PSF
+   * - **Resolved / extended**
+     - not expressible yet (no spatial profile support)
+     - ``host`` with ``surface_brightness=True`` — uniform per pixel, mag/arcsec²
+
+Worked examples
+~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   # A star you are measuring. Nothing else in the aperture.
+   get_scene("G5V", mag=25.4, bandpass="johnson_r", background="zodi")
+
+   # A neighbouring star contaminating that aperture: same kind of object,
+   # different role. Unresolved, so it follows the same PSF as the target.
+   get_scene("G5V", mag=25.4, bandpass="johnson_r",
+             host="G5V", host_prop={"mag": 22, "bandpass": "johnson_r"},
+             background="zodi")
+
+   # A resolved background galaxy behind the target: extended, so give it a
+   # surface brightness in mag/arcsec² instead of an integrated magnitude.
+   get_scene("G5V", mag=25.4, bandpass="johnson_r",
+             host={"name": "ngc_0628", "mag": 22.5,
+                   "surface_brightness": True},
+             background="zodi")
+
+Answers to the usual questions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+*Is a star a source or a host?*
+   Whichever role it is playing. Measuring it → ``source``. Contaminating
+   someone else's aperture → ``host``.
+
+*Is a background galaxy a host?*
+   Yes. Then decide whether it is resolved: a compact/unresolved one keeps the
+   ``surface_brightness=False`` default; an extended one must be given as
+   ``surface_brightness=True``, or all of its light is concentrated into the
+   PSF core and the peak pixel is overstated.
+
+*Can I have two contaminants?*
+   Not currently — there is one ``host`` slot. Combine them into a single
+   equivalent magnitude, or model the dominant one.
+
+*Why is it called "host"?*
+   Inherited terminology. This ETC grew out of supernova cosmology, where the
+   ``source`` is a supernova and the ``host`` is its host galaxy (the bundled
+   ``hsiao07`` SN Ia template and the Brown galaxy atlas are from that
+   lineage). Read it as **"the other object in the aperture"**, not
+   specifically as a host galaxy.
+
+.. note::
+
+   ``host`` has no special-cased physics. Since issue #63 the simulation
+   classifies every element by its own ``surface_brightness`` flag, never by
+   its slot name; the name only selects which defaults you get
+   (``background`` defaults to the zodiacal sky, ``surface_brightness=True``).
 
 Building a scene
 ----------------
