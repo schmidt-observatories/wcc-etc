@@ -16,9 +16,6 @@ sphinx:
 
 python:
   install:
-    # Transit core: wcc_etc depends on lazuli-transit, install it first
-    - method: pip
-      path: packages/lazuli-transit
     # Install the package itself so autodoc can import wcc_etc, plus the
     # Sphinx toolchain from the [docs] extra in pyproject.toml
     - method: pip

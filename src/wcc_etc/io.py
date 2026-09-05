@@ -64,9 +64,11 @@ def resolve_bandpass(bandpass):
 
     fname = _LOCAL_FILTERS.get(str(bandpass).lower())
     if fname is not None:
-        return SpectralElement.from_file(os.path.join(_OTHER_FILTERS_DIR, fname),
-                                         wave_unit="Angstrom")
+        return SpectralElement.from_file(
+            os.path.join(_OTHER_FILTERS_DIR, fname), wave_unit="Angstrom"
+        )
     return SpectralElement.from_filter(bandpass)
+
 
 SENSORS = {
     "zwo": {

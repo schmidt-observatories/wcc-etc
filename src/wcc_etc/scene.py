@@ -739,6 +739,7 @@ class SceneElement(_MetaHolder_):
         band = self.meta.get("band", self.meta.get("bandpass"))
         if type(band) is str:
             from .io import resolve_bandpass
+
             band = resolve_bandpass(band)
         elif not isinstance(band, SpectralElement):
             raise ValueError(f"{band=} meta is neither a str nor a SpectralElement.")

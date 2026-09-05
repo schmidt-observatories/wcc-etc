@@ -1464,11 +1464,6 @@ class FitsImg(object):
         ann_pixels_used = 0
 
         if use_ann:
-            try:
-                ann_sum = float(phot_table["aperture_sum_1"][0])
-            except Exception:
-                ann_sum = 0.0
-
             mask = ann.to_mask(method="exact")[0]
             annulus_data = mask.multiply(img)
             ann_pixels = annulus_data[mask.data > 0]
@@ -1546,8 +1541,8 @@ class FitsImg(object):
                 ax.figure.colorbar(ax.images[0], ax=ax, label="Signal (electrons)")
             ax.grid(lw=0)
             # Draw aperture and annulus outlines
-            aper_patch = aper.plot(ax=ax, color="red", lw=1.6, alpha=0.9)[0]
-            ann_patch = ann.plot(ax=ax, color="white", lw=1.2, alpha=0.9)[0]
+            aper.plot(ax=ax, color="red", lw=1.6, alpha=0.9)
+            ann.plot(ax=ax, color="white", lw=1.2, alpha=0.9)
             # Mark the center
             ax.plot(cx, cy, marker="+", color="yellow", markersize=10, mew=1.5)
             # Annotation: show aperture radii in pixels

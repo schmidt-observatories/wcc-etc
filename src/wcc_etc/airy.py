@@ -3,8 +3,6 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.interpolate
-from astropy.io import fits
-from PIL import Image
 from scipy.signal import fftconvolve
 from scipy.special import j1
 
@@ -143,35 +141,6 @@ def psf_to_encircled_energy(psf, pixel_scale_x_mas, pixel_scale_y_mas):
         ee /= ee[-1]
     r_centers = 0.5 * (edges[1:] + edges[:-1])
     return r_centers, psf1d, ee
-
-
-def load_custom_psf(custom_psf_path, custom_psf_hdu=0):
-    """
-    Load a custom PSF from FITS or image. Returns (psf2d, pixel_scale_x_mas, pixel_scale_y_mas).
-    Pixel scale is not in file; user must set custom_psf_extent_mas externally. We compute mas/pixel from the
-    provided angular half-extent and the image size.
-    """
-    path = custom_psf_path
-    if path.lower().endswith((".fits", ".fit", ".fts")):
-        if fits is None:
-            raise RuntimeError("astropy is required to read FITS files.")
-        data = fits.getdata(path, ext=custom_psf_hdu).astype(float)
-    else:
-        if Image is None:
-            raise RuntimeError("Pillow is required to read image files (PNG/JPG/BMP).")
-        img = Image.open(path).convert("F")  # 32-bit float
-        data = np.array(img, dtype=float)
-
-    # Normalize to peak=1.0
-    peak = np.max(data)
-    if peak > 0:
-        data = data / peak
-
-    ny, nx = data.shape
-    # Compute mas/pixel from user-provided half-extent
-    px_scale_x = (2.0 * custom_psf_extent_mas) / nx
-    px_scale_y = (2.0 * custom_psf_extent_mas) / ny
-    return data, px_scale_x, px_scale_y
 
 
 def render_detector_psf(
