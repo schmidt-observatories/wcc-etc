@@ -191,6 +191,8 @@ class TestImageSimulator:
             "AiryPSF",
             "DefocusPSF",
             "CustomPSF",
+            "PolychromaticPSF",
+            "effective_wavelength",
             "SimulatedImage",
         ]:
             assert hasattr(wcc_etc, name), f"{name} not exported from wcc_etc"

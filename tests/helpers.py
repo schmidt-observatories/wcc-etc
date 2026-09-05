@@ -20,3 +20,15 @@ def make_simulation(mag=15, sensor="sony:r", name="G5V", bandpass="johnson_r"):
     """Build a Simulation from a standard zodi-background scene."""
     scene = make_scene(name=name, mag=mag, bandpass=bandpass)
     return wcc_etc.Simulation.from_sensor_and_scene(sensor, scene)
+
+
+def make_broadband_simulation(name="G5V", mag=12, sensor="sony:bb"):
+    """Build a broad-band Simulation of one spectral type.
+
+    The broad band is where the source SED matters most for the PSF: the filter
+    pivot is 582 nm regardless of colour, while the photons actually delivered
+    average 541 nm (O5V) to 716 nm (M5V). See issue #65.
+    """
+    return wcc_etc.Simulation.from_sensor_and_scene(
+        sensor, make_scene(name=name, mag=mag)
+    )

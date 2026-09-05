@@ -15,7 +15,8 @@ class Sensor(_MetaHolder_):
     bandpass : SpectralElement
         The total throughput (filter + sensor QE + telescope optics).
     wavelength : Quantity
-        The effective (pivot) wavelength of the bandpass, used to render the PSF.
+        The pivot wavelength of the bandpass (filter-only; the PSF is rendered at
+        the source-weighted Simulation.effective_wavelength instead).
     area : Quantity
         The total area of the sensor.
     gain : Quantity
@@ -266,16 +267,28 @@ class Sensor(_MetaHolder_):
     @property
     def wavelength(self):
         """
-        The effective (pivot) wavelength of the bandpass.
+        The pivot wavelength of the bandpass -- a property of the filter alone.
 
-        This is the representative wavelength used to render the monochromatic
-        diffraction PSF. We use the pivot wavelength rather than the
-        peak-transmission wavelength (``wpeak``): ``wpeak`` returns the
-        wavelength of maximum throughput, which for a roughly flat-topped filter
-        is essentially arbitrary within the band and biases the PSF size (the
-        Airy scale is linear in wavelength). The pivot wavelength is the
-        photometrically meaningful effective wavelength of the bandpass and is
-        independent of where the throughput happens to peak.
+        The pivot wavelength is preferred over the peak-transmission wavelength
+        (``wpeak``): ``wpeak`` returns the wavelength of maximum throughput,
+        which for a roughly flat-topped filter is essentially arbitrary within
+        the band, while the pivot wavelength is the photometrically meaningful
+        effective wavelength of the bandpass and is independent of where the
+        throughput happens to peak.
+
+        It is, however, computed from the throughput curve and *nothing else*,
+        so it is the same for every source: 582 nm through the WCC broad band
+        whether the star is an O5V or an M5V, even though the photons those two
+        actually deliver through that band average 541 nm and 716 nm. Since the
+        diffraction scale is linear in wavelength, the PSF is rendered at
+        :attr:`wcc_etc.Simulation.effective_wavelength` -- the source-weighted
+        wavelength -- and not at this pivot (issue #65). Use this for
+        filter-level bookkeeping, not for anything that has to know the source
+        colour.
+
+        See Also
+        --------
+        wcc_etc.spectral.effective_wavelength : the source-weighted counterpart.
         """
         # store in memory as a bit slow
         if not hasattr(self, "_wavelength") or self._wavelength is None:

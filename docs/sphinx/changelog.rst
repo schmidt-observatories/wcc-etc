@@ -4,6 +4,39 @@ Changelog
 This page summarizes notable changes. The authoritative history is the git log
 and the design specs under ``docs/superpowers/``.
 
+Unreleased
+----------
+
+- **Source-weighted PSF wavelength** (issue #65, option **A**). The PSF is now
+  rendered at the photon-weighted effective wavelength of the bandpass times
+  the source SED — :attr:`~wcc_etc.Simulation.effective_wavelength` — instead
+  of the filter pivot wavelength, which is the same for every source. Through
+  the WCC broad band this moves the render wavelength from 582.1 nm to 540.7 nm
+  (O5V) or 716.5 nm (M5V) and corrects the modelled central-pixel fraction by
+  −9 % to +36 %; the pivot-only model predicted premature saturation for red
+  sources. New :mod:`wcc_etc.spectral` module with
+  :func:`~wcc_etc.effective_wavelength` and
+  :func:`~wcc_etc.photon_weighted_subbands`.
+- **Polychromatic PSFs**: :class:`~wcc_etc.PolychromaticPSF` coadds a base PSF
+  rendered at ``n_sub`` equal-photon-weight sub-bands;
+  :meth:`~wcc_etc.Simulation.polychromatic_psf` builds one for a simulation's
+  band and source.
+- **Defocus products carry their optics.** The bundled Zemax Huygens defocus
+  PSFs now ship as FITS with ``PIXSCALE`` / ``WAVELEN`` / ``FNUM`` /
+  ``DEFOCUSW`` headers (regenerate with
+  :func:`wcc_etc.psfsim.huygens_txt_to_fits`), and
+  ``DEFOCUS_1WAVE_PATH`` / ``DEFOCUS_2WAVE_PATH`` point at them; the raw
+  ``.txt`` exports remain as ``DEFOCUS_*_TXT_PATH``.
+  :class:`~wcc_etc.DefocusPSF` and :class:`~wcc_etc.CustomPSF` gained a
+  ``wavelength_scaling`` argument (``"despace"`` — the default — ``"waves"``,
+  or ``"none"``) and now **raise** instead of silently ignoring
+  ``ctx.wavelength_m`` and ``ctx.fnum`` when they carry no reference metadata.
+  See :ref:`resampled-psf-scaling`.
+
+  *Migration*: a :class:`~wcc_etc.CustomPSF` built from a bare array needs
+  either ``ref_wavelength_m`` and ``ref_fnum``, or
+  ``wavelength_scaling="none"``.
+
 v0.1.0
 ------
 
