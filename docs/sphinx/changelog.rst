@@ -7,6 +7,24 @@ and the design specs under ``docs/superpowers/``.
 Unreleased
 ----------
 
+- **Host and diffuse elements are classified by** ``surface_brightness``
+  **, not by element name** (issue #63). A host given as an ordinary
+  integrated magnitude used to have its *total* count rate added to
+  **every** detector pixel, overstating its shot-noise contribution by
+  ``n_pix / enclosed_fraction`` — 64.6x for the representative mag 20 source /
+  mag 16 host scene (38.6 M e- of host charge instead of 597 k e-). Such an
+  element is now treated as unresolved and co-located with the source and is
+  rendered through the same PSF; only ``surface_brightness=True`` elements are
+  per-pixel. See :ref:`host-spatial-treatment`.
+
+  This also unifies the charge budget: :meth:`~wcc_etc.Simulation.get_peak_pixel`,
+  :meth:`~wcc_etc.Simulation.is_saturated`, the
+  :meth:`~wcc_etc.Simulation.get_image_snr` saturation check and
+  ``ImageSimulator.simulate`` previously disagreed about whether host charge
+  counted, so identical scenes gave different saturation answers depending on
+  which API you called. They now all see the same electrons, and
+  ``get_peak_pixel`` includes an unresolved host (it no longer drops it).
+
 - **Source-weighted PSF wavelength** (issue #65, option **A**). The PSF is now
   rendered at the photon-weighted effective wavelength of the bandpass times
   the source SED — :attr:`~wcc_etc.Simulation.effective_wavelength` — instead

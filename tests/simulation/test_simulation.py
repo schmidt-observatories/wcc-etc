@@ -129,7 +129,7 @@ class TestPeakPixel:
         vals = sim.get_peak_pixel(np.array([10.0, 100.0]), units="adu")
         assert vals[1] > vals[0]
 
-    def test_excludes_host(self):
+    def test_includes_unresolved_host(self):
         scene_no_host = wcc_etc.get_scene(
             name="G5V",
             mag=15,
@@ -149,8 +149,12 @@ class TestPeakPixel:
         )
         sim_no = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene_no_host)
         sim_with = wcc_etc.Simulation.from_sensor_and_scene("sony:r", scene_host)
-        assert sim_with.get_peak_pixel(100, units="e-").value == pytest.approx(
-            sim_no.get_peak_pixel(100, units="e-").value, rel=1e-9
+        # Issue #63: an unresolved host is co-located with the source and rides
+        # the same PSF, so it lands in the brightest pixel too. Every saturation
+        # API shares one charge budget; none of them may drop the host.
+        assert (
+            sim_with.get_peak_pixel(100, units="e-").value
+            > sim_no.get_peak_pixel(100, units="e-").value
         )
 
     def test_psf_profile_does_not_have_peak_pixel_fraction(self, sim):
