@@ -29,12 +29,11 @@ dependencies = [
   "toml",
   "tifffile",
   "photutils",
-  "lazuli-transit",
 ]
 
 [project.optional-dependencies]
-lightcurve = ["lazuli-transit[jaxoplanet]"]
-exoarchive = ["lazuli-transit[archive]"]
+lightcurve = ["jaxoplanet"]
+exoarchive = ["astroquery"]
 docs = [
   "sphinx>=7",
   "sphinx-rtd-theme>=2.0",
@@ -63,8 +62,15 @@ dev = [
 Homepage = "https://github.com/schmidt-observatories/wcc-etc"
 Repository = "https://github.com/schmidt-observatories/wcc-etc"
 
+# Both packages build from this one pyproject: wcc_etc from src/, and
+# lazuli_transit from packages/lazuli-transit/src. lazuli-transit is not on
+# PyPI, so declaring it as an external dependency made the documented
+# "pip install -e ." fail. Building it here keeps the install one step.
+# packages/lazuli-transit/pyproject.toml is deliberately left in place so
+# the package stays independently installable (the IFS consumes it directly)
+# and can still move to its own repo.
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "packages/lazuli-transit/src"]
 
 [tool.setuptools.package-data]
 "wcc_etc" = [
@@ -83,8 +89,7 @@ where = ["src"]
 testpaths = ["tests"]
 # Resolve `lazuli_transit` to the copy vendored in this repo, ahead of any
 # editable install of the standalone lazuli-transit repo that may be on the
-# path. CI installs ./packages/lazuli-transit, so this keeps local runs
-# testing the same source CI does.
+# path, so local runs test the same source CI does.
 pythonpath = [".", "packages/lazuli-transit/src"]
 
 [tool.ruff]

@@ -27,9 +27,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest
           pip install jaxoplanet   # transit backend; physics tests skip without it
-          # Two steps, exactly as the README "Installation" section documents:
-          # lazuli-transit is not on PyPI, so the in-repo copy installs first.
-          pip install -e ./packages/lazuli-transit
+          # One step, exactly as the README "Installation" section documents.
+          # This builds lazuli_transit from packages/lazuli-transit/ too.
           pip install -e .
 
       - name: Run tests
@@ -77,7 +76,6 @@ jobs:
       - name: Install
         run: |
           pip install mypy
-          pip install -e ./packages/lazuli-transit
           pip install -e .
 
       # Advisory until the existing errors are cleared (issue #68), then drop
@@ -112,12 +110,17 @@ jobs:
         run: |
           python -m venv /tmp/smoke
           /tmp/smoke/bin/pip install --upgrade pip
-          /tmp/smoke/bin/pip install ./packages/lazuli-transit
           /tmp/smoke/bin/pip install dist/*.whl
           cd /tmp   # import the installed wheel, not the source tree
           /tmp/smoke/bin/python - <<'EOF'
           # The README Quick Start, verbatim.
           from wcc_etc import get_scene, Simulation
+
+          # The single-step install must also have delivered lazuli_transit,
+          # which the root pyproject builds from packages/lazuli-transit/src.
+          import lazuli_transit
+
+          assert lazuli_transit.__version__
 
           scene = get_scene("K3IV", mag=20, host=None, background="zodi")
           sim = Simulation.from_sensor_and_scene("sony:bb", scene)
