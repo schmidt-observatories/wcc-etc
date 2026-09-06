@@ -15,7 +15,7 @@ class TestTotalOverAmplitude:
 
     @pytest.mark.parametrize("n", [1.0, 4.0])
     def test_matches_radial_integral(self, n):
-        """2 pi n r_e^2 e^bn bn^-2n Gamma(2n) == 2 pi int I(r) r dr (quad, no cusp sampling)."""
+        """Analytic F/I_e == 2 pi int I(r) r dr by quad (no cusp sampling error)."""
         r_eff = 20.0
         cut = Sersic2D(amplitude=1.0, r_eff=r_eff, n=n)
         num = 2 * np.pi * quad(lambda r: r * cut(r, 0.0), 0, np.inf)[0]
@@ -37,7 +37,7 @@ class TestRenderSersic:
         assert img.sum() == pytest.approx(1.0, rel=1e-2)
 
     def test_total_mode_loses_light_off_grid(self):
-        """A profile larger than the grid keeps less than unit flux — no renormalizing."""
+        """A profile larger than the grid keeps < 1 total flux; no renormalizing."""
         img = render_sersic({"r_eff": 5.0}, PLATE, 128)
         assert img.sum() < 0.5
 
