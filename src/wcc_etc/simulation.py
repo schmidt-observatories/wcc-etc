@@ -1108,9 +1108,12 @@ class Simulation(_MetaHolder_):
             # Sky and any *resolved* (surface-brightness) element contribute
             # per-pixel shot noise. The sky term lives in background_rate_per_pix
             # and MUST be included here (it is what makes faint sources
-            # sky-limited); omitting it overstates SNR.
+            # sky-limited); omitting it overstates SNR. The PSF-convolved
+            # extended-host image makes this a 2D per-pixel array.
             diffuse_per_pix = (
-                b["diffuse_rate_per_pix"] + b["background_rate_per_pix"]
+                b["diffuse_rate_per_pix"]
+                + b["background_rate_per_pix"]
+                + b["extended_rate_image"]
             ) * t_sec
             # An unresolved host rides the source PSF instead (#63).
             contaminant_e_total = b["contaminant_rate_total"] * t_sec
@@ -1238,7 +1241,11 @@ class Simulation(_MetaHolder_):
         # Sky + resolved (surface-brightness) elements contribute per-pixel shot
         # noise; the sky term must be included or the solved time is too short.
         # An unresolved host rides the source PSF instead (#63).
-        diffuse_rate_per_pix = b["diffuse_rate_per_pix"] + b["background_rate_per_pix"]
+        diffuse_rate_per_pix = (
+            b["diffuse_rate_per_pix"]
+            + b["background_rate_per_pix"]
+            + b["extended_rate_image"]
+        )
         result = aperture_time_for_snr(
             b["psf_norm"],
             b["plate_scale_mas"],

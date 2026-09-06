@@ -60,3 +60,36 @@ class TestRenderSersic:
         img = render_sersic({"r_eff": 0.1}, PLATE, 128, center=(40.0, 90.0))
         iy, ix = np.unravel_index(np.argmax(img), img.shape)
         assert (ix, iy) == (40, 90)
+
+
+# --- integration: ImageSimulator and the aperture functions ------------------
+
+from tests.helpers import make_scene  # noqa: E402
+from wcc_etc.psfsim import ImageSimulator, aperture_snr_radial  # noqa: E402
+
+
+class TestSimulateIncludesHost:
+    def test_clean_image_carries_extended_charge(self):
+        """simulate(add_noise=False) adds extended_rate_image * t to the clean image."""
+        host = {"mag": 17, "bandpass": "johnson_r", "profile": "sersic", "r_eff": 0.1}
+        scene = make_scene(mag=20, host="G5V", host_prop=host)
+        imsim = ImageSimulator.from_sensor_and_scene("sony:r", scene, npix=128)
+        hostless = ImageSimulator.from_sensor_and_scene(
+            "sony:r", make_scene(mag=20), npix=128
+        )
+        diff = (
+            imsim.simulate(10.0, add_noise=False).image_clean
+            - hostless.simulate(10.0, add_noise=False).image_clean
+        )
+        b = imsim.sim._image_render_bundle(imsim.default_psf, None, 128, 11)
+        assert np.allclose(diff, 10.0 * b["extended_rate_image"], rtol=1e-6, atol=1e-9)
+
+
+class TestDiffuseImage:
+    def test_uniform_image_matches_scalar(self):
+        """A constant 2D diffuse image reproduces the scalar per-pixel result."""
+        psf = np.zeros((31, 31))
+        psf[15, 15] = 1.0
+        scalar = aperture_snr_radial(psf, 17.0, 1e4, 3.0, 0.1, 2.0)["snr"]
+        image = aperture_snr_radial(psf, 17.0, 1e4, np.full((31, 31), 3.0), 0.1, 2.0)
+        assert np.allclose(scalar, image["snr"])

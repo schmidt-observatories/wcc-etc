@@ -106,7 +106,7 @@ the edge-loss bug wcc-sim's review flagged (P5).
 ### 4. `psfsim.py`
 
 - `ImageSimulator.simulate` adds the extended image from a shared
-  `Simulation._extended_rate_image(psf_norm, ctx)` helper (also used by
+  `Simulation.extended_rate_image(psf_norm, ctx)` helper (also used by
   `_image_render_bundle`), so `simulate` — which supports a sub-pixel
   `center=` the bundle does not — and the SNR path use one implementation.
   `dx, dy` are relative to the source position, i.e. to `center` when given.
