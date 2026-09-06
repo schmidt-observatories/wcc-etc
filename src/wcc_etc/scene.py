@@ -13,6 +13,7 @@ from synphot.models import (
     PowerLawFlux1D,
 )
 
+from .extended import SERSIC_DEFAULTS
 from .meta import _MetaHolder_
 
 __all__ = ["get_scene", "get_scene_from_file", "get_scene_element", "Scene"]
@@ -237,6 +238,9 @@ _SPECTRUM_PARAMS = {
         "comments",
     ],
 }
+
+# Spatial-profile shape parameters, mutable like the spectrum shape parameters.
+_PROFILE_PARAMS = {"sersic": ["r_eff", *SERSIC_DEFAULTS]}
 
 # Top level
 
@@ -787,6 +791,7 @@ class SceneElement(_MetaHolder_):
         name = self.meta.get("spectrum")
         if isinstance(name, str):
             params += _SPECTRUM_PARAMS.get(name.lower(), [])
+        params += _PROFILE_PARAMS.get(self.meta.get("profile"), [])
         return params
 
     @property
@@ -816,6 +821,32 @@ class SceneElement(_MetaHolder_):
         Boolean indicating if the magnitude is a surface brightness.
         """
         return self.meta.get("surface_brightness", False)
+
+    @property
+    def profile(self):
+        """
+        Spatial profile parameters (defaults filled), or None for a point /
+        uniform-surface-brightness element. Only ``"sersic"`` is supported;
+        ``r_eff`` (arcsec) is required, see :mod:`wcc_etc.extended`.
+        """
+        name = self.meta.get("profile")
+        if name is None:
+            return None
+        if name not in _PROFILE_PARAMS:
+            raise ValueError(
+                f"unknown profile {name!r}; supported: {list(_PROFILE_PARAMS)}"
+            )
+        if self.meta.get("r_eff") is None:
+            raise ValueError("a 'sersic' profile requires r_eff (arcsec)")
+        p = SERSIC_DEFAULTS | {
+            k: self.meta[k] for k in _PROFILE_PARAMS[name] if k in self.meta
+        }
+        if not (p["r_eff"] > 0 and p["n"] > 0 and 0 <= p["ellip"] < 1):
+            raise ValueError(
+                "invalid sersic profile: need r_eff > 0, n > 0, 0 <= ellip < 1; "
+                f"got {p}"
+            )
+        return p
 
 
 class Scene(_MetaHolder_):
