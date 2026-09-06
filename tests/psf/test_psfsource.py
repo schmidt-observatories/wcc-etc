@@ -331,7 +331,7 @@ class TestSolveTimeForSnr:
             r_aper_mas=300.0,
         )
         t = res["time_s"]
-        r_mas, enclosed, n_pix = _radial_cumulative(psf, plate)
+        r_mas, enclosed, n_pix, _ = _radial_cumulative(psf, plate)
         idx = int(
             np.clip(np.searchsorted(r_mas, 300.0, side="right") - 1, 0, r_mas.size - 1)
         )

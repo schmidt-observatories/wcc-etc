@@ -53,6 +53,14 @@ sim.update(source__mag=22)
 
 # Recompute SNR after the change
 snr_new = sim.get_snr(10)["snr"]
+
+# A transient on a galaxy: give the host a Sersic profile (arcsec / degrees).
+# mag is the total host magnitude; dx/dy offset the source from the nucleus.
+scene = get_scene(
+    "G5V", mag=21,
+    host="G5V",
+    host_prop={"mag": 16, "profile": "sersic", "r_eff": 0.5, "n": 4, "dx": 0.3},
+)
 ```
 
 # Tutorial

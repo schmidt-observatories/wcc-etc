@@ -924,13 +924,15 @@ class ImageSimulator:
         source_image = (source_e_total + contaminant_e_total) * psf_norm
         background_per_pix = comps["background_rate_per_pix"] * t_s
         diffuse_per_pix = comps["diffuse_rate_per_pix"] * t_s
+        # PSF-convolved Sersic host(s), if any (zeros otherwise).
+        extended_e = sim.extended_rate_image(psf_norm, ctx, comps) * t_s
         # One charge budget shared with get_peak_pixel / is_saturated /
         # _per_frame_clean_image_e / get_image_snr.
         bkg_per_pix = background_per_pix + diffuse_per_pix
         # dark current per pixel (uniform)
         dark_per_pix = (sim.sensor.dark_current * time).to(u.electron / u.pix).value
 
-        image_clean = source_image + bkg_per_pix + dark_per_pix
+        image_clean = source_image + bkg_per_pix + extended_e + dark_per_pix
 
         if add_noise:
             rng = np.random.default_rng(seed)
@@ -1647,9 +1649,10 @@ def _radial_cumulative(psf_norm, plate_scale_mas):
     """
     Radius-sorted cumulative geometry of a normalized PSF.
 
-    Returns (r_mas, enclosed_fraction, n_pix) as ascending-radius arrays:
-    enclosed_fraction is the cumulative PSF sum (psf sums to 1) and n_pix is the
-    number of pixels enclosed (1..N).
+    Returns (r_mas, enclosed_fraction, n_pix, order) as ascending-radius arrays:
+    enclosed_fraction is the cumulative PSF sum (psf sums to 1), n_pix is the
+    number of pixels enclosed (1..N) and order indexes the flattened grid in
+    that radial order (for summing other images the same way).
     """
     psf_norm = np.asarray(psf_norm, dtype=float)
     if psf_norm.ndim != 2 or psf_norm.shape[0] != psf_norm.shape[1]:
@@ -1664,7 +1667,16 @@ def _radial_cumulative(psf_norm, plate_scale_mas):
     r_sorted = r_pix[order]
     enclosed = np.cumsum(psf_norm.ravel()[order])
     n_pix = np.arange(1, r_sorted.size + 1)
-    return r_sorted * plate_scale_mas, enclosed, n_pix
+    return r_sorted * plate_scale_mas, enclosed, n_pix, order
+
+
+def diffuse_enclosed(diffuse_per_pix, order, n_pix):
+    """Enclosed diffuse charge per radius: a scalar is uniform (per_pix * n_pix);
+    a 2D image (e.g. a Sersic host) is summed in the same radial order."""
+    d = np.asarray(diffuse_per_pix, dtype=float)
+    if d.ndim == 0:
+        return d * n_pix
+    return np.cumsum(d.ravel()[order])
 
 
 def aperture_snr_radial(
@@ -1691,8 +1703,11 @@ def aperture_snr_radial(
         Detector plate scale, mas/pixel (to report radii in mas).
     source_e_total : float
         Total source electrons (all of the PSF, before aperture clipping).
-    diffuse_per_pix, dark_per_pix : float
-        Per-pixel diffuse (sky / resolved host) and dark-current electrons.
+    diffuse_per_pix : float or ndarray
+        Per-pixel diffuse (sky / resolved host) electrons; a 2D image on the PSF
+        grid for a spatially varying host (see Simulation.extended_rate_image).
+    dark_per_pix : float
+        Per-pixel dark-current electrons.
     read_noise : float
         Read noise (electrons rms per pixel).
     contaminant_e_total : float, optional
@@ -1706,14 +1721,16 @@ def aperture_snr_radial(
     dict of ndarrays, sorted by ascending radius:
         'r_mas', 'enclosed_fraction', 'n_pix', 'signal_e', 'noise_e', 'snr'.
     """
-    r_mas, enclosed, n_pix = _radial_cumulative(psf_norm, plate_scale_mas)
+    r_mas, enclosed, n_pix, order = _radial_cumulative(psf_norm, plate_scale_mas)
 
     signal = source_e_total * enclosed
     # An unresolved contaminant shares the source's PSF: its in-aperture charge
     # scales with the enclosed fraction, not with the pixel count. See issue #63.
     contaminant = contaminant_e_total * enclosed
-    per_pix_var = diffuse_per_pix + dark_per_pix + read_noise**2
-    noise = np.sqrt(signal + contaminant + per_pix_var * n_pix)
+    diffuse = diffuse_enclosed(diffuse_per_pix, order, n_pix)
+    noise = np.sqrt(
+        signal + contaminant + diffuse + (dark_per_pix + read_noise**2) * n_pix
+    )
     snr = np.divide(signal, noise, out=np.zeros_like(signal), where=noise > 0)
 
     return {
@@ -1771,14 +1788,15 @@ def aperture_time_for_snr(
     """
     if snr is None:
         raise ValueError("snr is required")
-    r_mas, enclosed, n_pix = _radial_cumulative(psf_norm, plate_scale_mas)
+    r_mas, enclosed, n_pix, order = _radial_cumulative(psf_norm, plate_scale_mas)
 
     A = source_rate_total * enclosed
     # Unresolved contaminants follow the PSF (enclosed), not the pixel count.
     B = (
         A
         + contaminant_rate_total * enclosed
-        + (diffuse_rate_per_pix + dark_rate_per_pix) * n_pix
+        + diffuse_enclosed(diffuse_rate_per_pix, order, n_pix)
+        + dark_rate_per_pix * n_pix
     )
     C = n_reads * read_noise**2 * n_pix
     t = solve_time_for_snr(snr, A, B, C)  # array over radii
