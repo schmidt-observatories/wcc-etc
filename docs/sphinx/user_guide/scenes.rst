@@ -39,8 +39,10 @@ element sits in; see :ref:`host-spatial-treatment`.
      - ``source``
      - ``host`` (default, ``surface_brightness=False``) — rides the source PSF
    * - **Resolved / extended**
-     - not expressible yet (no spatial profile support)
-     - ``host`` with ``surface_brightness=True`` — uniform per pixel, mag/arcsec²
+     - not expressible (the source is always a point)
+     - ``host`` with ``profile="sersic"`` — a PSF-convolved galaxy profile
+       (see :ref:`sersic-host`); or ``surface_brightness=True`` alone —
+       uniform per pixel, mag/arcsec²
 
 Worked examples
 ~~~~~~~~~~~~~~~
@@ -63,6 +65,14 @@ Worked examples
                    "surface_brightness": True},
              background="zodi")
 
+   # A transient in a galaxy: the host has a shape. Total host mag 16, n=4
+   # bulge, half-light radius 0.5", source 0.3" from the nucleus.
+   get_scene("G5V", mag=21, bandpass="johnson_r",
+             host="G5V",
+             host_prop={"mag": 16, "bandpass": "johnson_r", "profile": "sersic",
+                        "r_eff": 0.5, "n": 4, "dx": 0.3},
+             background="zodi")
+
 Answers to the usual questions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -72,9 +82,11 @@ Answers to the usual questions
 
 *Is a background galaxy a host?*
    Yes. Then decide whether it is resolved: a compact/unresolved one keeps the
-   ``surface_brightness=False`` default; an extended one must be given as
-   ``surface_brightness=True``, or all of its light is concentrated into the
-   PSF core and the peak pixel is overstated.
+   ``surface_brightness=False`` default; an extended one gets a
+   ``profile="sersic"`` (or, for a galaxy much larger than the field,
+   ``surface_brightness=True`` alone). Declaring an extended galaxy as a bare
+   integrated magnitude concentrates all of its light into the PSF core and
+   overstates the peak pixel.
 
 *Can I have two contaminants?*
    Not currently — there is one ``host`` slot. Combine them into a single
@@ -131,7 +143,11 @@ its name — and that flag decides how its light is spread over pixels:
 ``surface_brightness=True`` (the default for ``zodi``/``background``)
     The magnitude is per square arcsecond, so the count rate is **per pixel**
     and is applied uniformly across the detector — the right treatment for the
-    sky and for a **resolved, extended** host.
+    sky and for a host much larger than the field of view.
+
+``profile="sersic"`` (any ``surface_brightness``)
+    The element has a **spatial profile**: it is rendered as a Sersic galaxy,
+    convolved with the PSF, and added pixel by pixel. See :ref:`sersic-host`.
 
 .. code-block:: python
 
@@ -142,12 +158,97 @@ its name — and that flag decides how its light is spread over pixels:
    get_scene("G5V", mag=20,
              host={"name": "G5V", "mag": 22, "surface_brightness": True})
 
-.. note::
+   # resolved host with a shape: total mag 16 spread over a Sersic profile
+   get_scene("G5V", mag=20,
+             host={"name": "G5V", "mag": 16, "profile": "sersic", "r_eff": 0.5})
 
-   A host with a genuine spatial profile (Sersic, Gaussian half-light radius)
-   cannot be expressed yet. Model an extended host as a surface brightness;
-   declaring it as an integrated magnitude will concentrate all of its light
-   into the PSF core and overstate the peak pixel.
+.. _sersic-host:
+
+Hosts with a spatial profile: Sersic galaxies
+---------------------------------------------
+
+At the WCC plate scale (16.9 mas/pix) a 1″ galaxy spans ~60 pixels, so how
+much host light falls under the aperture depends on the galaxy's shape and on
+where the source sits in it — a TDE on the cusp of a bulge sees far more host
+shot noise than a supernova an arcsecond out on a disk. ``profile="sersic"``
+renders the host as an elliptical Sersic profile,
+
+.. math::
+
+   I(r) = I_e \exp\left\{-b_n\left[(r/r_e)^{1/n} - 1\right]\right\},
+
+convolves it with the rendered PSF, and shares that one image with
+:meth:`~wcc_etc.psfsim.ImageSimulator.simulate`,
+:meth:`~wcc_etc.Simulation.get_snr`,
+:meth:`~wcc_etc.Simulation.get_image_exptime_for_snr`,
+:meth:`~wcc_etc.Simulation.get_peak_pixel` and
+:meth:`~wcc_etc.Simulation.is_saturated`.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 10 12 64
+
+   * - key
+     - unit
+     - default
+     - meaning
+   * - ``profile``
+     - str
+     - —
+     - ``"sersic"`` (the only profile so far)
+   * - ``r_eff``
+     - arcsec
+     - required
+     - half-light radius along the major axis
+   * - ``n``
+     - –
+     - 1
+     - Sersic index: 1 is an exponential disk, 4 a de Vaucouleurs bulge
+   * - ``ellip``
+     - –
+     - 0
+     - ellipticity :math:`1 - b/a`
+   * - ``pa``
+     - deg
+     - 0
+     - major-axis position angle, counter-clockwise from +x
+   * - ``dx``, ``dy``
+     - arcsec
+     - 0
+     - offset of the host centre from the source (+x right, +y up)
+
+The magnitude keeps its existing meaning: with the default
+``surface_brightness=False``, ``mag`` is the **total** integrated host
+magnitude; with ``surface_brightness=True`` it is :math:`\mu_e`, the surface
+brightness at ``r_eff`` in mag/arcsec². Parameters are angular only — convert
+physical sizes and absolute magnitudes yourself. Typical r-band values:
+:math:`n` = 1–4, :math:`r_e` ≈ 0.3–1″ for hosts at :math:`z \approx 0.5`–1
+and 1–10″ for nearby galaxies, :math:`\mu_e` ≈ 20–24 mag/arcsec².
+
+.. code-block:: python
+
+   from wcc_etc import get_scene, Simulation
+
+   scene = get_scene(
+       "G5V", mag=21, bandpass="johnson_r",
+       host="G5V",
+       host_prop={"mag": 16, "bandpass": "johnson_r",
+                  "profile": "sersic", "r_eff": 0.5, "n": 4,
+                  "ellip": 0.3, "pa": 45, "dx": 0.3},
+       background="zodi",
+   )
+   sim = Simulation.from_sensorfilter("zwo:r", scene)
+   sim.get_snr(60)["snr"]                 # host shot noise included
+
+   sim.update(host__dx=0.0)               # move the source onto the nucleus
+   sim.update(host__r_eff=1.0, host__n=1) # profile parameters are mutable
+
+The profile parameters are mutable like any other element parameter, so
+``update`` sweeps over ``host__mag``, ``host__r_eff`` or ``host__dx`` work as
+expected. The deprecated analytic path (``get_snr_airy``) cannot place a
+profile and warns that it ignores it. See the
+:doc:`Sersic host tutorial </notebooks/07_sersic_host>` for images and SNR
+sweeps.
 
 Magnitude systems
 -----------------
