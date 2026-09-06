@@ -25,6 +25,9 @@ is self-contained — download it and run it interactively to experiment.
    * - :doc:`notebooks/06_source_spectra`
      - Parametric source spectra (blackbody / flat / power law / emission) and
        rebuilding them via ``update``.
+   * - :doc:`notebooks/07_sersic_host`
+     - A transient on a galaxy: Sersic-profile hosts (``profile="sersic"``),
+       total-magnitude vs :math:`\mu_e` normalization, nuclear vs offset SNR.
 
 .. toctree::
    :maxdepth: 1
@@ -36,3 +39,4 @@ is self-contained — download it and run it interactively to experiment.
    notebooks/04_psf_and_image_snr
    notebooks/05_n_reads_exptime
    notebooks/06_source_spectra
+   notebooks/07_sersic_host
