@@ -49,6 +49,7 @@ class TransitModel(FluxModel):
         self.t0, self.per, self.rp, self.a = t0, per, rp, a
         self.inc, self.ecc, self.w = inc, ecc, w
         self.limb_dark, self.u = limb_dark, list(u)
+        self.check_params()
 
     @classmethod
     def from_planet(
@@ -164,6 +165,32 @@ class TransitModel(FluxModel):
             body.update(eccentricity=self.ecc, omega_peri=np.deg2rad(self.w))
         return System(central).add_body(**body), limb_dark_light_curve
 
+    def check_params(self):
+        """Reject non-finite or unphysical orbital parameters.
+
+        Requires finite t0, per, rp, a, inc, ecc, w with per, rp, a > 0 and
+        0 <= ecc < 1. Checked on construction and again before evaluation, so an
+        archive row with missing values (NaN rp or a) fails loudly.
+        """
+        vals = dict(
+            t0=self.t0,
+            per=self.per,
+            rp=self.rp,
+            a=self.a,
+            inc=self.inc,
+            ecc=self.ecc,
+            w=self.w,
+        )
+        bad = [k for k, v in vals.items() if not np.isfinite(v)]
+        if bad:
+            raise ValueError(f"non-finite transit parameter(s): {bad}")
+        if not (self.per > 0 and self.rp > 0 and self.a > 0 and 0 <= self.ecc < 1):
+            raise ValueError(
+                "unphysical transit parameters: need per, rp, a > 0 and "
+                f"0 <= ecc < 1; got per={self.per}, rp={self.rp}, a={self.a}, "
+                f"ecc={self.ecc}"
+            )
+
     def check_limb_dark(self):
         """Validate ``limb_dark`` and ``u`` against the supported polynomial laws."""
         n_coeff = _POLY_LIMB_DARK.get(self.limb_dark)
@@ -181,6 +208,7 @@ class TransitModel(FluxModel):
 
     def relative_flux(self, time):
         time = np.asarray(time, dtype=float)
+        self.check_params()
         self.check_limb_dark()
         system, limb_dark_light_curve = self.build_system()
         flux = limb_dark_light_curve(system, *self.u)(time)

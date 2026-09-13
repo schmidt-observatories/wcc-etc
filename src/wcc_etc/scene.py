@@ -841,10 +841,15 @@ class SceneElement(_MetaHolder_):
         p = SERSIC_DEFAULTS | {
             k: self.meta[k] for k in _PROFILE_PARAMS[name] if k in self.meta
         }
-        if not (p["r_eff"] > 0 and p["n"] > 0 and 0 <= p["ellip"] < 1):
+        if not (
+            all(np.isfinite(v) for v in p.values())
+            and p["r_eff"] > 0
+            and p["n"] > 0
+            and 0 <= p["ellip"] < 1
+        ):
             raise ValueError(
-                "invalid sersic profile: need r_eff > 0, n > 0, 0 <= ellip < 1; "
-                f"got {p}"
+                "invalid sersic profile: need finite values, r_eff > 0, n > 0, "
+                f"0 <= ellip < 1; got {p}"
             )
         return p
 

@@ -316,3 +316,89 @@ class TestApertureSnr:
                 dark_per_pix=0.0,
                 read_noise=0.0,
             )
+
+
+class TestCompleteRings:
+    """Aperture profiles are built from complete equal-radius rings (#86, R8)."""
+
+    def _prof(self, psf, diffuse=1.0, read_noise=3.0):
+        return aperture_snr_radial(
+            psf,
+            plate_scale_mas=10.0,
+            source_e_total=1e4,
+            diffuse_per_pix=diffuse,
+            dark_per_pix=0.5,
+            read_noise=read_noise,
+        )
+
+    def _offset_gaussian(self, npix=41, sigma=2.5, off=0.3):
+        # sub-pixel offset centroid: ties survive only on the symmetry axes
+        yy, xx = np.mgrid[0:npix, 0:npix]
+        c = (npix - 1) / 2
+        a = np.exp(-(((xx - c - off) ** 2 + (yy - c - off) ** 2) / (2 * sigma**2)))
+        return a / a.sum()
+
+    def test_uniform_2x2_ee_half_takes_the_whole_ring(self):
+        """The review case: all four pixels tie, so ee_frac=0.5 cannot pick two."""
+        prof = self._prof(np.full((2, 2), 0.25), diffuse=0.0)
+        assert prof["n_pix"][select_aperture(prof, ee_frac=0.5)] == 4
+
+    def test_radii_strictly_increase(self):
+        prof = self._prof(_gaussian_psf(41, 3.0))
+        assert np.all(np.diff(prof["r_mas"]) > 0)
+
+    def test_n_pix_ends_at_full_array(self):
+        prof = self._prof(_gaussian_psf(41, 3.0))
+        assert prof["n_pix"][-1] == 41 * 41
+
+    @pytest.mark.parametrize("mode", [{"ee_frac": 0.9}, {"optimize": True}])
+    def test_reported_radius_reproduces_aperture(self, mode):
+        """Passing the returned radius back selects the same ring (symmetric PSF)."""
+        prof = self._prof(_gaussian_psf(41, 3.0))
+        idx = select_aperture(prof, **mode)
+        assert select_aperture(prof, r_aper_mas=prof["r_mas"][idx]) == idx
+
+    @pytest.mark.parametrize("mode", [{"ee_frac": 0.8}, {"optimize": True}])
+    def test_reported_radius_reproduces_aperture_with_nonuniform_host(self, mode):
+        """A gradient host image breaks the tie order but not the ring grouping."""
+        n = 41
+        host = np.linspace(0.0, 5.0, n)[None, :] * np.ones((n, 1))
+        prof = self._prof(self._offset_gaussian(n), diffuse=host)
+        idx = select_aperture(prof, **mode)
+        assert select_aperture(prof, r_aper_mas=prof["r_mas"][idx]) == idx
+
+    def test_nonuniform_host_noise_sums_whole_rings(self):
+        """Ring-grouped host noise equals the per-pixel cumulative sum at ring edges."""
+        n = 41
+        host = np.linspace(0.0, 5.0, n)[None, :] * np.ones((n, 1))
+        psf = self._offset_gaussian(n)
+        prof = self._prof(psf, diffuse=host, read_noise=0.0)
+        expect = np.sqrt(
+            1e4 * prof["enclosed_fraction"]
+            + np.cumsum(host.ravel()[np.argsort(_radii(psf), kind="stable")])[
+                prof["n_pix"] - 1
+            ]
+            + 0.5 * prof["n_pix"]
+        )
+        assert np.allclose(prof["noise_e"], expect)
+
+    def test_inverse_radius_reproduces_forward_snr(self):
+        """EE-selected inverse result: its radius recovers the target SNR and n_pix."""
+        from wcc_etc.psfsim import aperture_time_for_snr
+
+        psf = self._offset_gaussian()
+        res = aperture_time_for_snr(
+            psf, 10.0, 200.0, 0.5, 0.1, 3.0, snr=40.0, ee_frac=0.7
+        )
+        t = res["time_s"]
+        prof = aperture_snr_radial(psf, 10.0, 200.0 * t, 0.5 * t, 0.1 * t, 3.0)
+        idx = select_aperture(prof, r_aper_mas=res["r_aper_mas"])
+        assert (prof["n_pix"][idx], round(prof["snr"][idx], 6)) == (res["n_pix"], 40.0)
+
+
+def _radii(psf):
+    from wcc_etc.psfsim import psf_center
+
+    xc, yc = psf_center(psf)
+    yy, xx = np.mgrid[0 : psf.shape[0], 0 : psf.shape[1]]
+    return np.sqrt((xx - xc) ** 2 + (yy - yc) ** 2).ravel()
