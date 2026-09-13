@@ -7,6 +7,7 @@ Pandeia and the HST ETC. Distance / redshift are deliberately not modelled.
 
 import numpy as np
 from astropy.modeling.models import Sersic2D
+from scipy.integrate import dblquad
 from scipy.special import gamma, gammaincinv
 
 __all__ = ["SERSIC_DEFAULTS", "sersic_total_over_amplitude", "render_sersic"]
@@ -40,13 +41,22 @@ def render_sersic(
 
     ``profile`` holds ``r_eff`` (arcsec, required) and any of SERSIC_DEFAULTS.
     ``center`` is the source position (cx, cy) the ``dx``/``dy`` offset is
-    measured from; default is the grid centre, as in ImageSimulator.
+    measured from; default is the integer grid centre ``(npix-1)//2``
+    (``psfsim.grid_center``), the convention every PSF render shares.
     Returns the per-pixel profile: unit total flux (analytic, so light off the
     grid is lost, not renormalized) when ``total`` is True, else I/I_e.
+
+    Pixel integration: the 5x5 pixels around the cusp are integrated exactly
+    (adaptive quadrature split at the cusp), a core box around them is
+    pixel-averaged on an ``oversample`` x ``oversample`` sub-grid, and the
+    rest is sampled at pixel centres. Validated against analytic enclosed-flux
+    bounds for n in [0.5, 8] and r_eff down to 0.18 pixel: the on-grid total
+    is within ~1e-4 of the analytic value at the default ``oversample``, and
+    never exceeds 1 (see tests/imaging/test_extended.py).
     """
     p = SERSIC_DEFAULTS | profile
     if center is None:
-        center = ((npix - 1) / 2.0, (npix - 1) / 2.0)
+        center = ((npix - 1) // 2, (npix - 1) // 2)
     r_eff_pix = p["r_eff"] / plate_scale_arcsec
     amp = (
         1.0 / sersic_total_over_amplitude(p["n"], r_eff_pix, p["ellip"])
@@ -82,4 +92,32 @@ def render_sersic(
         img[ylo:yhi, xlo:xhi] = fine.reshape(
             yhi - ylo, oversample, xhi - xlo, oversample
         ).mean(axis=(1, 3))
+
+    # The cusp itself (I(0) = I_e e^bn, ~2000 I_e at n=4) falls off within a
+    # fraction of a sub-pixel for compact hosts, so no uniform grid converges.
+    # Integrate the 5x5 pixels around it exactly, splitting each pixel at the
+    # cusp so the quadrature only ever sees it at a corner. Uniform sampling of
+    # the remaining pixels is converged to <1e-4 of the total at oversample=11.
+    cx, cy = model.x_0.value, model.y_0.value
+    args = tuple(float(v) for v in model.parameters)
+
+    def sersic(y, x):
+        return Sersic2D.evaluate(x, y, *args)
+
+    def pixel_integral(ix, iy):
+        xs = sorted(
+            {ix - 0.5, ix + 0.5} | ({cx} if ix - 0.5 < cx < ix + 0.5 else set())
+        )
+        ys = sorted(
+            {iy - 0.5, iy + 0.5} | ({cy} if iy - 0.5 < cy < iy + 0.5 else set())
+        )
+        return sum(
+            dblquad(sersic, xa, xb, ya, yb, epsabs=0.0, epsrel=1e-6)[0]
+            for xa, xb in zip(xs, xs[1:])
+            for ya, yb in zip(ys, ys[1:])
+        )
+
+    for iy in range(max(y0 - 2, 0), min(y0 + 3, npix)):
+        for ix in range(max(x0 - 2, 0), min(x0 + 3, npix)):
+            img[iy, ix] = pixel_integral(ix, iy)
     return img

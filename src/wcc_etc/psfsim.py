@@ -79,14 +79,34 @@ def normalize_psf(psf):
     return psf / total
 
 
+def grid_center(npix):
+    """Nominal ``(cx, cy)`` of a PSF rendered with ``ctx.center=None``.
+
+    The integer pixel ``(npix-1)//2`` on both axes: the geometric centre of an
+    odd grid, and the pixel just below it on an even grid (where the Airy
+    renderer's odd stamp lands when cropped down). It is also the origin of an
+    ``fftconvolve(..., mode="same")`` kernel, so ``Simulation.extended_rate_image``
+    convolving a host placed here with a PSF leaves the host on the source.
+    """
+    c = (npix - 1) // 2
+    return (c, c)
+
+
+def crop_start(n, npix):
+    """First index of an ``n``-long axis kept by ``center_crop_or_pad`` to ``npix``.
+
+    The source centre ``(n-1)/2`` lands at ``(n-1)/2 - crop_start(n, npix)``:
+    ``grid_center(npix)`` when ``n`` is odd, half a pixel off it when even.
+    """
+    return int(np.floor((n - 1) / 2.0 - (npix - 1) / 2.0 + 0.5))
+
+
 def center_crop_or_pad(img, npix, fill=0.0):
     """Center-crop or zero-pad a 2D array to (npix, npix), preserving the center."""
     img = np.asarray(img, dtype=float)
     ny, nx = img.shape
     out = np.full((npix, npix), fill, dtype=float)
-    cy, cx = (ny - 1) / 2.0, (nx - 1) / 2.0
-    y0 = int(np.floor(cy - (npix - 1) / 2.0 + 0.5))
-    x0 = int(np.floor(cx - (npix - 1) / 2.0 + 0.5))
+    y0, x0 = crop_start(ny, npix), crop_start(nx, npix)
     y1, x1 = y0 + npix, x0 + npix
     sy0, sx0 = max(0, y0), max(0, x0)
     sy1, sx1 = min(ny, y1), min(nx, x1)
@@ -95,14 +115,17 @@ def center_crop_or_pad(img, npix, fill=0.0):
     return out
 
 
-def recenter(psf, center):
-    """Sub-pixel shift a grid-centered PSF so its center lands at (cx, cy)."""
-    npix = psf.shape[0]
-    grid_center = (npix - 1) / 2.0
+def recenter(psf, center, origin=None):
+    """Sub-pixel shift a PSF centred at ``origin`` so its centre lands at (cx, cy).
+
+    ``origin`` defaults to ``grid_center(npix)``; pass the actual centre when the
+    array was cropped from an even-sized stamp (see ``crop_start``).
+    """
+    ox, oy = origin if origin is not None else grid_center(psf.shape[0])
     cx, cy = float(center[0]), float(center[1])
     return shift(
         psf,
-        shift=(cy - grid_center, cx - grid_center),
+        shift=(cy - oy, cx - ox),
         order=3,
         mode="constant",
         cval=0.0,
@@ -565,7 +588,10 @@ class _ResampledPSF(PSFSource):
                 apply_jitter(psf, ctx.jitter_sigma_mas, ctx.plate_scale_mas)
             )
         if ctx.center is not None:
-            psf = normalize_psf(recenter(psf, ctx.center))
+            # zoom keeps the array centre at (nz-1)/2; the crop moved it here.
+            nz = zoomed.shape[0]
+            natural = (nz - 1) / 2.0 - crop_start(nz, ctx.npix)
+            psf = normalize_psf(recenter(psf, ctx.center, origin=(natural, natural)))
         return psf
 
     def cache_key(self):
@@ -831,7 +857,8 @@ class ImageSimulator:
         npix : int, optional
             Override the (square) grid size for this render only.
         center : tuple, optional
-            Sub-pixel (cx, cy) center. Defaults to the grid center.
+            Sub-pixel (cx, cy) center. Defaults to ``grid_center(npix)``, the
+            integer pixel ``(npix-1)//2``.
 
         Returns
         -------
@@ -888,7 +915,9 @@ class ImageSimulator:
         jitter_sigma_mas : float, optional
             Override the telescope jitter (mas). Defaults to the telescope value.
         center : tuple, optional
-            Sub-pixel (cx, cy) center for the PSF. Defaults to the grid center.
+            Sub-pixel (cx, cy) center for the PSF (and any Sersic host attached
+            to it). Defaults to ``grid_center(npix)``, the integer pixel
+            ``(npix-1)//2``.
         add_noise : bool, optional
             If True, apply Poisson shot + dark noise and Gaussian read noise.
             If False, return the noiseless electron image. Default True.
