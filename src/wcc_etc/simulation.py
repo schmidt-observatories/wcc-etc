@@ -1020,8 +1020,9 @@ class Simulation(_MetaHolder_):
         ----------
         time : float, array_like, or Quantity, optional
             Exposure time(s) in seconds (bare floats are interpreted as
-            seconds). Defaults to meta['time']. A scalar yields a dict of
-            Python float/int; an array yields a dict of equal-length ndarrays.
+            seconds). Defaults to meta['time']. Must be finite and >= 0; zero
+            time gives snr = 0. A scalar yields a dict of Python float/int; an
+            array yields a dict of equal-length ndarrays.
         mags : float, array_like, or None, optional
             Source magnitude(s) to evaluate at, sweeping the source brightness
             relative to its set magnitude (host/background/dark/read held fixed).
@@ -1071,6 +1072,9 @@ class Simulation(_MetaHolder_):
             raise ValueError("no time given, none set to meta")
         if not isinstance(time, u.Quantity):
             time = time * u.second
+        t_val = np.asarray(time.to(u.second).value, dtype=float)
+        if not np.all(np.isfinite(t_val)) or np.any(t_val < 0):
+            raise ValueError(f"time must be finite and >= 0, got {time}")
 
         n_reads = self._resolve_n_reads(n_reads)
         if psf is None:
@@ -1402,13 +1406,12 @@ class Simulation(_MetaHolder_):
     #  Internal      #
     # -------------- #
     def _resolve_n_reads(self, n_reads):
-        """n_reads from the argument, else meta['n_reads'], else 1. Must be >= 1."""
+        """n_reads from the argument, else meta['n_reads'], else 1. Integer >= 1."""
         if n_reads is None:
             n_reads = self._meta.get("n_reads", 1)
-        n_reads = int(n_reads)
-        if n_reads < 1:
-            raise ValueError(f"n_reads must be >= 1, got {n_reads}")
-        return n_reads
+        if not float(n_reads).is_integer() or n_reads < 1:
+            raise ValueError(f"n_reads must be an integer >= 1, got {n_reads!r}")
+        return int(n_reads)
 
     def _snr_coefficients(self, n_reads=None):
         """

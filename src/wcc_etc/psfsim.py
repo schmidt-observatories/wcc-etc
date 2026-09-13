@@ -1661,12 +1661,17 @@ def solve_time_for_snr(snr, A, B, C):
 
     A, B, C may be scalars or broadcastable arrays (A = signal rate, B = variance
     rate, C = constant read-noise variance). Returns t in the same shape (a float
-    if all inputs are scalar). Entries with A <= 0 return +inf.
+    if all inputs are scalar). Entries with A <= 0 return +inf (no solution).
+    snr must be finite and > 0: a negative target would be squared into a
+    positive time and NaN would propagate silently (#86).
     """
+    snr = float(snr)
+    if not (np.isfinite(snr) and snr > 0):
+        raise ValueError(f"snr must be a finite positive number, got {snr}")
     A = np.asarray(A, dtype=float)
     B = np.asarray(B, dtype=float)
     C = np.asarray(C, dtype=float)
-    s2 = float(snr) ** 2
+    s2 = snr**2
     disc = s2 * s2 * B**2 + 4.0 * A**2 * s2 * C
     with np.errstate(divide="ignore", invalid="ignore"):
         t = (s2 * B + np.sqrt(disc)) / (2.0 * A**2)
@@ -1674,14 +1679,23 @@ def solve_time_for_snr(snr, A, B, C):
     return t.item() if t.ndim == 0 else t
 
 
+RADIUS_TIE_TOL_PIX = 1e-6
+"""Pixels whose centre radii agree within this (pixels) form one ring."""
+
+
 def _radial_cumulative(psf_norm, plate_scale_mas):
     """
-    Radius-sorted cumulative geometry of a normalized PSF.
+    Radius-sorted cumulative geometry of a normalized PSF, one entry per ring.
 
-    Returns (r_mas, enclosed_fraction, n_pix, order) as ascending-radius arrays:
-    enclosed_fraction is the cumulative PSF sum (psf sums to 1), n_pix is the
-    number of pixels enclosed (1..N) and order indexes the flattened grid in
-    that radial order (for summing other images the same way).
+    Pixels at the same radius (within RADIUS_TIE_TOL_PIX) are always included
+    together, so every entry is a complete circular aperture and a reported
+    radius reproduces its pixel count and enclosed flux (#86).
+
+    Returns (r_mas, enclosed_fraction, n_pix, order) as strictly ascending
+    radius arrays: enclosed_fraction is the cumulative PSF sum (psf sums to 1)
+    at each ring's outer edge, n_pix the number of pixels enclosed, and order
+    indexes the flattened grid in radial order; ``cumsum(x[order])[n_pix - 1]``
+    sums another image the same way (see diffuse_enclosed).
     """
     psf_norm = np.asarray(psf_norm, dtype=float)
     if psf_norm.ndim != 2 or psf_norm.shape[0] != psf_norm.shape[1]:
@@ -1694,9 +1708,11 @@ def _radial_cumulative(psf_norm, plate_scale_mas):
     r_pix = np.sqrt((xx - xc) ** 2 + (yy - yc) ** 2).ravel()
     order = np.argsort(r_pix, kind="stable")
     r_sorted = r_pix[order]
-    enclosed = np.cumsum(psf_norm.ravel()[order])
-    n_pix = np.arange(1, r_sorted.size + 1)
-    return r_sorted * plate_scale_mas, enclosed, n_pix, order
+    # index of the last pixel of each equal-radius group
+    last = np.flatnonzero(np.diff(r_sorted) > RADIUS_TIE_TOL_PIX)
+    last = np.append(last, r_sorted.size - 1)
+    enclosed = np.cumsum(psf_norm.ravel()[order])[last]
+    return r_sorted[last] * plate_scale_mas, enclosed, last + 1, order
 
 
 def diffuse_enclosed(diffuse_per_pix, order, n_pix):
@@ -1705,7 +1721,7 @@ def diffuse_enclosed(diffuse_per_pix, order, n_pix):
     d = np.asarray(diffuse_per_pix, dtype=float)
     if d.ndim == 0:
         return d * n_pix
-    return np.cumsum(d.ravel()[order])
+    return np.cumsum(d.ravel()[order])[n_pix - 1]
 
 
 def aperture_snr_radial(
@@ -1774,21 +1790,38 @@ def aperture_snr_radial(
 
 def select_aperture(profile, r_aper_mas=None, ee_frac=None, optimize=False):
     """
-    Index into an `aperture_snr_radial` profile for the chosen aperture mode.
+    Index into a radial aperture profile for the chosen aperture mode.
 
-    Precedence: optimize (max SNR) > explicit r_aper_mas > ee_frac.
-    Raises ValueError if no mode is given.
+    Precedence: optimize > explicit r_aper_mas > ee_frac. ``optimize``
+    maximizes ``profile['snr']`` (forward) or, if present, minimizes
+    ``profile['time_s']`` (inverse). Every profile entry is a complete ring
+    (see _radial_cumulative), so the selected radius reproduces its aperture.
+
+    ``r_aper_mas`` must be finite, > 0 and inside the render grid (a radius
+    below the innermost ring selects that ring); ``ee_frac`` must be finite in
+    (0, 1]. Out-of-range requests raise rather than being clipped silently.
     """
     if optimize:
+        if "time_s" in profile:
+            return int(np.argmin(profile["time_s"]))
         return int(np.argmax(profile["snr"]))
     if r_aper_mas is not None:
         r_mas = profile["r_mas"]
-        idx = int(np.searchsorted(r_mas, r_aper_mas, side="right") - 1)
-        return int(np.clip(idx, 0, r_mas.size - 1))
+        r = float(r_aper_mas)
+        if not (np.isfinite(r) and r > 0):
+            raise ValueError(f"r_aper_mas must be finite and > 0, got {r}")
+        if r > r_mas[-1]:
+            raise ValueError(
+                f"r_aper_mas={r:g} exceeds the render grid (max {r_mas[-1]:g} mas); "
+                "increase npix"
+            )
+        return int(max(np.searchsorted(r_mas, r, side="right") - 1, 0))
     if ee_frac is not None:
         enc = profile["enclosed_fraction"]
-        idx = int(np.searchsorted(enc, ee_frac))
-        return int(np.clip(idx, 0, enc.size - 1))
+        f = float(ee_frac)
+        if not (np.isfinite(f) and 0 < f <= 1):
+            raise ValueError(f"ee_frac must be finite and in (0, 1], got {f}")
+        return int(min(np.searchsorted(enc, f), enc.size - 1))
     raise ValueError("select_aperture: specify optimize, r_aper_mas, or ee_frac.")
 
 
@@ -1814,6 +1847,8 @@ def aperture_time_for_snr(
     select_aperture: optimize (fastest radius) > r_aper_mas > ee_frac.
 
     Returns {'time_s', 'snr', 'r_aper_mas', 'enclosed_fraction', 'n_pix'}.
+    Raises ValueError if the target is unreachable (no source flux inside the
+    chosen aperture) instead of returning an infinite time.
     """
     if snr is None:
         raise ValueError("snr is required")
@@ -1829,19 +1864,17 @@ def aperture_time_for_snr(
     )
     C = n_reads * read_noise**2 * n_pix
     t = solve_time_for_snr(snr, A, B, C)  # array over radii
-
-    if optimize:
-        idx = int(np.argmin(t))  # radius reaching snr fastest
-    elif r_aper_mas is not None:
-        idx = int(
-            np.clip(
-                np.searchsorted(r_mas, r_aper_mas, side="right") - 1, 0, r_mas.size - 1
-            )
+    idx = select_aperture(
+        {"r_mas": r_mas, "enclosed_fraction": enclosed, "time_s": t},
+        r_aper_mas=r_aper_mas,
+        ee_frac=ee_frac,
+        optimize=optimize,
+    )
+    if not np.isfinite(t[idx]):
+        raise ValueError(
+            f"snr={snr:g} is unreachable: no source flux inside the aperture "
+            f"(r_aper_mas={r_mas[idx]:g})"
         )
-    elif ee_frac is not None:
-        idx = int(np.clip(np.searchsorted(enclosed, ee_frac), 0, enclosed.size - 1))
-    else:
-        raise ValueError("specify optimize, r_aper_mas, or ee_frac.")
 
     return {
         "time_s": float(t[idx]),

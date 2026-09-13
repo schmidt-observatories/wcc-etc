@@ -32,9 +32,19 @@ class TestProfileProperty:
         """Explicit kwargs override the defaults."""
         assert sersic_scene(n=4, ellip=0.3, pa=45, dx=0.8).host.profile["n"] == 4
 
-    @pytest.mark.parametrize("bad", [{"n": 0}, {"ellip": 1.0}, {"r_eff": -1}])
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            {"n": 0},
+            {"ellip": 1.0},
+            {"r_eff": -1},
+            {"n": float("nan")},
+            {"dx": float("inf")},
+            {"r_eff": float("nan")},
+        ],
+    )
     def test_invalid_values_raise(self, bad):
-        """n > 0, 0 <= ellip < 1, r_eff > 0 are enforced."""
+        """n > 0, 0 <= ellip < 1, r_eff > 0 and finite values are enforced (#86)."""
         with pytest.raises(ValueError):
             sersic_scene(**bad).host.profile
 

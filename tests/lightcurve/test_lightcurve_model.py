@@ -85,3 +85,32 @@ class TestTransitModel:
         model = TransitModel(limb_dark="nonlinear", u=(0.5, 0.1, 0.1, -0.1))
         with pytest.raises(ValueError, match="polynomial"):
             model.relative_flux(np.linspace(-0.01, 0.01, 5))
+
+
+class TestTransitParamValidation:
+    """Non-finite or unphysical orbital parameters are rejected up front (#86)."""
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            {"rp": np.nan},
+            {"a": np.nan},
+            {"per": 0.0},
+            {"per": -1.0},
+            {"rp": 0.0},
+            {"a": -5.0},
+            {"ecc": 1.0},
+            {"ecc": -0.1},
+            {"inc": np.inf},
+            {"t0": np.nan},
+        ],
+    )
+    def test_construction_rejects(self, bad):
+        with pytest.raises(ValueError):
+            TransitModel(**bad)
+
+    def test_mutation_is_checked_at_evaluation(self):
+        model = TransitModel()
+        model.rp = np.nan
+        with pytest.raises(ValueError):
+            model.relative_flux(np.linspace(-0.01, 0.01, 5))
