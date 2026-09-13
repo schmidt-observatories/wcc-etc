@@ -58,7 +58,7 @@ class TestExtendedRateImage:
         """mu_e mode: the pixel at r_eff reads the uniform-SB per-pixel rate."""
         sim = sersic_sim(surface_brightness=True, mag=22, r_eff=0.5, n=1.0)
         b = sim._image_render_bundle(sim.default_psf, None, 128, 11)
-        c = int(round((128 - 1) / 2))
+        c = (128 - 1) // 2  # psfsim.grid_center: where a center=None render sits
         r_pix = int(round(0.5 / (b["plate_scale_mas"] / 1000.0)))
         assert b["extended_rate_image"][c, c + r_pix] == pytest.approx(
             uniform_sb_rate(22), rel=5e-2
@@ -69,9 +69,7 @@ class TestExtendedRateImage:
         sim = sersic_sim(dx=0.3)
         b = sim._image_render_bundle(sim.default_psf, None, 128, 11)
         _, ix = np.unravel_index(np.argmax(b["extended_rate_image"]), (128, 128))
-        assert ix == pytest.approx(
-            63.5 + 0.3 / (b["plate_scale_mas"] / 1000.0), abs=1.5
-        )
+        assert ix == pytest.approx(63 + 0.3 / (b["plate_scale_mas"] / 1000.0), abs=0.5)
 
     def test_zero_image_without_profile(self):
         """No extended element -> an all-zero image of the right shape."""

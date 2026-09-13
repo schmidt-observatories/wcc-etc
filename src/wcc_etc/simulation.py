@@ -896,10 +896,14 @@ class Simulation(_MetaHolder_):
     def extended_rate_image(self, psf_norm, ctx, comps=None):
         """PSF-convolved e-/s/pix image of the profiled (extended) elements.
 
-        Profiles are rendered on a grid padded by ``npix`` (rounded to even) and
-        cropped back, so light from just outside the detector grid still
-        convolves inward -- no edge loss. ``dx``/``dy`` are measured from
-        ``ctx.center`` (the source). Zeros when the scene has no extended element.
+        Each profile is rendered at the integer centre of a grid padded by
+        ``npix`` (rounded to even) and convolved with ``psf_norm`` in
+        ``mode="same"``, whose kernel origin is that same integer centre
+        (``psfsim.grid_center``). The host therefore lands wherever the PSF put
+        the source -- ``ctx.center`` or the PSF class's natural centre, odd or
+        even grid -- and ``dx``/``dy`` are offsets from the source. The padding
+        lets light from just outside the detector grid convolve inward -- no
+        edge loss. Zeros when the scene has no extended element.
         """
         from .extended import render_sersic
         from .psfsim import center_crop_or_pad
@@ -910,17 +914,13 @@ class Simulation(_MetaHolder_):
         image = np.zeros((npix, npix))
         if not comps["extended"]:
             return image
-        pad = 2 * (npix // 2)
-        big = npix + pad
-        cx, cy = ctx.center if ctx.center is not None else ((npix - 1) / 2.0,) * 2
-        center = (cx + pad / 2, cy + pad / 2)
+        big = npix + 2 * (npix // 2)
         for rate, profile, is_sb in comps["extended"]:
             image_big = rate * render_sersic(
                 profile,
                 ctx.plate_scale_mas / 1000.0,
                 big,
                 ctx.oversample,
-                center=center,
                 total=not is_sb,
             )
             image += center_crop_or_pad(

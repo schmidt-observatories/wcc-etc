@@ -170,6 +170,42 @@ class TestPSFUtilities:
         assert ctx.oversample == 11
 
 
+def _centroid(img, r=6):
+    """Flux-weighted (x, y) centre within r pixels of the brightest pixel.
+
+    Windowed because Airy wings cut by the grid edge bias a whole-image centroid
+    by a few hundredths of a pixel; a half-pixel placement error still shows.
+    """
+    iy, ix = np.unravel_index(np.argmax(img), img.shape)
+    yy, xx = np.indices(img.shape)
+    w = img * (np.hypot(xx - ix, yy - iy) <= r)
+    return (xx * w).sum() / w.sum(), (yy * w).sum() / w.sum()
+
+
+class TestRequestedCenter:
+    """ctx.center is honoured to sub-pixel precision on odd and even grids (#84, R5)."""
+
+    @pytest.mark.parametrize("npix", [64, 65])
+    def test_airy_lands_on_requested_center(self, npix):
+        ctx = _airy_ctx(npix=npix)
+        ctx.center = (40.0, 32.25)
+        assert _centroid(AiryPSF().render(ctx)) == pytest.approx(
+            (40.0, 32.25), abs=0.02
+        )
+
+    @pytest.mark.parametrize("npix", [64, 65])
+    @pytest.mark.parametrize("nsrc", [50, 51])
+    def test_custom_lands_on_requested_center(self, npix, nsrc):
+        """Even and odd source arrays (half-integer / integer natural centres) both land."""
+        yy, xx = np.indices((nsrc, nsrc))
+        c = (nsrc - 1) / 2.0
+        arr = np.exp(-((xx - c) ** 2 + (yy - c) ** 2) / (2 * 1.5**2))
+        ctx = _grid_ctx(3.76, npix=npix)
+        ctx.center = (40.0, 32.25)
+        psf = CustomPSF(arr, src_um_per_pix=3.76, wavelength_scaling="none").render(ctx)
+        assert _centroid(psf) == pytest.approx((40.0, 32.25), abs=0.02)
+
+
 class TestPSFSource:
     def test_base_is_abstract(self):
         with pytest.raises(NotImplementedError):
