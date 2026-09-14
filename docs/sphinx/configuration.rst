@@ -29,7 +29,8 @@ Sensors are addressed as ``"kind:band"``. The available combinations:
 
 .. note::
 
-   The narrowband bands ``sony:halpha`` / ``sony:nii`` / ``sony:oiii`` /
+   The H-alpha bands ``sony:halpha2`` / ``sony:halpha6`` / ``sony:halpha20``
+   (2, 6 and 20 nm wide) have EOL throughput files. ``sony:hbeta`` /
    ``sony:heii`` exist as placeholders but have no throughput file yet, so they
    are not usable until those CSVs are added.
 
