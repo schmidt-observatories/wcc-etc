@@ -7,6 +7,17 @@ and the design specs under ``docs/superpowers/``.
 Unreleased
 ----------
 
+H-alpha filters
+~~~~~~~~~~~~~~~
+
+- Three H-alpha bands on the Sony (IMX455) sensors now have EOL telescope + WCC
+  throughput curves and are usable with
+  :meth:`~wcc_etc.Simulation.from_sensorfilter`: ``zwo:halpha2`` (2 nm,
+  position 10), ``zwo:halpha6`` (6 nm, position 9, formerly the N-II
+  placeholder) and ``zwo:halpha20`` (20 nm, position 21, formerly the O-III
+  placeholder). The ``nii`` / ``oiii`` keys are removed; ``hbeta`` / ``heii``
+  remain unimplemented placeholders.
+
 Plotting and PSF introspection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
