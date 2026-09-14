@@ -331,11 +331,13 @@ Examples:
    For ``"emission"`` you can pass ``mag=None`` to use the absolute integrated
    line fluxes directly (no magnitude normalization).
 
-.. warning::
+.. note::
 
-   The narrowband filters ``sony:halpha`` / ``sony:nii`` / ``sony:oiii`` /
-   ``sony:heii`` currently have placeholder throughput files, so emission-line
-   sources cannot yet be observed through them until those CSVs are added.
+   Three H-alpha bands are available on the Sony sensors: ``sony:halpha2``,
+   ``sony:halpha6`` and ``sony:halpha20`` (2, 6 and 20 nm wide). The
+   ``sony:hbeta`` / ``sony:heii`` bands are still placeholders with no
+   throughput file, so emission-line sources cannot be observed through them
+   until those CSVs are added.
 
 Rebuilding a parametric spectrum with ``update``
 -------------------------------------------------

@@ -13,6 +13,8 @@ from wcc_etc.io import (
 from wcc_etc.psfsim import AiryPSF, DefocusPSF, ImageSimulator
 from wcc_etc.simulation import Simulation, _psf_from_focus_level
 
+HALPHA = ("zwo:halpha2", "zwo:halpha6", "zwo:halpha20")
+
 
 class TestSensorRegistry:
     def test_zwo_no_legacy_defocus(self):
@@ -73,8 +75,12 @@ class TestSensorRegistry:
             _psf_from_focus_level("3wave")
 
     def test_narrowband_filters_not_implemented(self):
-        for sf in ("zwo:nii", "zwo:halpha", "zwo:hbeta", "zwo:heii", "zwo:oiii"):
+        for sf in ("zwo:hbeta", "zwo:heii"):
             assert _SENSORFILTER_IMPLEMENTED[sf] is False
+
+    @pytest.mark.parametrize("sf", HALPHA)
+    def test_halpha_filters_are_implemented(self, sf):
+        assert _SENSORFILTER_IMPLEMENTED[sf] is True
 
     def test_standard_filters_are_implemented(self):
         for sf in ("zwo:r", "zwo:r+1", "zwo:bb2", "qcmos:bb"):
@@ -110,9 +116,22 @@ class TestFromSensorfilter:
         )
 
     def test_not_implemented_raises(self):
-        for sf in ("zwo:nii", "zwo:halpha", "zwo:hbeta", "zwo:heii", "zwo:oiii"):
+        for sf in ("zwo:hbeta", "zwo:heii"):
             with pytest.raises(NotImplementedError, match="not yet implemented"):
                 Simulation.from_sensorfilter(sf, make_scene())
+
+    @pytest.mark.parametrize("sf", HALPHA)
+    def test_halpha_builds_working_sim(self, sf):
+        """Each H-alpha band loads its EOL throughput CSV and yields a finite SNR."""
+        assert Simulation.from_sensorfilter(sf, make_scene()).get_snr(60)["snr"] > 0
+
+    def test_halpha_bandwidth_orders_snr(self):
+        """Wider H-alpha bands collect more continuum: SNR 20nm > 6nm > 2nm."""
+        scene = make_scene()
+        snr = [
+            Simulation.from_sensorfilter(sf, scene).get_snr(60)["snr"] for sf in HALPHA
+        ]
+        assert snr[0] < snr[1] < snr[2]
 
     def test_unknown_raises(self):
         with pytest.raises(ValueError, match="Unknown sensorfilter"):
