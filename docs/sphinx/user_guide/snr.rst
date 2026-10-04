@@ -31,8 +31,10 @@ grid, performs circular-aperture photometry, and returns a **dictionary**:
 Choosing the aperture
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Aperture precedence is ``optimize`` > ``r_aper_mas`` > ``ee_frac``; if none is
-given, the Simulation's stored ``r_aper_mas`` is used.
+Aperture precedence is ``optimize`` > ``r_aper_mas`` > ``ee_frac``. If none is
+given, the aperture follows the PSF: 70 mas for the in-focus Airy PSF, the
+SNR-optimized radius for a defocused filter (``zwo:r+1``, ``zwo:bb2``, ...),
+or the Simulation's own ``r_aper_mas`` if one was set at construction.
 
 .. code-block:: python
 

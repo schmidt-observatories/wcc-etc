@@ -4,6 +4,7 @@ import astropy.units as u
 import pytest
 
 from wcc_etc.sensor import Sensor
+from wcc_etc.utils import parse_and_interpolate
 
 
 class TestSensor:
@@ -174,3 +175,53 @@ class TestSensor:
         s = self._make()
         with pytest.raises(ValueError):
             s.adc_max
+
+
+class TestReadNoiseMargin:
+    """The read-noise margin is an explicit config key, not a hidden factor (#97)."""
+
+    def _config(self, **kw):
+        return dict(
+            throughput=None,
+            pixel_size=5,
+            sensor_area=100,
+            read_noise=2.5,
+            dark_current=0.1,
+            gain=2.0,
+            well_depth=50000,
+            **kw,
+        )
+
+    def test_margin_defaults_to_one(self):
+        """Without the key the config read noise is used as is."""
+        s = Sensor.from_config(self._config())
+        assert s.read_noise == 2.5 * u.electron / u.pix
+
+    def test_margin_scales_config_read_noise(self):
+        """read_noise_margin multiplies the configured read noise."""
+        s = Sensor.from_config(self._config(read_noise_margin=2.0))
+        assert s.read_noise == 5.0 * u.electron / u.pix
+
+    def test_zwo_read_noise_is_margin_times_datasheet(self):
+        """The ZWO curve value times the config margin, nothing hidden."""
+        s = Sensor.from_name("zwo:r")
+        datasheet = parse_and_interpolate(
+            s.meta["path_read_noise"], s.meta["gain_setting"]
+        )
+        expected = datasheet * s.meta["read_noise_margin"]
+        assert s.read_noise.to(u.electron / u.pix).value == pytest.approx(expected)
+
+    def test_qcmos_read_noise_unchanged(self):
+        """qCMOS still carries 2 x 0.28 e- after moving the factor to config."""
+        s = Sensor.from_name("qcmos:bb")
+        assert s.read_noise.to(u.electron / u.pix).value == pytest.approx(0.56)
+
+    def test_get_snr_reports_effective_read_noise(
+        self,
+    ):
+        """get_snr exposes the per-pixel read noise it used."""
+        from tests.helpers import make_simulation
+
+        sim = make_simulation(mag=16)
+        rn = sim.sensor.read_noise.to(u.electron / u.pix).value
+        assert sim.get_snr(10)["read_noise_e"] == pytest.approx(rn)

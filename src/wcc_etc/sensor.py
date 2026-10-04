@@ -159,9 +159,9 @@ class Sensor(_MetaHolder_):
         gain_setting = config.get("gain_setting", None)
         if gain_setting is not None:
             gain = parse_and_interpolate(config.get("path_gain_curve"), gain_setting)
-            read_noise = (
-                parse_and_interpolate(config.get("path_read_noise"), gain_setting) * 2
-            )  # multiply by 2 to allow for unmodelled noise sources
+            read_noise = parse_and_interpolate(
+                config.get("path_read_noise"), gain_setting
+            )
             dark_current = parse_and_interpolate(
                 config.get("path_dark_current"), sensor_temp.to("Celsius").value
             )  # careful temperature here.
@@ -174,6 +174,12 @@ class Sensor(_MetaHolder_):
             read_noise = config.get("read_noise")
             dark_current = config.get("dark_current")
             well_depth = config.get("well_depth")
+
+        # Explicit margin on the datasheet read noise for noise sources the
+        # model does not carry (RTS, non-linearity). 1.0 means the datasheet
+        # value; the bundled configs use 2.0 (#97).
+        if read_noise is not None:
+            read_noise = read_noise * config.get("read_noise_margin", 1.0)
 
         # ADC properties
         bit_depth = config.get("bit_depth")
