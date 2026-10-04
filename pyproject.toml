@@ -21,12 +21,12 @@ requires-python = ">=3.11"
 dependencies = [
   "synphot",
   "numpy",
+  "scipy",
   "astropy",
   "matplotlib",
   "pandas",
   "bokeh>=3.6",
   "flask",
-  "toml",
   "tifffile",
   "photutils",
 ]
