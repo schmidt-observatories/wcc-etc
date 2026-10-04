@@ -16,6 +16,10 @@ from .sensor import Sensor
 from .telescope import Telescope
 from .utils import list_of_quantity_to_array
 
+# Default aperture radius for the diffraction-limited Airy core. Defocused PSFs
+# get an SNR-optimized radius instead; see Simulation.default_aperture.
+DEFAULT_R_APER_MAS = 70
+
 # import logging
 # logging.basicConfig(level=logging.INFO)
 # logger = logging.getLogger(__name__)
@@ -95,7 +99,14 @@ class Simulation(_MetaHolder_):
     _mutable_parameters = ["time", "r_aper_mas", "n_reads"]
 
     def __init__(
-        self, telescope, sensor, scene=None, time=90, r_aper_mas=70, n_reads=1, meta={}
+        self,
+        telescope,
+        sensor,
+        scene=None,
+        time=90,
+        r_aper_mas=None,
+        n_reads=1,
+        meta={},
     ):
         """
         Initialize a Simulation object.
@@ -111,7 +122,9 @@ class Simulation(_MetaHolder_):
         time : float or array_like, optional
             Exposure time(s) in seconds. Default is 90.
         r_aper_mas : float, optional
-            Radius of the aperture in milliarcseconds. Default is 70.
+            Radius of the aperture in milliarcseconds. None (default) picks it
+            per PSF: 70 mas for the Airy PSF, the SNR-optimized radius for a
+            defocused or custom PSF (see default_aperture).
         n_reads : int, optional
             Number of coadded frames (read noise is incurred per frame; saturation
             is evaluated per-frame). Default is 1.
@@ -1014,7 +1027,8 @@ class Simulation(_MetaHolder_):
         for a circular aperture. get_snr now delegates to this method; the
         in-focus default-aperture case reproduces get_snr_airy to within ~1%.
         Aperture precedence: optimize > r_aper_mas > ee_frac; if none is
-        given, the Simulation's r_aper_mas is used.
+        given, default_aperture decides (70 mas for the Airy PSF, optimized
+        otherwise).
 
         Parameters
         ----------
@@ -1098,7 +1112,7 @@ class Simulation(_MetaHolder_):
 
         # default to the ETC aperture if no mode was requested
         if not optimize and r_aper_mas is None and ee_frac is None:
-            r_aper_mas = self._meta.get("r_aper_mas")
+            r_aper_mas, optimize = self.default_aperture(psf)
 
         read_noise = self.sensor.read_noise.to(u.electron / u.pix).value * np.sqrt(
             n_reads
@@ -1147,6 +1161,7 @@ class Simulation(_MetaHolder_):
                 "n_pix": int(prof["n_pix"][idx]),
                 "n_saturated": int(mask.sum()),
                 "saturated": bool(mask.any()),
+                "read_noise_e": read_noise,
             }
 
         def _assemble_array(results):
@@ -1158,6 +1173,7 @@ class Simulation(_MetaHolder_):
                     "noise_e",
                     "enclosed_fraction",
                     "r_aper_mas",
+                    "read_noise_e",
                 )
             }
             out["n_pix"] = np.array([r["n_pix"] for r in results], dtype=int)
@@ -1211,7 +1227,7 @@ class Simulation(_MetaHolder_):
         Exposure time (s) to reach a target SNR on the PSF-aware path.
 
         Inverse of get_image_snr. Aperture precedence: optimize > r_aper_mas >
-        ee_frac; if none is given the Simulation's r_aper_mas is used. Note
+        ee_frac; if none is given default_aperture decides. Note
         optimize here picks the radius that reaches the target SNR *fastest*
         (minimum time), the inverse of get_image_snr's max-SNR optimize. Returns
         a dict {'time_s', 'snr', 'r_aper_mas', 'enclosed_fraction', 'n_pix',
@@ -1240,7 +1256,7 @@ class Simulation(_MetaHolder_):
         read_noise = self.sensor.read_noise.to(u.electron / u.pix).value
 
         if not optimize and r_aper_mas is None and ee_frac is None:
-            r_aper_mas = self._meta.get("r_aper_mas")
+            r_aper_mas, optimize = self.default_aperture(psf)
 
         # Sky + resolved (surface-brightness) elements contribute per-pixel shot
         # noise; the sky term must be included or the solved time is too short.
@@ -1457,7 +1473,7 @@ class Simulation(_MetaHolder_):
         wavelength = self.effective_wavelength.to("m")
         r_psf_mas, psf1d, ee, ee_at_aper = get_airy_and_ee_curve(
             wavelength,
-            r_aper_mas=self._meta["r_aper_mas"],  # no default allower
+            r_aper_mas=self._meta.get("r_aper_mas", DEFAULT_R_APER_MAS),
             jitter_sigma_mas=self.telescope.jitter_sigma.to("mas"),
             fnum=self.telescope.f_num,
             D=self.telescope.diameter_primary.value,
@@ -1468,7 +1484,9 @@ class Simulation(_MetaHolder_):
         # compute the number of pixels associated to the PSF
         plate_scale = self.sensor.get_plate_scale(self.telescope)  # in arcsec/pix
         num_pixels_at_r = (
-            self._meta["r_aper_mas"] * u.arcsec / (plate_scale * 1000)
+            self._meta.get("r_aper_mas", DEFAULT_R_APER_MAS)
+            * u.arcsec
+            / (plate_scale * 1000)
         )  # pix
         num_psf_pixels = np.pi * num_pixels_at_r**2  # in pixels**2
 
@@ -1563,6 +1581,23 @@ class Simulation(_MetaHolder_):
             for element_name in ["telescope", "sensor", "scene"]
             if (element := getattr(self, element_name)) is not None
         }
+
+    def default_aperture(self, psf):
+        """Aperture mode used when a call gives no r_aper_mas/ee_frac/optimize.
+
+        Returns ``(r_aper_mas, optimize)``: the Simulation's own ``r_aper_mas``
+        if one was set; else 70 mas for an ``AiryPSF``; else ``optimize=True``,
+        since the fixed Airy-core aperture holds only a few percent of a
+        defocused PSF (#95).
+        """
+        from .psfsim import AiryPSF
+
+        r_aper_mas = self._meta.get("r_aper_mas")
+        if r_aper_mas is not None:
+            return r_aper_mas, False
+        if isinstance(psf, AiryPSF):
+            return DEFAULT_R_APER_MAS, False
+        return None, True
 
     @property
     def default_psf(self):

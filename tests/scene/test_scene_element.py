@@ -9,7 +9,8 @@ from synphot.models import BlackBodyNorm1D
 from synphot import units as su
 
 from wcc_etc.io import expand_path
-from wcc_etc.scene import SceneElement
+import wcc_etc
+from wcc_etc.scene import SceneElement, get_scene_element
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -558,3 +559,31 @@ class TestMutableParameters:
         bb.update(spectrum="powerlaw")
         after = _flam_ratio(bb.get_spectrum(apply_mag=False), 4500, 7500)
         assert np.isclose(after, before, rtol=1e-6)
+
+
+class TestEmissionAbsoluteFlux:
+    """Emission-line sources keep their absolute fluxes (#96)."""
+
+    LINES = [{"wave": 6562.8, "flux": 1e-15}]
+
+    def test_get_scene_with_mag_raises(self):
+        """A magnitude would renormalize the lines away, so it is refused."""
+        with pytest.raises(ValueError, match="absolute line flux"):
+            wcc_etc.get_scene("emission", mag=21, lines=self.LINES)
+
+    def test_get_scene_with_mag_none_works(self):
+        """mag=None is the documented way to build an emission scene."""
+        scene = wcc_etc.get_scene("emission", mag=None, lines=self.LINES)
+        assert scene.source.mag is None
+
+    def test_element_defaults_to_no_mag(self):
+        """get_scene_element('emission') does not fall back to mag=21."""
+        assert get_scene_element("emission", lines=self.LINES).mag is None
+
+    def test_surface_brightness_scales_with_area(self):
+        """A per-arcsec^2 emission spectrum with mag=None scales by the area."""
+        neb = get_scene_element("emission", lines=self.LINES, surface_brightness=True)
+        w = 6562.8 * u.AA
+        f1 = neb.get_spectrum(area=1.0)(w, flux_unit=su.FLAM).value
+        f3 = neb.get_spectrum(area=3.0 * u.arcsec**2)(w, flux_unit=su.FLAM).value
+        assert np.isclose(f3 / f1, 3.0)

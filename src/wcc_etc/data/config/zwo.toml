@@ -9,4 +9,5 @@ path_dark_current = "sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Dark_Current_vs_Sen
 path_gain_curve =   "sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Gain_vs_Gain_Setting.csv"
 path_read_noise =   "sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Read_Noise_vs_Gain_Setting.csv"
 path_well_depth =   "sensors/ZWO_ASI6200MM/ZWO_ASI6200MM_Pro_Well_Depth_vs_Gain_Setting.csv"
+read_noise_margin = 2.0			# x datasheet read noise, for unmodelled noise sources (RTS, non-linearity)
 path_qe = ""  				# already included in total throughput

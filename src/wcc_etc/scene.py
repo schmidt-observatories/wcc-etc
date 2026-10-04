@@ -134,6 +134,13 @@ def _build_emission(meta):
     return spectrum
 
 
+def area_in_arcsec2(area):
+    """Area as a float in arcsec^2; a bare float is assumed to be arcsec^2 already."""
+    if hasattr(area, "to"):
+        return area.to("arcsec**2").value
+    return area
+
+
 def _get_unit(unit):
     """Resolve astropy or synphot unit names."""
     if hasattr(unit, "is_equivalent"):
@@ -387,6 +394,18 @@ def get_scene_element(element=None, **kwargs):
             "surface_brightness": True,
             "bandpass": "johnson_v",
         }
+    ## emission lines carry absolute fluxes: a mag would renormalize them away
+    elif isinstance(name, str) and name.lower() == "emission":
+        if kwargs.get("mag") is not None:
+            raise ValueError(
+                "emission sources carry absolute line fluxes; pass mag=None "
+                f"(got mag={kwargs['mag']!r}, which would renormalize the lines)"
+            )
+        default_config = {
+            "mag": None,
+            "surface_brightness": False,
+            "bandpass": "johnson_v",
+        }
     ## anything else
     else:
         default_config = {
@@ -590,19 +609,13 @@ class SceneElement(_MetaHolder_):
         Quantity
             The magnitude.
         """
+        if self.mag is None:
+            return None
         if self.mag_is_surface_brightness:
             # must work in float (not astropy unit) because of mag and np.log.
-            ## area should be in arcsec**2
-            if "astropy.units" in str(type(area)):
-                area_arcsec2 = area.to("arcsec**2").value
-            else:
-                # if float, assuming it is in arcsec2
-                area_arcsec2 = area
-
-            ## take the value of mag
             mag_per_arcsec2 = self.mag.value
             mag_unit = self.mag.unit
-            mag = (mag_per_arcsec2 - 2.5 * np.log10(area_arcsec2)) * mag_unit
+            mag = (mag_per_arcsec2 - 2.5 * np.log10(area_in_arcsec2(area))) * mag_unit
         else:
             mag = self.mag
 
@@ -645,8 +658,11 @@ class SceneElement(_MetaHolder_):
                     spectrum = self.spectrum.normalize(mag, band=self.band)
             else:
                 # mag is None -> spectrum already carries absolute flux
-                # (e.g. emission-line sources); pass it through unchanged.
+                # (e.g. emission-line sources); pass it through unchanged,
+                # or scale a per-arcsec^2 flux by the area (#96).
                 spectrum = self.spectrum
+                if apply_mag and self.mag_is_surface_brightness and area is not None:
+                    spectrum = spectrum * area_in_arcsec2(area)
         else:
             warnings.warn(f"cannot get the spectrum of the stored {self.spectrum=}")
             return None

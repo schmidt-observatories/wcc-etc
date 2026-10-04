@@ -7,6 +7,26 @@ and the design specs under ``docs/superpowers/``.
 Unreleased
 ----------
 
+Fixes
+~~~~~
+
+- Defocused filters (``zwo:r+1``, ``zwo:bb2``, ...) no longer use the 70 mas
+  Airy-core aperture by default, which held only 2 to 8 percent of the flux and
+  under-reported SNR by 3 to 7x. With no aperture argument the aperture now
+  follows the PSF: 70 mas for the Airy PSF, the SNR-optimized radius otherwise.
+  ``Simulation(r_aper_mas=...)`` still pins a fixed radius. The default
+  ``r_aper_mas`` is ``None``; ``sim.meta`` only carries it when set (#95).
+- ``get_scene("emission", mag=..., lines=...)`` now raises instead of silently
+  renormalizing the absolute line fluxes to the magnitude (a 400x error for a
+  1e-15 erg/s/cm^2 line). ``get_scene_element("emission", ...)`` defaults to
+  ``mag=None``, and ``surface_brightness=True`` with ``mag=None`` scales the
+  per-arcsec^2 spectrum by the pixel area instead of crashing (#96).
+- The x2 read-noise margin on the Sony/ZWO path is now the config key
+  ``read_noise_margin`` (2.0 in ``zwo.toml`` and ``qcmos.toml``, whose
+  ``read_noise`` is back to the measured 0.28 e-) instead of a hidden factor
+  in ``Sensor.from_config``. Results are unchanged. ``get_snr`` reports the
+  effective per-pixel read noise as ``read_noise_e`` (#97).
+
 H-alpha filters
 ~~~~~~~~~~~~~~~
 
