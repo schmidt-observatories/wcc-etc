@@ -52,7 +52,7 @@ Sensors are addressed as ``"kind:band"`` strings:
    sim = Simulation.from_sensor_and_scene("sony:r", scene)
 
 Available sensors include ``sony:r`` / ``sony:bb`` (Sony IMX455, 16-bit) and
-``qcmos:r`` (Hamamatsu qCMOS, 12-bit). See :doc:`configuration` for the full
+``qcmos:r`` (Hamamatsu qCMOS, 12-bit, ``gain_mode="high"`` or ``"low"``). See :doc:`configuration` for the full
 list and how the TOML configs are structured.
 
 3. Compute signal-to-noise

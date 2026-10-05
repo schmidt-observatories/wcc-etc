@@ -211,10 +211,10 @@ class TestReadNoiseMargin:
         expected = datasheet * s.meta["read_noise_margin"]
         assert s.read_noise.to(u.electron / u.pix).value == pytest.approx(expected)
 
-    def test_qcmos_read_noise_unchanged(self):
-        """qCMOS still carries 2 x 0.28 e- after moving the factor to config."""
+    def test_qcmos_read_noise_is_margin_times_high_gain_value(self):
+        """qCMOS default (high gain) carries 2 x 0.25 e-."""
         s = Sensor.from_name("qcmos:bb")
-        assert s.read_noise.to(u.electron / u.pix).value == pytest.approx(0.56)
+        assert s.read_noise.to(u.electron / u.pix).value == pytest.approx(0.50)
 
     def test_get_snr_reports_effective_read_noise(
         self,

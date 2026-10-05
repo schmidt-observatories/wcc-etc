@@ -22,8 +22,11 @@ Sensors are addressed as ``"kind:band"``. The available combinations:
      - Sony IMX455 (ZWO ASI6200MM)
      - 16-bit, 3.76 µm pixels. ``adc_max = 65535``.
    * - ``qcmos:r``
-     - Hamamatsu qCMOS
-     - 12-bit, 4.6 µm pixels. ``adc_max = 4095``.
+     - Hamamatsu qCMOS (HWK4123)
+     - 12-bit, 4.6 µm pixels, ``adc_max = 4095``. Two gain modes, selected
+       with ``gain_mode=``: ``"high"`` (32x, 7.42 ADU/e, 0.25 e read noise,
+       default; the ADC clips at 552 e) or ``"low"`` (1x, 0.242 ADU/e,
+       2.33 e read noise; the 7500 e well clips first).
 
 (The ``zwo`` and ``hwk`` configs back the Sony and qCMOS sensors respectively.)
 
@@ -48,7 +51,8 @@ The configuration files
        bit depth, and paths to the dark-current, gain, read-noise, and
        well-depth CSV calibration curves.
    * - ``qcmos.toml``
-     - Hamamatsu qCMOS detector (12-bit) — same structure as ``zwo.toml``.
+     - Hamamatsu qCMOS detector (12-bit) — same structure as ``zwo.toml``,
+       plus ``gain_mode`` and a ``[sensor.gain_modes.<mode>]`` table per mode.
    * - ``lazuli.toml``
      - Telescope: primary diameter (3.065 m), focal ratio (f/15), pointing
        jitter (10 mas), and the default zodiacal background magnitude.

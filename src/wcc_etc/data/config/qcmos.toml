@@ -1,12 +1,22 @@
 [sensor]
 pixel_size = 4.6			# micron / pix
-read_noise = 0.28	  	   	# e/pix, measured
+gain_mode = "high"			# "high" (32x, photon-number resolving) or "low" (1x); see [sensor.gain_modes]
 read_noise_margin = 2.0			# x measured read noise, for unmodelled noise sources (non-linearity)
 dark_current = 0.05	           	# e/pix/s, confirmed from Gabor, measured at -20C at MIT, now setting as 0.05 e/pix/s for 0C
-gain = 0.112   		  	   	# ADU/e # NOTE: Gabor's note suggest gain is ADU/e rather than e/ADU. Ask
 sensor_temp = 0.0 	   	   	# C, NOTE: Gabor's note suggest temp is -20C. Now assuming 0.05 e/pix/s at 0C
 sensor_area = 199.69081344 		# mm2: (18.8416 mm * 10.5984 mm = mm2)
-well_depth = 7000 			# e/pix
+well_depth = 7500 			# e/pix
 bias_level = 0 				# ADU, additive offset
-bit_depth = 12 				# ADC bit depth (hwk/qcmos), adc_max = 2^bit_depth - 1
+bit_depth = 12 				# ADC bit depth; adc_max = 4095 ADU = 552 e in high gain (ADC clips first), 16920 e in low gain (well clips first)
+min_frame_time = 0.008 			# s, full frame at 125 fps (informational)
 path_qe = ""  				# already included in total throughput
+
+# Gain is stored in e/ADU (what the code consumes); the datasheet quotes ADU/e.
+# Source: sensors/qCMOS/HWK4123_sensor_parameters.txt
+[sensor.gain_modes.high]		# 32x
+gain = 0.1348				# e/ADU = 1 / 7.42 ADU/e
+read_noise = 0.25			# e/pix, measured
+
+[sensor.gain_modes.low]			# 1x
+gain = 4.132				# e/ADU = 1 / 0.242 ADU/e
+read_noise = 2.33			# e/pix, measured

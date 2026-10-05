@@ -33,7 +33,11 @@ The relevant sensor properties are :attr:`~wcc_etc.Sensor.bit_depth`,
 :attr:`~wcc_etc.Sensor.bias_level`, and :attr:`~wcc_etc.Sensor.adc_max`. For
 example, the Sony IMX455 (``sony:*``) is 16-bit
 (``adc_max = 65535``) and the qCMOS (``qcmos:*``) is 12-bit
-(``adc_max = 4095``).
+(``adc_max = 4095``). For the qCMOS which limit binds depends on the gain mode:
+in the default high-gain (32x) mode the ADC clips at 4095 / 7.42 = 552 e-, well
+below the 7500 e- full well; in low-gain (1x) mode the ADC reaches 16,900 e- and
+the full well clips first. Pass ``gain_mode="low"`` to
+:meth:`~wcc_etc.Simulation.from_sensorfilter` for bright targets.
 
 Saturation in the image and SNR paths
 -------------------------------------
