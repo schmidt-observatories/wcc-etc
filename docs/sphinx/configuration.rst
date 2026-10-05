@@ -23,7 +23,7 @@ Sensors are addressed as ``"kind:band"``. The available combinations:
      - 16-bit, 3.76 µm pixels. ``adc_max = 65535``.
    * - ``qcmos:r``
      - Hamamatsu qCMOS
-     - 12-bit, 4.6 µm pixels. ``adc_max = 4095``.
+     - 16-bit, 4.6 µm pixels. ``adc_max = 65535``.
 
 (The ``zwo`` and ``hwk`` configs back the Sony and qCMOS sensors respectively.)
 
@@ -48,7 +48,7 @@ The configuration files
        bit depth, and paths to the dark-current, gain, read-noise, and
        well-depth CSV calibration curves.
    * - ``qcmos.toml``
-     - Hamamatsu qCMOS detector (12-bit) — same structure as ``zwo.toml``.
+     - Hamamatsu qCMOS detector (16-bit) — same structure as ``zwo.toml``.
    * - ``lazuli.toml``
      - Telescope: primary diameter (3.065 m), focal ratio (f/15), pointing
        jitter (10 mas), and the default zodiacal background magnitude.

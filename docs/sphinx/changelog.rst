@@ -10,6 +10,10 @@ Unreleased
 Fixes
 ~~~~~
 
+- ``qcmos.toml`` ``bit_depth`` is 16, not 12. The 12-bit setting capped the ADC
+  at 4095 x 0.112 = 459 e- against a 7000 e- full well, so a V=25 G2V at 300 s
+  through ``qcmos:bb`` was flagged saturated. The gain value 0.112 e-/ADU was
+  already right (MIT measured 8.9 ADU/e); only its comment was wrong (#94, #61).
 - Defocused filters (``zwo:r+1``, ``zwo:bb2``, ...) no longer use the 70 mas
   Airy-core aperture by default, which held only 2 to 8 percent of the flux and
   under-reported SNR by 3 to 7x. With no aperture argument the aperture now

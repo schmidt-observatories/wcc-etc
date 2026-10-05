@@ -32,8 +32,9 @@ sensor's ADC maximum (``adc_max = 2**bit_depth - 1``):
 The relevant sensor properties are :attr:`~wcc_etc.Sensor.bit_depth`,
 :attr:`~wcc_etc.Sensor.bias_level`, and :attr:`~wcc_etc.Sensor.adc_max`. For
 example, the Sony IMX455 (``sony:*``) is 16-bit
-(``adc_max = 65535``) and the qCMOS (``qcmos:*``) is 12-bit
-(``adc_max = 4095``).
+(``adc_max = 65535``) and the qCMOS (``qcmos:*``) is also 16-bit
+(``adc_max = 65535``, i.e. 7340 e- at 0.112 e-/ADU, so its 7000 e- full
+well binds first).
 
 Saturation in the image and SNR paths
 -------------------------------------
