@@ -21,6 +21,9 @@ Fixes
   "saturation" there is physical; low gain is well-limited. Gain is stored in
   e-/ADU with its provenance stated; the old ``gain = 0.112`` was a single
   unlabelled value (#94, #61).
+- Both sensor configs carry an informational ``min_frame_time`` (s): 0.25 for
+  a full-frame IMX455 read, 0.008 for the qCMOS at 125 fps. Nothing enforces
+  it yet.
 - Defocused filters (``zwo:r+1``, ``zwo:bb2``, ...) no longer use the 70 mas
   Airy-core aperture by default, which held only 2 to 8 percent of the flux and
   under-reported SNR by 3 to 7x. With no aperture argument the aperture now

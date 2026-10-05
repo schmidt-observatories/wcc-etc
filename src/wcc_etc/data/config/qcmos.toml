@@ -8,7 +8,7 @@ sensor_area = 199.69081344 		# mm2: (18.8416 mm * 10.5984 mm = mm2)
 well_depth = 7500 			# e/pix
 bias_level = 0 				# ADU, additive offset
 bit_depth = 12 				# ADC bit depth; adc_max = 4095 ADU = 552 e in high gain (ADC clips first), 16920 e in low gain (well clips first)
-frame_rate = 125 			# fps, full frame (informational)
+min_frame_time = 0.008 			# s, full frame at 125 fps (informational)
 path_qe = ""  				# already included in total throughput
 
 # Gain is stored in e/ADU (what the code consumes); the datasheet quotes ADU/e.
