@@ -438,7 +438,7 @@ def read_config(filename, source="config"):
     return config
 
 
-def get_sensor_config(kind, band, **kwargs):
+def get_sensor_config(kind, band, gain_mode=None, **kwargs):
     """
     Get sensor configuration for a specific detector kind and band.
 
@@ -448,6 +448,9 @@ def get_sensor_config(kind, band, **kwargs):
         The kind of sensor (e.g., 'zwo', 'qcmos', 'sony', 'imx').
     band : str
         The observation band (e.g., 'bb', 'u', 'g', 'r', 'i', 'z').
+    gain_mode : str, optional
+        Gain mode for detectors that have several (qCMOS: 'high' or 'low').
+        None keeps the config default.
     **kwargs
         Additional keyword arguments to override or add to the configuration.
 
@@ -484,6 +487,8 @@ def get_sensor_config(kind, band, **kwargs):
     config["sensor"]["path_total_throughput"] = os.path.join(
         "throughput", "20260304_wcc_throughputs", throughput_filter
     )
+    if gain_mode is not None:
+        config["sensor"]["gain_mode"] = gain_mode
     return config | kwargs
 
 

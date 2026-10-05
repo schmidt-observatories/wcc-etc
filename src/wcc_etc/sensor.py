@@ -107,7 +107,7 @@ class Sensor(_MetaHolder_):
         super().__init__(meta | init_parameters)
 
     @classmethod
-    def from_name(cls, name):
+    def from_name(cls, name, gain_mode=None):
         """
         Create a Sensor instance from a name string 'kind:band'.
 
@@ -115,13 +115,15 @@ class Sensor(_MetaHolder_):
         ----------
         name : str
             Sensor specification, e.g., 'zwo:r'.
+        gain_mode : str, optional
+            Gain mode for detectors that have several (qCMOS: 'high' or 'low').
 
         Returns
         -------
         Sensor
         """
         sensor, band = name.split(":")
-        return cls.from_kind_and_band(sensor, band)
+        return cls.from_kind_and_band(sensor, band, gain_mode=gain_mode)
 
     @classmethod
     def from_config(cls, config_or_name):
@@ -141,6 +143,17 @@ class Sensor(_MetaHolder_):
             return cls.from_name(config_or_name)
 
         config = deepcopy(config_or_name)
+
+        # Detectors with selectable gain (qCMOS 32x / 1x) carry one table per
+        # mode; fold the chosen one into the flat config (#94).
+        gain_mode = config.get("gain_mode")
+        if gain_mode is not None:
+            modes = config.get("gain_modes", {})
+            if gain_mode not in modes:
+                raise ValueError(
+                    f"Unknown gain_mode {gain_mode!r}; known: {sorted(modes)}"
+                )
+            config |= modes[gain_mode]
 
         # read the total throughput allowing 2 formating
         throughput = config.get("throughput", config.get("path_total_throughput"))
@@ -201,7 +214,7 @@ class Sensor(_MetaHolder_):
         )
 
     @classmethod
-    def from_kind_and_band(cls, kind, band):
+    def from_kind_and_band(cls, kind, band, gain_mode=None):
         """
         Load the instance given the detector kind and filter.
 
@@ -213,6 +226,8 @@ class Sensor(_MetaHolder_):
             - 'qcmos'
         band : str
             Name of the band associated to the sensor (e.g., 'bb', 'u', 'r', 'z').
+        gain_mode : str, optional
+            Gain mode for detectors that have several (qCMOS: 'high' or 'low').
 
         Returns
         -------
@@ -221,7 +236,7 @@ class Sensor(_MetaHolder_):
         from .io import get_sensor_config
 
         # grabs the configuration associated to this sensor
-        config = get_sensor_config(kind, band)
+        config = get_sensor_config(kind, band, gain_mode=gain_mode)
         return cls.from_config(config["sensor"])
 
     # ================ #

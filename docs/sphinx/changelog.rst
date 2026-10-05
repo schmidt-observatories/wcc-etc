@@ -10,10 +10,17 @@ Unreleased
 Fixes
 ~~~~~
 
-- ``qcmos.toml`` ``bit_depth`` is 16, not 12. The 12-bit setting capped the ADC
-  at 4095 x 0.112 = 459 e- against a 7000 e- full well, so a V=25 G2V at 300 s
-  through ``qcmos:bb`` was flagged saturated. The gain value 0.112 e-/ADU was
-  already right (MIT measured 8.9 ADU/e); only its comment was wrong (#94, #61).
+- The qCMOS (HWK4123) now carries its two gain modes. ``qcmos.toml`` has a
+  ``[sensor.gain_modes.<mode>]`` table per mode and a ``gain_mode`` default of
+  ``"high"`` (32x: 7.42 ADU/e, 0.25 e- read noise); ``"low"`` (1x: 0.242 ADU/e,
+  2.33 e- read noise) is selected with ``gain_mode="low"`` on
+  :meth:`~wcc_etc.Simulation.from_sensorfilter`,
+  :meth:`~wcc_etc.Simulation.from_sensor_and_scene` or
+  :meth:`~wcc_etc.Sensor.from_name`. The 12-bit ADC is real: in high gain it
+  clips at 552 e-, far below the 7500 e- full well (was 7000), so faint-source
+  "saturation" there is physical; low gain is well-limited. Gain is stored in
+  e-/ADU with its provenance stated; the old ``gain = 0.112`` was a single
+  unlabelled value (#94, #61).
 - Defocused filters (``zwo:r+1``, ``zwo:bb2``, ...) no longer use the 70 mas
   Airy-core aperture by default, which held only 2 to 8 percent of the flux and
   under-reported SNR by 3 to 7x. With no aperture argument the aperture now

@@ -214,7 +214,7 @@ class Simulation(_MetaHolder_):
         return cls.from_sensor_and_scene(sensor, scene=scene)
 
     @classmethod
-    def from_sensor_and_scene(cls, sensor, scene):
+    def from_sensor_and_scene(cls, sensor, scene, gain_mode=None):
         """
         Create a Simulation from a sensor specification and a scene.
 
@@ -224,6 +224,9 @@ class Simulation(_MetaHolder_):
             Sensor specification. If str, format 'kind:band'.
         scene : Scene
             The scene to observe.
+        gain_mode : str, optional
+            Gain mode for detectors that have several (qCMOS: 'high' or 'low').
+            Ignored when `sensor` is already a Sensor.
 
         Returns
         -------
@@ -235,7 +238,7 @@ class Simulation(_MetaHolder_):
             else:
                 kind, band = sensor
 
-            config = get_sensor_config(kind, band)
+            config = get_sensor_config(kind, band, gain_mode=gain_mode)
             this = cls.from_config(config)  # this has no scene
 
         elif isinstance(sensor, Sensor):
@@ -248,7 +251,7 @@ class Simulation(_MetaHolder_):
         return this
 
     @classmethod
-    def from_sensorfilter(cls, sensorfilter, scene):
+    def from_sensorfilter(cls, sensorfilter, scene, gain_mode=None):
         """
         Create a Simulation from a sensorfilter label, auto-selecting the PSF.
 
@@ -264,6 +267,8 @@ class Simulation(_MetaHolder_):
             nicknames like 'sony:r' are not resolved here (use
             from_sensor_and_scene for those).
         scene : Scene
+        gain_mode : str, optional
+            Gain mode for detectors that have several (qCMOS: 'high' or 'low').
 
         Returns
         -------
@@ -281,7 +286,7 @@ class Simulation(_MetaHolder_):
             )
         focus_level = _SENSORFILTER_FOCUS[sensorfilter]
         kind, band = sensorfilter.split(":", 1)
-        config = get_sensor_config(kind, band)
+        config = get_sensor_config(kind, band, gain_mode=gain_mode)
         this = cls.from_config(config)
         this.set_scene(scene)
         this._default_psf = _psf_from_focus_level(focus_level)
