@@ -74,7 +74,7 @@ def test_bundled_product_matches_the_flipped_export():
 @pytest.mark.parametrize("npix", [64, 65])
 @pytest.mark.parametrize("zoom", [1.0, 0.5, 1.5])
 def test_chief_ray_lands_on_grid_center(npix, zoom):
-    """A delta at an off-centre chief ray renders centred, whatever the grid parity or scale."""
+    """An off-centre chief ray renders centred, whatever the grid parity or scale."""
     arr = _blob(27, 13)
     src = CustomPSF(arr, src_um_per_pix=zoom, wavelength_scaling="none",
                     chief_ray_pix=(27, 13))
