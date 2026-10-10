@@ -45,7 +45,10 @@ def _centroid(img):
 
 def test_huygens_rows_are_flipped_so_index_increases_with_y():
     with open(DEFOCUS_2WAVE_TXT_PATH, encoding="utf-16") as fh:
-        rows = [ln for ln in fh.read().splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
+        rows = [
+            ln for ln in fh.read().splitlines()
+            if ln.strip() and not ln.lstrip().startswith("#")
+        ]
     last_text_row = np.array([float(x) for x in rows[-1].split()])
     data = load_huygens_psf(DEFOCUS_2WAVE_TXT_PATH)
     assert np.array_equal(data[0], last_text_row)
@@ -64,7 +67,8 @@ def test_bundled_products_record_the_chief_ray(path):
 
 def test_bundled_product_matches_the_flipped_export():
     data, _ = load_psf_fits(DEFOCUS_2WAVE_PATH)
-    assert np.allclose(data, load_huygens_psf(DEFOCUS_2WAVE_TXT_PATH).astype(np.float32))
+    flipped = load_huygens_psf(DEFOCUS_2WAVE_TXT_PATH).astype(np.float32)
+    assert np.allclose(data, flipped)
 
 
 @pytest.mark.parametrize("npix", [64, 65])
@@ -72,22 +76,25 @@ def test_bundled_product_matches_the_flipped_export():
 def test_chief_ray_lands_on_grid_center(npix, zoom):
     """A delta at an off-centre chief ray renders centred, whatever the grid parity or scale."""
     arr = _blob(27, 13)
-    psf = CustomPSF(arr, src_um_per_pix=zoom, wavelength_scaling="none",
-                    chief_ray_pix=(27, 13)).render(_ctx(npix, pixel_size_um=1.0))
+    src = CustomPSF(arr, src_um_per_pix=zoom, wavelength_scaling="none",
+                    chief_ray_pix=(27, 13))
+    psf = src.render(_ctx(npix, pixel_size_um=1.0))
     assert _centroid(psf) == pytest.approx(grid_center(npix), abs=0.02)
 
 
 def test_chief_ray_lands_on_requested_center():
     arr = _blob(27, 13)
-    psf = CustomPSF(arr, src_um_per_pix=1.0, wavelength_scaling="none",
-                    chief_ray_pix=(27, 13)).render(_ctx(64, pixel_size_um=1.0, center=(40.0, 32.25)))
+    src = CustomPSF(arr, src_um_per_pix=1.0, wavelength_scaling="none",
+                    chief_ray_pix=(27, 13))
+    psf = src.render(_ctx(64, pixel_size_um=1.0, center=(40.0, 32.25)))
     assert _centroid(psf) == pytest.approx((40.0, 32.25), abs=0.02)
 
 
 def test_zoom_scales_the_grid_not_the_nodes():
     """Two blobs 20 samples apart render 10 px apart at zoom 0.5, not 20*31/63."""
     arr = _blob(20, 32, n=64, sigma=2.0) + _blob(40, 32, n=64, sigma=2.0)
-    psf = CustomPSF(arr, src_um_per_pix=0.5, wavelength_scaling="none").render(_ctx(64, pixel_size_um=1.0))
+    src = CustomPSF(arr, src_um_per_pix=0.5, wavelength_scaling="none")
+    psf = src.render(_ctx(64, pixel_size_um=1.0))
     prof = psf.sum(axis=0)
     i = np.arange(64)
     left = (prof[:32] @ i[:32]) / prof[:32].sum()
