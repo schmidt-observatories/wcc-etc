@@ -22,8 +22,8 @@ Core install:
 pip install -e .
 ```
 
-This builds `lazuli_transit` from `packages/lazuli-transit/` as well — it is
-vendored in this repo rather than published to PyPI.
+The transit models come from [`lazuli-exo`](https://github.com/schmidt-observatories/lazuli-exo)
+(`lazuli_exo.transit`), pulled in as a dependency.
 
 With optional extras:
 ```sh

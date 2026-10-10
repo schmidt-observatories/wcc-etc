@@ -1,6 +1,6 @@
 """Tests for FluxModel base class and TransitModel.
 
-The models themselves live in `lazuli_transit` and are re-exported by
+The models themselves live in `lazuli_exo.transit` and are re-exported by
 `wcc_etc.lightcurve`; the exhaustive physics suite lives with that package.
 These tests cover what the ETC depends on: that the re-exported model
 produces the right transit shape and rejects bad limb-darkening input.
