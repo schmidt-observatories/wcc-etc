@@ -35,7 +35,7 @@ and cached locally; they are not in the wheel.
 
 | Path | What | Source |
 |---|---|---|
-| `psfs/CAD_{1,2}-waves-defocus_500nm_Huygens-PSF-Data_Linear.fits` | WCC PSF at 500 nm with 1 and 2 waves of defocus | Lazuli WCC optical design (Zemax). |
+| `psfs/CAD_{1,2}-waves-defocus_500nm_Huygens-PSF-Data_Linear.fits` | WCC PSF at 500 nm with 1 and 2 waves of defocus | Lazuli WCC optical design. |
 
 ## Third-party code
 
