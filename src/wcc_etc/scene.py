@@ -57,10 +57,13 @@ _VEGA = None
 
 
 def _get_vega():
-    """Lazily load and cache the Vega reference spectrum for VEGAMAG work."""
+    """Lazily load and cache the bundled Vega reference spectrum (CALSPEC
+    alpha_lyr_stis_011) for VEGAMAG work. No network access (#101)."""
     global _VEGA
     if _VEGA is None:
-        _VEGA = SourceSpectrum.from_vega()
+        from .io import VEGA_PATH
+
+        _VEGA = SourceSpectrum.from_file(VEGA_PATH)
     return _VEGA
 
 

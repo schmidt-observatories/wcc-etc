@@ -19,16 +19,15 @@ readme = "README.md"
 license = { text = "BSD-3-Clause" }
 requires-python = ">=3.11"
 dependencies = [
-  "synphot",
-  "numpy",
-  "scipy",
-  "astropy",
-  "matplotlib",
-  "pandas",
+  "synphot>=1.4",
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "astropy>=6.0",
+  "matplotlib>=3.8",
+  "pandas>=2.0",
   "bokeh>=3.6",
-  "flask",
   "tifffile",
-  "photutils",
+  "photutils>=1.10",
   # Transit models + Exoplanet Archive helpers (lazuli_exo.transit).
   # TODO(#107): switch to "lazuli-exo>=0.1.1" once lazuli-exo is on PyPI; a
   # direct URL works for pip/CI/RTD but PyPI refuses to host a wheel that has one.

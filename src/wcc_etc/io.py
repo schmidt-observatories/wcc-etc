@@ -7,16 +7,16 @@ from importlib.resources import files
 import pandas
 import pandas as pd
 
-PACKAGE_PATH = str(files("wcc_etc.data")._paths[0])  #: Path to data & config files.
+PACKAGE_PATH = str(files("wcc_etc") / "data")  #: Path to data & config files.
 _PICKLES_DIR = os.path.join(PACKAGE_PATH, "astr_obj_models", "stars", "pickles_models")
 PICKLES_MAPPING = pd.read_csv(
     os.path.join(_PICKLES_DIR, "pickles_mapping.csv"), sep=r"\s+"
 )
 
 # Generate the name database
-_list_of_astropath = glob(PACKAGE_PATH + "*/astrophysics/**", recursive=True) + glob(
-    PACKAGE_PATH + "*/astr_obj_models/**", recursive=True
-)
+_list_of_astropath = glob(
+    os.path.join(PACKAGE_PATH, "astrophysics", "**"), recursive=True
+) + glob(os.path.join(PACKAGE_PATH, "astr_obj_models", "**"), recursive=True)
 
 ASTROFILE_DF = pandas.DataFrame(
     {
@@ -26,11 +26,16 @@ ASTROFILE_DF = pandas.DataFrame(
 )
 
 
-__all__ = ["read_config", "get_sensor_config", "resolve_bandpass"]
+__all__ = ["read_config", "get_sensor_config", "resolve_bandpass", "VEGA_PATH"]
 
-# Local filter files not known to synphot's built-in SpectralElement.from_filter.
-# Maps a user-facing bandpass name to a file under data/throughput/other_filters/.
+#: Bundled CALSPEC Vega (alpha_lyr_stis_011), the VEGAMAG zero-point spectrum.
+VEGA_PATH = os.path.join(PACKAGE_PATH, "astrophysics", "alpha_lyr_stis_011.fits")
+
+# Filter files bundled under data/throughput/other_filters/, keyed by the
+# user-facing bandpass name. johnson_v is the STScI curve synphot would otherwise
+# download at runtime (#101); the SDSS curves are not known to synphot at all.
 _LOCAL_FILTERS = {
+    "johnson_v": "johnson_v_004_syn.fits",
     "sdss_u": "SLOAN_SDSS.uprime_filter.dat",
     "sdss_g": "SLOAN_SDSS.gprime_filter.dat",
     "sdss_r": "SLOAN_SDSS.rprime_filter.dat",
@@ -43,10 +48,10 @@ _OTHER_FILTERS_DIR = os.path.join(PACKAGE_PATH, "throughput", "other_filters")
 def resolve_bandpass(bandpass):
     """Resolve a bandpass to a synphot SpectralElement.
 
-    Local SDSS filters (``'sdss_u'``, ``'sdss_g'``, ``'sdss_r'``, ``'sdss_i'``,
-    ``'sdss_z'``; case-insensitive) are loaded from package data. Any other
-    string defers to synphot's built-in ``SpectralElement.from_filter`` (e.g.
-    ``'johnson_v'``). A ``SpectralElement`` is returned unchanged.
+    ``'johnson_v'`` and the SDSS filters (``'sdss_u'`` ... ``'sdss_z'``;
+    case-insensitive) are loaded from package data, so no network access is
+    needed. Any other string defers to synphot's built-in
+    ``SpectralElement.from_filter``. A ``SpectralElement`` is returned unchanged.
 
     Parameters
     ----------
@@ -64,9 +69,10 @@ def resolve_bandpass(bandpass):
 
     fname = _LOCAL_FILTERS.get(str(bandpass).lower())
     if fname is not None:
-        return SpectralElement.from_file(
-            os.path.join(_OTHER_FILTERS_DIR, fname), wave_unit="Angstrom"
-        )
+        path = os.path.join(_OTHER_FILTERS_DIR, fname)
+        if path.endswith(".fits"):
+            return SpectralElement.from_file(path)
+        return SpectralElement.from_file(path, wave_unit="Angstrom")
     return SpectralElement.from_filter(bandpass)
 
 

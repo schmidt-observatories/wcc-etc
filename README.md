@@ -11,7 +11,7 @@ A web-based ETC is available here: https://simulators.schmidtobservatorysystem.o
 
 ## **1. Clone the Repository**
 ```sh
-git clone git@github.com:schmidt-observatories/wcc-etc.git
+git clone https://github.com/schmidt-observatories/wcc-etc.git
 cd wcc-etc
 ```
 
@@ -76,6 +76,13 @@ See the `notebooks/` directory for example tutorials:
 | `06_source_spectra.ipynb` | Parametric source spectra in `get_scene` (blackbody/flat/powerlaw/emission) and rebuilding via `update`. |
 | `07_sersic_host.ipynb` | A transient on a galaxy: Sersic-profile hosts (`profile="sersic"`), total-mag vs μ_e normalization, nuclear vs offset SNR and saturation. |
 
+
+# Known limitations (0.1.0)
+
+- The zodiacal background is a fixed V = 22.5 mag/arcsec² (Vega) with no dependence on ecliptic latitude, solar elongation or season. The L3 requirement value is 22.1 (#98).
+- The noise model has photon, dark and read terms only: no systematic floor (flat field, intrapixel × jitter, gain drift), no sky-estimation variance, no cosmic rays, no stray-light background (#100).
+- The telescope pupil: the central obscuration is configurable but defaults to 0 pending the Pearl pupil definition, and there is no wavefront-error / Strehl term, so the in-focus Airy PSF is diffraction-perfect and peak-pixel fractions (hence saturation limits) are optimistic (#99).
+- Not yet validated against as-measured detector, throughput, PSF or on-sky data (#104).
 
 # Notes
 Configuration files (.toml) are in the src/wcc_etc/data/config/ directory. Notebooks show that it is easy to change default configuration parameters on the fly.
