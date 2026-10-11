@@ -27,6 +27,16 @@
   clone link is HTTPS (#4) and a "Known limitations" section lists #98, #99, #100, #104;
   the stale mkdocs files and `docs/superpowers/` are removed; this file is the one
   changelog (the Sphinx page includes it).
+- Input guards for inputs that used to give a plausible wrong answer (#102):
+  `Simulation.update()` raises `KeyError` on an unknown or ambiguous key instead of
+  warning and ignoring it; a file spectrum that does not cover the bandpass warns with
+  the uncovered Angstrom range (the edge value is still extrapolated); an `sdss_*`
+  normalization band without an explicit `magsys` warns that SDSS magnitudes are AB;
+  `Sensor(qe=...)` other than 1 raises (QE lives in the throughput file);
+  `parse_and_interpolate` warns when the ZWO gain / read-noise / dark-current tables
+  are clamped outside their range, and a zwo config without `sensor_temp` raises a
+  clear `ValueError` instead of an `AttributeError`.
+
 - Sersic hosts: the 5x5 pixels around the cusp are now integrated exactly (adaptive
   quadrature split at the cusp) instead of sampled on the `oversample` sub-grid, which
   overshot the analytic total by up to 3x (n=4) and 4 orders of magnitude (n=8) for

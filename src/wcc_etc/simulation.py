@@ -478,13 +478,12 @@ class Simulation(_MetaHolder_):
 
             if len(fetch_key) > 1:
                 # not well defined, more than one entry exist for they key
-                warnings.warn(
-                    f"several entries found matiching {key=} : {fetch_key}. Please clarify. *{key=} ignored*"
+                raise KeyError(
+                    f"several entries found matching {key=} : {fetch_key}. Please clarify."
                 )
-                continue
 
             # if we are here, it means fetch_key didn't match.
-            warnings.warn(f"no entries found matiching {key=}. *{key=} ignored*")
+            raise KeyError(f"no entries found matching {key=}")
 
         self.update_telescope(**to_update["telescope"])
         self.update_sensor(**to_update["sensor"])

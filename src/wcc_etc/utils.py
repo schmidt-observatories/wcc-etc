@@ -1,3 +1,4 @@
+import os
 import warnings
 
 import numpy as np
@@ -67,6 +68,12 @@ def parse_and_interpolate(input_file, xval):
     """
     input_file = expand_path(input_file)
     data = pandas.read_csv(input_file, index_col=0).iloc[:, 0]
+    lo, hi = data.index.min(), data.index.max()
+    if np.any(np.asarray(xval) < lo) or np.any(np.asarray(xval) > hi):
+        warnings.warn(
+            f"{xval=} is outside the {os.path.basename(input_file)} table range "
+            f"[{lo}, {hi}]; the edge value is used."
+        )
     return np.interp(xval, data.index, data.values)
 
 

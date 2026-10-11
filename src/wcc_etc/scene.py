@@ -255,6 +255,31 @@ _PROFILE_PARAMS = {"sersic": ["r_eff", *SERSIC_DEFAULTS]}
 # Top level
 
 
+def warn_if_spectrum_misses_band(spectrum, band):
+    """Warn if a tabulated spectrum does not cover the band's active range.
+
+    The active range is where the throughput exceeds 1e-3 of its peak. Spectra
+    without a waveset (parametric models) are skipped. Outside its waveset the
+    spectrum is extrapolated with its edge value (``Observation(..., force="extrap")``).
+    """
+    sw, bw = spectrum.waveset, band.waveset
+    if sw is None or bw is None:
+        return
+    thr = band(bw).value
+    active = bw[thr > 1e-3 * thr.max()].to_value(u.AA)
+    lo, hi = sw.min().to_value(u.AA), sw.max().to_value(u.AA)
+    gaps = []
+    if lo > active.min():
+        gaps.append(f"{active.min():.0f}-{lo:.0f} A")
+    if hi < active.max():
+        gaps.append(f"{hi:.0f}-{active.max():.0f} A")
+    if gaps:
+        warnings.warn(
+            f"spectrum ({lo:.0f}-{hi:.0f} A) does not cover the bandpass over "
+            f"{', '.join(gaps)}; the edge flux value is extrapolated there."
+        )
+
+
 def get_scene(
     name,
     mag,
@@ -478,7 +503,7 @@ class SceneElement(_MetaHolder_):
         self,
         spectrum,
         mag,
-        magsys="vegamag",
+        magsys=None,
         bandpass="johnson_v",
         surface_brightness=False,
         meta={},
@@ -494,7 +519,8 @@ class SceneElement(_MetaHolder_):
             The magnitude of the element.
         magsys : str, optional
             The magnitude system: 'vegamag' or 'abmag' (case-insensitive).
-            Default is "vegamag".
+            None (default) means "vegamag"; it warns if the bandpass is an
+            SDSS filter, whose magnitudes are AB (#102).
         bandpass : str or SpectralElement, optional
             The bandpass filter. Default is "johnson_v".
         surface_brightness : bool, optional
@@ -502,6 +528,15 @@ class SceneElement(_MetaHolder_):
         meta : dict, optional
             Additional metadata. Default is {}.
         """
+        if magsys is None:
+            if isinstance(bandpass, str) and bandpass.lower().startswith("sdss_"):
+                warnings.warn(
+                    f"bandpass {bandpass!r} is an SDSS filter but magsys was not "
+                    "given, so 'vegamag' is assumed. SDSS magnitudes are AB: "
+                    "you probably want magsys='abmag'."
+                )
+            magsys = "vegamag"
+
         input_parameters = {
             key: value
             for key, value in locals().items()
@@ -699,6 +734,7 @@ class SceneElement(_MetaHolder_):
         if spectrum is None:
             return None
 
+        warn_if_spectrum_misses_band(spectrum, band)
         return Observation(spectrum, band, force="extrap")
 
     def show(self, ax=None, apply_mag=True, wave=None, flux_unit=None, **kwargs):

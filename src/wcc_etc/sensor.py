@@ -83,7 +83,8 @@ class Sensor(_MetaHolder_):
         temperature : float or Quantity, optional
             The sensor temperature. Default is None.
         qe : float, optional
-            Quantum Efficiency (usually included in bandpass). Default is 1.
+            Must be 1: the QE is part of the bandpass (throughput) file and is
+            never applied separately. Default is 1.
         well_depth : float or Quantity, optional
             The full well depth. Default is None.
         bit_depth : int, optional
@@ -93,6 +94,12 @@ class Sensor(_MetaHolder_):
         meta : dict, optional
             Additional metadata. Default is {}.
         """
+
+        if qe != 1:
+            raise ValueError(
+                f"qe={qe!r} is not applied: QE is part of the sensor throughput "
+                "file; pass it there (qe must be 1)."
+            )
 
         init_parameters = {
             key: value
@@ -171,6 +178,10 @@ class Sensor(_MetaHolder_):
         # gain
         gain_setting = config.get("gain_setting", None)
         if gain_setting is not None:
+            if sensor_temp is None:
+                raise ValueError(
+                    "sensor_temp is required for sensors with a dark-current table"
+                )
             gain = parse_and_interpolate(config.get("path_gain_curve"), gain_setting)
             read_noise = parse_and_interpolate(
                 config.get("path_read_noise"), gain_setting
