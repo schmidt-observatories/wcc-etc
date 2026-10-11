@@ -877,25 +877,22 @@ class Simulation(_MetaHolder_):
         npix=128,
         oversample=11,
     ):
-        """Whether the brightest pixel (ADU) reaches sensor.adc_max, per frame,
-        for the actual (possibly defocused) PSF. See get_peak_pixel.
-
-        Note: this tests the ADC clip (peak ADU incl. bias >= adc_max). The
-        image-based saturation_mask_from_image_e additionally flags well-depth
-        (electron) saturation and does not add bias; the two agree when the ADC
-        limit binds and bias is small (the usual case). A full reconciliation of
-        the two criteria (well-depth + bias handling) is a known follow-up.
+        """Whether the brightest pixel of the clean per-frame image reaches
+        sensor.saturation_e (min of full well and ADC clip after bias), for the
+        actual (possibly defocused) PSF. See get_peak_pixel and
+        Sensor.saturation_limit for which limit binds. Same threshold as
+        psfsim.saturation_mask_from_image_e and ImageSimulator.simulate (#64).
         """
-        peak_adu = self.get_peak_pixel(
+        peak_e = self.get_peak_pixel(
             time,
-            units="adu",
+            units="e-",
             n_reads=n_reads,
             psf=psf,
             jitter_sigma_mas=jitter_sigma_mas,
             npix=npix,
             oversample=oversample,
         )
-        return peak_adu >= self.sensor.adc_max
+        return peak_e >= self.sensor.saturation_e
 
     def peak_pixel_fraction(
         self, psf=None, jitter_sigma_mas=None, npix=128, oversample=11
