@@ -2,7 +2,7 @@
 # to be in a developer's working tree (#62). Mirrors [tool.setuptools.package-data].
 include README.md LICENSE pyproject.toml
 recursive-include src/wcc_etc/data/config *.toml
-recursive-include src/wcc_etc/data/throughput *.csv *.dat
+recursive-include src/wcc_etc/data/throughput *.csv *.dat *.fits
 recursive-include src/wcc_etc/data/sensors *.csv *.fits *.txt *.md
 recursive-include src/wcc_etc/data/astrophysics *.dat *.fits *.md
 recursive-include src/wcc_etc/data/astr_obj_models/stars/pickles_models *.csv *.md
