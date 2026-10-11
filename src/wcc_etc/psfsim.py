@@ -467,7 +467,10 @@ def load_psf_fits(path):
     if "DEFOCUSW" in header:
         meta["defocus_waves"] = float(header["DEFOCUSW"])
     if "CRPIX1" in header and "CRPIX2" in header:
-        meta["chief_ray_pix"] = (float(header["CRPIX1"]) - 1, float(header["CRPIX2"]) - 1)
+        meta["chief_ray_pix"] = (
+            float(header["CRPIX1"]) - 1,
+            float(header["CRPIX2"]) - 1,
+        )
     return data, meta
 
 
@@ -564,7 +567,9 @@ class _ResampledPSF(PSFSource):
         self.ref_fnum = None if ref_fnum is None else float(ref_fnum)
         self.wavelength_scaling = wavelength_scaling
         self.chief_ray_pix = (
-            None if chief_ray_pix is None else (float(chief_ray_pix[0]), float(chief_ray_pix[1]))
+            None
+            if chief_ray_pix is None
+            else (float(chief_ray_pix[0]), float(chief_ray_pix[1]))
         )
 
     def scale_factor(self, ctx):
@@ -612,7 +617,11 @@ class _ResampledPSF(PSFSource):
         # edges); the default scales node to node by (nz-1)/(n-1), which is
         # ~0.4% too large for a 256-sample product on an oversampled grid.
         zoomed = zoom(
-            self._data, zoom_factor, order=1, mode="grid-constant", cval=0.0,
+            self._data,
+            zoom_factor,
+            order=1,
+            mode="grid-constant",
+            cval=0.0,
             grid_mode=True,
         )
         psf = normalize_psf(center_crop_or_pad(zoomed, ctx.npix))

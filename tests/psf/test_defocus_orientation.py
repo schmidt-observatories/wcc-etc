@@ -26,8 +26,13 @@ from wcc_etc.psfsim import (
 
 def _ctx(npix, pixel_size_um=3.76, center=None):
     return DetectorPSFContext(
-        npix=npix, pixel_size_um=pixel_size_um, plate_scale_mas=16.87,
-        wavelength_m=500e-9, diameter_m=3.0, fnum=15.0, jitter_sigma_mas=0.0,
+        npix=npix,
+        pixel_size_um=pixel_size_um,
+        plate_scale_mas=16.87,
+        wavelength_m=500e-9,
+        diameter_m=3.0,
+        fnum=15.0,
+        jitter_sigma_mas=0.0,
         center=center,
     )
 
@@ -46,7 +51,8 @@ def _centroid(img):
 def test_huygens_rows_are_flipped_so_index_increases_with_y():
     with open(DEFOCUS_2WAVE_TXT_PATH, encoding="utf-16") as fh:
         rows = [
-            ln for ln in fh.read().splitlines()
+            ln
+            for ln in fh.read().splitlines()
             if ln.strip() and not ln.lstrip().startswith("#")
         ]
     last_text_row = np.array([float(x) for x in rows[-1].split()])
@@ -76,16 +82,18 @@ def test_bundled_product_matches_the_flipped_export():
 def test_chief_ray_lands_on_grid_center(npix, zoom):
     """An off-centre chief ray renders centred, whatever the grid parity or scale."""
     arr = _blob(27, 13)
-    src = CustomPSF(arr, src_um_per_pix=zoom, wavelength_scaling="none",
-                    chief_ray_pix=(27, 13))
+    src = CustomPSF(
+        arr, src_um_per_pix=zoom, wavelength_scaling="none", chief_ray_pix=(27, 13)
+    )
     psf = src.render(_ctx(npix, pixel_size_um=1.0))
     assert _centroid(psf) == pytest.approx(grid_center(npix), abs=0.02)
 
 
 def test_chief_ray_lands_on_requested_center():
     arr = _blob(27, 13)
-    src = CustomPSF(arr, src_um_per_pix=1.0, wavelength_scaling="none",
-                    chief_ray_pix=(27, 13))
+    src = CustomPSF(
+        arr, src_um_per_pix=1.0, wavelength_scaling="none", chief_ray_pix=(27, 13)
+    )
     psf = src.render(_ctx(64, pixel_size_um=1.0, center=(40.0, 32.25)))
     assert _centroid(psf) == pytest.approx((40.0, 32.25), abs=0.02)
 
