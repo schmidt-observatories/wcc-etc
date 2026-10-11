@@ -51,7 +51,7 @@ __all__ = [
     "WCC_STYLE",
 ]
 
-from lazuli_transit import download_exoplanet_archive, load_exoplanet_archive
+from lazuli_exo.transit import download_exoplanet_archive, load_exoplanet_archive
 
 # Bind the `airy`, `psfsim` and `spectral` submodules as package attributes,
 # so `wcc_etc.airy` / `wcc_etc.psfsim` / `wcc_etc.spectral` work after a bare

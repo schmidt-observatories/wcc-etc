@@ -4,7 +4,7 @@
 `LightCurveSimulator` turns a FluxModel + a Simulation into a synthetic
 observed WCC light curve, using one ETC photometric SNR measurement at
 baseline brightness as the per-point error. The flux models themselves
-(`FluxModel`, `TransitModel`) live in the instrument-agnostic `lazuli_transit`
+(`FluxModel`, `TransitModel`) live in the instrument-agnostic `lazuli_exo.transit`
 package and are re-exported here for backward compatibility.
 
 Two conventions matter for interpreting the output:
@@ -28,7 +28,7 @@ external, per-point error budget.
 """
 
 import numpy as np
-from lazuli_transit import FluxModel, TransitModel  # noqa: F401  (re-export)
+from lazuli_exo.transit import FluxModel, TransitModel  # noqa: F401  (re-export)
 
 # Sub-exposure sampling step for the supersampling default (seconds).
 SUBSAMPLE_SECONDS = 10.0

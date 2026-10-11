@@ -29,11 +29,15 @@ dependencies = [
   "flask",
   "tifffile",
   "photutils",
+  # Transit models + Exoplanet Archive helpers (lazuli_exo.transit).
+  # TODO(#107): switch to "lazuli-exo>=0.2.0" once lazuli-exo is on PyPI; a
+  # direct URL works for pip/CI/RTD but PyPI refuses to host a wheel that has one.
+  "lazuli-exo @ git+https://github.com/schmidt-observatories/lazuli-exo.git@feat/absorb-lazuli-transit",
 ]
 
 [project.optional-dependencies]
-lightcurve = ["jaxoplanet"]
-exoarchive = ["astroquery"]
+lightcurve = ["lazuli-exo[transit]"]
+exoarchive = ["lazuli-exo[archive]"]
 docs = [
   "sphinx>=7",
   "sphinx-rtd-theme>=2.0",
@@ -62,15 +66,8 @@ dev = [
 Homepage = "https://github.com/schmidt-observatories/wcc-etc"
 Repository = "https://github.com/schmidt-observatories/wcc-etc"
 
-# Both packages build from this one pyproject: wcc_etc from src/, and
-# lazuli_transit from packages/lazuli-transit/src. lazuli-transit is not on
-# PyPI, so declaring it as an external dependency made the documented
-# "pip install -e ." fail. Building it here keeps the install one step.
-# packages/lazuli-transit/pyproject.toml is deliberately left in place so
-# the package stays independently installable (the IFS consumes it directly)
-# and can still move to its own repo.
 [tool.setuptools.packages.find]
-where = ["src", "packages/lazuli-transit/src"]
+where = ["src"]
 
 [tool.setuptools.package-data]
 "wcc_etc" = [
@@ -87,10 +84,7 @@ where = ["src", "packages/lazuli-transit/src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Resolve `lazuli_transit` to the copy vendored in this repo, ahead of any
-# editable install of the standalone lazuli-transit repo that may be on the
-# path, so local runs test the same source CI does.
-pythonpath = [".", "packages/lazuli-transit/src"]
+pythonpath = ["."]
 
 [tool.ruff]
 src = ["src"]
