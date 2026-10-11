@@ -81,7 +81,7 @@ See the `notebooks/` directory for example tutorials:
 
 - The zodiacal background is a fixed V = 22.5 mag/arcsec² (Vega) with no dependence on ecliptic latitude, solar elongation or season. The L3 requirement value is 22.1 (#98).
 - The noise model has photon, dark and read terms only: no systematic floor (flat field, intrapixel × jitter, gain drift), no sky-estimation variance, no cosmic rays, no stray-light background (#100).
-- The telescope pupil: the central obscuration is configurable but defaults to 0 pending the Pearl pupil definition, and there is no wavefront-error / Strehl term, so the in-focus Airy PSF is diffraction-perfect and peak-pixel fractions (hence saturation limits) are optimistic (#99).
+- The pupil is unobscured (correct for the WCC) but there is no wavefront-error / Strehl term, so the in-focus Airy PSF is diffraction-perfect and peak-pixel fractions (hence saturation limits) are optimistic (#99).
 - Not yet validated against as-measured detector, throughput, PSF or on-sky data (#104).
 
 # Notes
