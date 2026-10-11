@@ -271,7 +271,13 @@ class PolychromaticPSF(PSFSource):
 
 
 def load_huygens_psf(path, encoding="utf-16"):
-    """Load a Zemax Huygens PSF text file into a 2D float array of intensities."""
+    """Load a Zemax Huygens PSF text file into a 2D float array of intensities.
+
+    Zemax writes the top row (largest +Y) first. The rows are flipped on load so
+    that, as for a FITS image, the row index increases with +Y and the array can
+    be displayed with ``origin="lower"``; the chief ray from ``Center point`` in
+    the header is then at 0-based ``(x - 1, y - 1)``.
+    """
     with open(path, encoding=encoding) as fh:
         rows = [
             ln
@@ -281,7 +287,7 @@ def load_huygens_psf(path, encoding="utf-16"):
     data = np.array([[float(x) for x in ln.split()] for ln in rows], dtype=float)
     if data.ndim != 2 or data.size == 0:
         raise ValueError(f"Huygens PSF file did not parse to a 2D array: {path}")
-    return data
+    return data[::-1]
 
 
 def parse_huygens_header(path, encoding="utf-16"):
@@ -305,7 +311,8 @@ def parse_huygens_header(path, encoding="utf-16"):
     dict
         Any of ``src_um_per_pix``, ``defocus_waves``, ``strehl``,
         ``wl_min_um``, ``wl_max_um``, ``grid_size``, ``data_area_um`` that could
-        be parsed.
+        be parsed, plus ``chief_ray_pix``: the 0-based ``(x, y)`` of Zemax's
+        ``Center point`` in the array :func:`load_huygens_psf` returns.
     """
     with open(path, encoding=encoding) as fh:
         header = [
@@ -334,6 +341,10 @@ def parse_huygens_header(path, encoding="utf-16"):
         if wl_range and "wl_min_um" not in meta:
             meta["wl_min_um"] = float(wl_range.group(1))
             meta["wl_max_um"] = float(wl_range.group(2))
+        centre = re.search(r"Center point is:\s*([0-9]+),\s*([0-9]+)", line)
+        if centre and "chief_ray_pix" not in meta:
+            # 1-based, y counted from the bottom; load_huygens_psf flips rows.
+            meta["chief_ray_pix"] = (int(centre.group(1)) - 1, int(centre.group(2)) - 1)
     if "grid_size" in meta:
         meta["grid_size"] = int(meta["grid_size"])
     return meta
@@ -408,6 +419,10 @@ def huygens_txt_to_fits(
         header["WLMAX"] = (meta["wl_max_um"], "Zemax wavelength range max [micron]")
     if "data_area_um" in meta:
         header["DATAAREA"] = (meta["data_area_um"], "Data area [micron]")
+    if "chief_ray_pix" in meta:
+        cx, cy = meta["chief_ray_pix"]
+        header["CRPIX1"] = (cx + 1, "Chief ray x (1-based)")
+        header["CRPIX2"] = (cy + 1, "Chief ray y (1-based)")
     header["ORIGFILE"] = (os.path.basename(txt_path), "Zemax export")
     header.add_history("Converted from a Zemax Huygens-PSF .txt export")
     header.add_history("by wcc_etc.psfsim.huygens_txt_to_fits")
@@ -432,7 +447,9 @@ def load_psf_fits(path):
     meta : dict
         ``src_um_per_pix``, ``ref_wavelength_m`` and ``ref_fnum`` where the
         header supplies ``PIXSCALE``, ``WAVELEN`` (nm) and ``FNUM``, plus
-        ``defocus_waves`` from ``DEFOCUSW``. Missing keywords are simply absent.
+        ``defocus_waves`` from ``DEFOCUSW``, and ``chief_ray_pix`` (0-based
+        ``(x, y)``) from ``CRPIX1``/``CRPIX2``. Missing keywords are simply
+        absent.
     """
     with fits.open(path) as hdulist:
         data = np.asarray(hdulist[0].data, dtype=float)
@@ -449,6 +466,11 @@ def load_psf_fits(path):
         meta["ref_fnum"] = float(header["FNUM"])
     if "DEFOCUSW" in header:
         meta["defocus_waves"] = float(header["DEFOCUSW"])
+    if "CRPIX1" in header and "CRPIX2" in header:
+        meta["chief_ray_pix"] = (
+            float(header["CRPIX1"]) - 1,
+            float(header["CRPIX2"]) - 1,
+        )
     return data, meta
 
 
@@ -508,6 +530,10 @@ class _ResampledPSF(PSFSource):
         f-number the array was computed for.
     wavelength_scaling : str, optional
         One of ``WAVELENGTH_SCALING_MODES``. Default ``"despace"``.
+    chief_ray_pix : tuple, optional
+        0-based ``(x, y)`` of the chief ray in ``data``. When given, the render
+        places it at ``ctx.center`` (or ``grid_center(ctx.npix)``) instead of
+        assuming the array centre is the PSF reference.
 
     Raises
     ------
@@ -524,6 +550,7 @@ class _ResampledPSF(PSFSource):
         ref_wavelength_m=None,
         ref_fnum=None,
         wavelength_scaling="despace",
+        chief_ray_pix=None,
     ):
         self._data = np.asarray(data, dtype=float)
         if self._data.ndim != 2:
@@ -539,6 +566,11 @@ class _ResampledPSF(PSFSource):
         )
         self.ref_fnum = None if ref_fnum is None else float(ref_fnum)
         self.wavelength_scaling = wavelength_scaling
+        self.chief_ray_pix = (
+            None
+            if chief_ray_pix is None
+            else (float(chief_ray_pix[0]), float(chief_ray_pix[1]))
+        )
 
     def scale_factor(self, ctx):
         """Factor to multiply ``src_um_per_pix`` by for this context's optics.
@@ -581,17 +613,34 @@ class _ResampledPSF(PSFSource):
         zoom_factor = um_per_pix / ctx.pixel_size_um
         if zoom_factor <= 0:
             raise ValueError("zoom_factor must be positive (check pixel sizes).")
-        zoomed = zoom(self._data, zoom_factor, order=1, mode="constant", cval=0.0)
+        # grid_mode=True scales the pixel grid by exactly nz/n (edges to
+        # edges); the default scales node to node by (nz-1)/(n-1), which is
+        # ~0.4% too large for a 256-sample product on an oversampled grid.
+        zoomed = zoom(
+            self._data,
+            zoom_factor,
+            order=1,
+            mode="grid-constant",
+            cval=0.0,
+            grid_mode=True,
+        )
         psf = normalize_psf(center_crop_or_pad(zoomed, ctx.npix))
         if ctx.jitter_sigma_mas and ctx.jitter_sigma_mas > 0:
             psf = normalize_psf(
                 apply_jitter(psf, ctx.jitter_sigma_mas, ctx.plate_scale_mas)
             )
-        if ctx.center is not None:
-            # zoom keeps the array centre at (nz-1)/2; the crop moved it here.
-            nz = zoomed.shape[0]
-            natural = (nz - 1) / 2.0 - crop_start(nz, ctx.npix)
-            psf = normalize_psf(recenter(psf, ctx.center, origin=(natural, natural)))
+        if ctx.center is not None or self.chief_ray_pix is not None:
+            ny, nx = self._data.shape
+            nzy, nzx = zoomed.shape
+            if self.chief_ray_pix is None:
+                sx, sy = (nx - 1) / 2.0, (ny - 1) / 2.0
+            else:
+                sx, sy = self.chief_ray_pix
+            # grid_mode zoom maps source sample s to (s + 0.5) * nz/n - 0.5.
+            ox = (sx + 0.5) * nzx / nx - 0.5 - crop_start(nzx, ctx.npix)
+            oy = (sy + 0.5) * nzy / ny - 0.5 - crop_start(nzy, ctx.npix)
+            target = ctx.center if ctx.center is not None else grid_center(ctx.npix)
+            psf = normalize_psf(recenter(psf, target, origin=(ox, oy)))
         return psf
 
     def cache_key(self):
@@ -658,6 +707,7 @@ class DefocusPSF(_ResampledPSF):
             ),
             ref_fnum=meta.get("ref_fnum") if ref_fnum is None else ref_fnum,
             wavelength_scaling=wavelength_scaling,
+            chief_ray_pix=meta.get("chief_ray_pix"),
         )
         self.path = path
         self.defocus_waves = meta.get("defocus_waves")
@@ -690,7 +740,9 @@ class CustomPSF(_ResampledPSF):
         ref_fnum=None,
         wavelength_scaling="despace",
         encoding="utf-16",
+        chief_ray_pix=None,
     ):
+        meta = {}
         if isinstance(source, np.ndarray):
             data = source
         elif str(source).lower().endswith((".fits", ".fit", ".fits.gz")):
@@ -703,12 +755,16 @@ class CustomPSF(_ResampledPSF):
             ref_fnum = meta.get("ref_fnum") if ref_fnum is None else ref_fnum
         else:
             data = load_huygens_psf(source, encoding)
+            meta = parse_huygens_header(source, encoding)
         super().__init__(
             data,
             src_um_per_pix,
             ref_wavelength_m=ref_wavelength_m,
             ref_fnum=ref_fnum,
             wavelength_scaling=wavelength_scaling,
+            chief_ray_pix=(
+                meta.get("chief_ray_pix") if chief_ray_pix is None else chief_ray_pix
+            ),
         )
 
 

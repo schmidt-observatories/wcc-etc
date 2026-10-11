@@ -145,9 +145,7 @@ class TestDespaceScaling:
         """At the product's own f-number nothing is rescaled."""
         psf = DefocusPSF(DEFOCUS_1WAVE_PATH)
         native = CustomPSF(
-            *load_psf_fits(DEFOCUS_1WAVE_PATH)[:1],
-            src_um_per_pix=4.0,
-            wavelength_scaling="none",
+            DEFOCUS_1WAVE_PATH, src_um_per_pix=4.0, wavelength_scaling="none"
         ).render(make_ctx())
         assert np.allclose(psf.render(make_ctx(fnum=DEFOCUS_REF_FNUM)), native)
 
