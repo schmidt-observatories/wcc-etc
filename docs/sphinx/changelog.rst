@@ -124,8 +124,7 @@ Behaviour change
   PSFs now ship as FITS with ``PIXSCALE`` / ``WAVELEN`` / ``FNUM`` /
   ``DEFOCUSW`` headers (regenerate with
   :func:`wcc_etc.psfsim.huygens_txt_to_fits`), and
-  ``DEFOCUS_1WAVE_PATH`` / ``DEFOCUS_2WAVE_PATH`` point at them; the raw
-  ``.txt`` exports remain as ``DEFOCUS_*_TXT_PATH``.
+  ``DEFOCUS_1WAVE_PATH`` / ``DEFOCUS_2WAVE_PATH`` point at them.
   :class:`~wcc_etc.DefocusPSF` and :class:`~wcc_etc.CustomPSF` gained a
   ``wavelength_scaling`` argument (``"despace"`` — the default — ``"waves"``,
   or ``"none"``) and now **raise** instead of silently ignoring

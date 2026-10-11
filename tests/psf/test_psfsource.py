@@ -1,16 +1,13 @@
 """Tests for PSF utility functions, PSFSource render, DefocusPSF, and time-solver helpers."""
 
-import os
-
 import numpy as np
 import pytest
 from scipy.ndimage import zoom as _zoom
 
+from tests.psf.conftest import HUYGENS_GRID, synthetic_huygens_psf
 from wcc_etc.psfsim import (
     DEFOCUS_1WAVE_PATH,
-    DEFOCUS_1WAVE_TXT_PATH,
     DEFOCUS_2WAVE_PATH,
-    DEFOCUS_2WAVE_TXT_PATH,
     AiryPSF,
     CustomPSF,
     DefocusPSF,
@@ -106,35 +103,17 @@ class TestPSFUtilities:
         out = recenter(a, (7.0, 5.0))
         assert np.unravel_index(np.argmax(out), out.shape) == (5, 7)
 
-    def test_load_huygens_psf_1wave_file_exists(self):
-        assert os.path.exists(DEFOCUS_1WAVE_TXT_PATH)
+    def test_load_huygens_psf_shape(self, huygens_export):
+        data = load_huygens_psf(huygens_export)
+        assert data.shape == (HUYGENS_GRID, HUYGENS_GRID)
 
-    def test_load_huygens_psf_1wave_shape(self):
-        data = load_huygens_psf(DEFOCUS_1WAVE_TXT_PATH)
-        assert data.shape == (256, 256)
-
-    def test_load_huygens_psf_1wave_is_finite(self):
-        data = load_huygens_psf(DEFOCUS_1WAVE_TXT_PATH)
+    def test_load_huygens_psf_is_finite(self, huygens_export):
+        data = load_huygens_psf(huygens_export)
         assert np.all(np.isfinite(data))
 
-    def test_load_huygens_psf_1wave_is_positive(self):
-        data = load_huygens_psf(DEFOCUS_1WAVE_TXT_PATH)
-        assert data.sum() > 0
-
-    def test_load_huygens_psf_2wave_file_exists(self):
-        assert os.path.exists(DEFOCUS_2WAVE_TXT_PATH)
-
-    def test_load_huygens_psf_2wave_shape(self):
-        data = load_huygens_psf(DEFOCUS_2WAVE_TXT_PATH)
-        assert data.shape == (256, 256)
-
-    def test_load_huygens_psf_2wave_is_finite(self):
-        data = load_huygens_psf(DEFOCUS_2WAVE_TXT_PATH)
-        assert np.all(np.isfinite(data))
-
-    def test_load_huygens_psf_2wave_is_positive(self):
-        data = load_huygens_psf(DEFOCUS_2WAVE_TXT_PATH)
-        assert data.sum() > 0
+    def test_load_huygens_psf_matches_what_was_written(self, huygens_export):
+        data = load_huygens_psf(huygens_export)
+        assert np.allclose(data, synthetic_huygens_psf(), rtol=1e-3)
 
     def test_detector_context_default_jitter(self):
         ctx = DetectorPSFContext(

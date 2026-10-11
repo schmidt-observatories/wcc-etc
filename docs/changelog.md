@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The two Huygens defocus `.txt` exports are removed from the repository; the FITS
+  products are the only bundled form (`DEFOCUS_*_TXT_PATH` is gone). Tests that read
+  a raw export use a small synthetic one written to `tmp_path`.
 - One saturation ceiling: `Sensor.saturation_e` = min(full well, (adc_max - bias) * gain),
   with `Sensor.saturation_limit` reporting which binds (`"well"` / `"adc"`).
   `Simulation.is_saturated`, `psfsim.saturation_mask_from_image_e` and
