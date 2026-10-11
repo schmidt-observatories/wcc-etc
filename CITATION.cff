@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use wcc-etc, please cite it as below and credit the bundled datasets listed in DATA_SOURCES.md."
+title: "wcc-etc: Exposure Time Calculator for the Lazuli Wide-field Context Camera"
+type: software
+version: 0.1.0
+date-released: 2026-10-10
+license: BSD-3-Clause
+repository-code: "https://github.com/schmidt-observatories/wcc-etc"
+url: "https://simulators.schmidtobservatorysystem.org/wcc/"
+authors:
+  - family-names: Stefansson
+    given-names: Gudmundur
+    affiliation: "Schmidt Sciences"
+    email: gstefansson@schmidtsciences.org
+  - family-names: Rigault
+    given-names: Mickael
+    affiliation: "IP2I Lyon, CNRS/IN2P3"
+  - family-names: Sabhlok
+    given-names: Sanchit
+    affiliation: "University of Arizona"
+  - family-names: Goldtooth
+    given-names: Aaron
+    affiliation: "University of Arizona"
+keywords:
+  - exposure time calculator
+  - astronomy
+  - space telescope
+  - Lazuli

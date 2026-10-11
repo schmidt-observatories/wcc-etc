@@ -1,3 +1,11 @@
+"""Radial profile of a 2-D image.
+
+Adapted from ``radial_data()`` by Ian Crossfield (2005-11-04, Jet Propulsion
+Laboratory), distributed in his public Python astronomy library. Redistributed
+with attribution; the original carried no explicit license. Local changes are
+limited to numpy/scipy API updates. See DATA_SOURCES.md.
+"""
+
 import numpy as np
 from scipy.integrate import trapezoid
 
