@@ -7,8 +7,8 @@ import sys
 import tarfile
 import zipfile
 
-JUNK = re.compile(r"\.DS_Store$|\.sw[op]$|_report\.pdf$|/scatter/")
-MAX_BYTES = 50 * 1024**2  # the bundled data files put the wheel near 33 MB
+JUNK = re.compile(r"\.DS_Store$|\.sw[op]$|_report\.pdf$|\.fgd$|/scatter/|/flats/|/dat_uvi/|data/psfs/.*\.txt$")
+MAX_BYTES = 20 * 1024**2  # clean build is ~12 MB; the Pickles + Brown atlases dominate
 
 
 def entries(path):
