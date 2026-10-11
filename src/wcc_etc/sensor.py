@@ -400,3 +400,24 @@ class Sensor(_MetaHolder_):
         if bit_depth is None:
             raise ValueError("bit_depth is not set; cannot compute adc_max")
         return (2**bit_depth - 1) * u.ct
+
+    @property
+    def saturation_e(self):
+        """
+        The per-frame saturation ceiling in electrons: the smaller of the full
+        well (meta['well_depth']) and the charge at which the ADC clips,
+        (adc_max - bias_level) * gain. Bias consumes ADC headroom; it does not
+        raise the well. Every saturation API compares electrons to this (#64).
+        """
+        adc_e = ((self.adc_max - self.bias_level) * self.gain).to(u.electron).value
+        well_e = self.meta.get("well_depth")
+        return min(adc_e, well_e if well_e is not None else float("inf")) * u.electron
+
+    @property
+    def saturation_limit(self):
+        """
+        Which limit binds in saturation_e: 'well' (full well) or 'adc' (ADC clip).
+        """
+        adc_e = ((self.adc_max - self.bias_level) * self.gain).to(u.electron).value
+        well_e = self.meta.get("well_depth")
+        return "well" if well_e is not None and well_e <= adc_e else "adc"

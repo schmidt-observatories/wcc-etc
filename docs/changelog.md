@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- One saturation ceiling: `Sensor.saturation_e` = min(full well, (adc_max - bias) * gain),
+  with `Sensor.saturation_limit` reporting which binds (`"well"` / `"adc"`).
+  `Simulation.is_saturated`, `psfsim.saturation_mask_from_image_e` and
+  `ImageSimulator.simulate` all compare electrons to it. Previously `is_saturated`
+  tested only the ADC clip, so the Sony IMX455 reported unsaturated between the
+  ~16.3 ke- well and the ~17.1 ke- ADC ceiling, and the image mask ignored bias (#64).
 - Sersic hosts: the 5x5 pixels around the cusp are now integrated exactly (adaptive
   quadrature split at the cusp) instead of sampled on the `oversample` sub-grid, which
   overshot the analytic total by up to 3x (n=4) and 4 orders of magnitude (n=8) for
