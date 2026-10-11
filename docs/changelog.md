@@ -14,6 +14,8 @@
   Pickles `dat_uvi/` atlas are removed; `hsiao07.dat` is now the phase-0 slice (2 columns,
   130 kB instead of 8 MB) and loads with `get_scene("hsiao07", ...)` instead of raising.
   Wheel and sdist are 8 MB; CI fails a build over 20 MB or carrying local products (#62, #101).
+- `DATA_SOURCES.md` lists every bundled dataset with its citation or origin, and
+  `CITATION.cff` gives the software citation; `radial_data.py` carries its attribution (#101).
 - Sersic hosts: the 5x5 pixels around the cusp are now integrated exactly (adaptive
   quadrature split at the cusp) instead of sampled on the `oversample` sub-grid, which
   overshot the analytic total by up to 3x (n=4) and 4 orders of magnitude (n=8) for
