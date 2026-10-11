@@ -12,9 +12,10 @@ Paths are relative to `src/wcc_etc/data/`.
 | `astrophysics/hsiao07.dat` | SN Ia template, phase 0 d (B maximum) slice only | Hsiao et al. (2007), ApJ 663, 1187, as distributed in the [SALTShaker](https://github.com/djones1040/SALTShaker/blob/main/saltshaker/initfiles/hsiao07.dat) repository. |
 | `astrophysics/zodiacal_model_001.fits` | Zodiacal-light spectral template | HST Exposure Time Calculator background model (`newzodi.fits`, STScI), based on Leinert et al. (1998), A&AS 127, 1. The normalization (V = 22.5 mag/arcsec², see #98) is set in `scene.py`. |
 
-The Vega reference spectrum (CALSPEC `alpha_lyr_stis_011.fits`) and the Johnson V
-curve (`johnson_v_004_syn.fits`) are fetched by `synphot` from STScI at first use
-and cached locally; they are not in the wheel.
+The Vega reference spectrum (`astrophysics/alpha_lyr_stis_011.fits`, CALSPEC,
+Bohlin et al. 2014, PASP 126, 711) and the Johnson V curve
+(`throughput/other_filters/johnson_v_004_syn.fits`, STScI) are bundled, byte-identical
+to the STScI files, so no network access is needed at run time.
 
 ## Filter profiles
 
