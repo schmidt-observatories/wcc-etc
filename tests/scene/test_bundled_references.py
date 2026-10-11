@@ -30,4 +30,3 @@ class TestBundledReferences:
     def test_vegamag_scene_builds_offline(self, no_network):
         scene = wcc_etc.get_scene("G2V", mag=15, host=None, bandpass="johnson_v")
         assert scene.source.get_observation().countrate(area=1).value > 0
-
