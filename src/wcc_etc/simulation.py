@@ -1479,6 +1479,7 @@ class Simulation(_MetaHolder_):
             jitter_sigma_mas=self.telescope.jitter_sigma.to("mas"),
             fnum=self.telescope.f_num,
             D=self.telescope.diameter_primary.value,
+            obscuration=self.telescope.obscuration,
             pixel_size=self.sensor.pixel_size.value,
             verbose=False,
         )

@@ -1,6 +1,9 @@
 [telescope]
 diameter_primary = 3.065	# m
 f_num = 15.0 	   		# unitless
+# linear central obscuration ratio (secondary diameter / primary diameter);
+# 0 = clear pupil. Set from the Pearl pupil definition.
+obscuration = 0.0
 
 # telescope effect
 jitter_sigma = 10		# mas

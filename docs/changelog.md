@@ -8,6 +8,13 @@
   `ImageSimulator.simulate` all compare electrons to it. Previously `is_saturated`
   tested only the ADC clip, so the Sony IMX455 reported unsaturated between the
   ~16.3 ke- well and the ~17.1 ke- ADC ceiling, and the image mask ignored bias (#64).
+- Central obscuration: new `[telescope] obscuration` config key (linear secondary /
+  primary diameter ratio, `Telescope.obscuration`, settable via `sim.update(obscuration=...)`).
+  `Telescope.surface` is scaled by `1 - obscuration**2` and every Airy renderer
+  (`get_airy_psf`, `render_detector_psf`, the EE curves, `AiryPSF`, `scatter_psf`) uses
+  the annular-pupil amplitude `[2 J1(x)/x - eps^2 2 J1(eps x)/(eps x)] / (1 - eps^2)`.
+  Default is 0, so existing numbers are unchanged; wavefront error / Strehl is still
+  not modelled (#99).
 - Sersic hosts: the 5x5 pixels around the cusp are now integrated exactly (adaptive
   quadrature split at the cusp) instead of sampled on the `oversample` sub-grid, which
   overshot the analytic total by up to 3x (n=4) and 4 orders of magnitude (n=8) for

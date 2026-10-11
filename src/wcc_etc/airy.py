@@ -12,14 +12,18 @@ from scipy.special import j1
 _ODD_NPIX_NOTIFIED = False
 
 
-def get_airy_psf(D, rr, wavelength, normalize=True):
+def get_airy_psf(D, rr, wavelength, normalize=True, obscuration=0.0):
     """
-    Unobscured circular-aperture Airy PSF on grid of radial coords rr [rad].
+    Circular-aperture Airy PSF on grid of radial coords rr [rad].
 
     INPUT:
         D - diameter in m
         rr - rad?
         wavelength - in m
+        obscuration - linear central obscuration ratio eps (secondary/primary
+                      diameter). 0 (default) is the clear-pupil Airy; eps > 0
+                      uses the annular-pupil amplitude
+                      [2 J1(x)/x - eps^2 2 J1(eps x)/(eps x)] / (1 - eps^2).
 
     OUTPUT:
 
@@ -35,9 +39,13 @@ def get_airy_psf(D, rr, wavelength, normalize=True):
     rr = np.array(rr)
     k = 2.0 * np.pi / wavelength
     x = (k * D * rr) / 2.0
+    eps = float(obscuration)
     psf = np.ones_like(x)
     nz = x != 0
-    psf[nz] = (2.0 * j1(x[nz]) / x[nz]) ** 2
+    amp = 2.0 * j1(x[nz]) / x[nz]
+    if eps > 0:
+        amp = (amp - eps**2 * 2.0 * j1(eps * x[nz]) / (eps * x[nz])) / (1.0 - eps**2)
+    psf[nz] = amp**2
     if normalize:
         psf = psf / psf.sum()
     return psf
@@ -152,6 +160,7 @@ def render_detector_psf(
     n_pixels=21,
     oversample=11,
     verbose=False,
+    obscuration=0.0,
 ):
     """
     Render the (optionally jittered) Airy PSF onto the detector pixel grid.
@@ -175,6 +184,7 @@ def render_detector_psf(
         n_pixels         - detector pixels per side (forced odd)
         oversample       - Sub-pixel sampling factor per detector pixel. Any value works (centering is by symmetry); odd values place a sample exactly on the PSF peak.
         verbose          - print diagnostics
+        obscuration      - linear central obscuration ratio (0 = clear pupil)
 
     OUTPUT:
         psf_detector     - (n_pixels, n_pixels) array summing to 1; its max
@@ -227,7 +237,7 @@ def render_detector_psf(
     rr = np.sqrt(xx**2 + yy**2)
 
     # Raw Airy intensity (do not normalize on the truncated grid)
-    psf_fine = get_airy_psf(D, rr, wavelength, normalize=False)
+    psf_fine = get_airy_psf(D, rr, wavelength, normalize=False, obscuration=obscuration)
 
     # Jitter broadening at the oversampled scale
     if jitter_sigma_mas != 0:
@@ -286,11 +296,13 @@ def get_airy_and_ee_curve_pixel_grid(
     pixel_size=3.74,
     fnum=15,
     D=3,
+    obscuration=0.0,
 ):
     """
     INPUT:
         wavelength - wavelength in m
         D - diameter in m
+        obscuration - linear central obscuration ratio (0 = clear pupil)
         grid_size -
         extent_mas -
     EXAMPLE:
@@ -328,7 +340,7 @@ def get_airy_and_ee_curve_pixel_grid(
     y = np.linspace(-extent_rad, extent_rad, grid_size)
     xx, yy = np.meshgrid(x, y, indexing="xy")
     rr = np.sqrt(xx**2 + yy**2)
-    psf2d = get_airy_psf(D, rr, wavelength, normalize=True)
+    psf2d = get_airy_psf(D, rr, wavelength, normalize=True, obscuration=obscuration)
     pixel_scale_mas = (2.0 * extent_mas) / grid_size
     px_scale_x_mas = pixel_scale_mas
     px_scale_y_mas = pixel_scale_mas
@@ -436,6 +448,7 @@ def get_airy_and_ee_curve(
     pixel_size=3.74,
     fnum=15,
     D=3,
+    obscuration=0.0,
 ):
     """
     Calculate airy curve
@@ -445,6 +458,7 @@ def get_airy_and_ee_curve(
         grid_size - number of pixels in the grid (square)
         extent_mas - size of the grid in milliarcseconds
         D - diameter in m
+        obscuration - linear central obscuration ratio (0 = clear pupil)
 
     EXAMPLE:
         r_mas, ee_base = get_ee_curve(wavelength=0.6e-6)
@@ -480,7 +494,7 @@ def get_airy_and_ee_curve(
     y = np.linspace(-extent_rad, extent_rad, grid_size)
     xx, yy = np.meshgrid(x, y, indexing="xy")
     rr = np.sqrt(xx**2 + yy**2)
-    psf2d = get_airy_psf(D, rr, wavelength, normalize=True)
+    psf2d = get_airy_psf(D, rr, wavelength, normalize=True, obscuration=obscuration)
     pixel_scale_mas = (2.0 * extent_mas) / grid_size
     px_scale_x_mas = pixel_scale_mas
     px_scale_y_mas = pixel_scale_mas

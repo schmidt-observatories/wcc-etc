@@ -18,16 +18,20 @@ class Telescope(_MetaHolder_):
         The diameter of the primary mirror.
     jitter_sigma : Quantity
         The pointing jitter (sigma) in milliarcseconds.
+    obscuration : float
+        Linear central obscuration ratio (secondary / primary diameter).
     surface : Quantity
-        The collecting area of the telescope.
+        The collecting area of the telescope (clear area minus the obscuration).
     focal_len : Quantity
         The focal length of the telescope.
     """
 
     # list of mutable parameter. This is handled by _MetaHolder_
-    _mutable_parameters = ["f_num", "diameter_primary", "jitter_sigma"]
+    _mutable_parameters = ["f_num", "diameter_primary", "jitter_sigma", "obscuration"]
 
-    def __init__(self, f_num, diameter_primary, jitter_sigma=0, meta={}):
+    def __init__(
+        self, f_num, diameter_primary, jitter_sigma=0, obscuration=0.0, meta={}
+    ):
         """
         Initialize a Telescope object.
 
@@ -39,6 +43,9 @@ class Telescope(_MetaHolder_):
             The diameter of the primary mirror (meters if float).
         jitter_sigma : float or Quantity, optional
             The pointing jitter (sigma) (mas if float). Default is 0.
+        obscuration : float, optional
+            Linear central obscuration ratio (secondary diameter / primary
+            diameter). 0 is a clear pupil. Default is 0.
         meta : dict, optional
             Additional metadata. Default is {}.
         """
@@ -47,6 +54,7 @@ class Telescope(_MetaHolder_):
         meta["f_num"] = f_num
         meta["diameter_primary"] = diameter_primary
         meta["jitter_sigma"] = jitter_sigma
+        meta["obscuration"] = obscuration
 
         # meta
         super().__init__(meta=meta)
@@ -108,11 +116,18 @@ class Telescope(_MetaHolder_):
         return jitter_sigma
 
     @property
+    def obscuration(self):
+        """
+        The linear central obscuration ratio (secondary / primary diameter).
+        """
+        return float(self.meta.get("obscuration", 0.0))
+
+    @property
     def surface(self):
         """
-        The collecting area (surface) of the primary mirror.
+        The collecting area of the primary mirror, minus the central obscuration.
         """
-        return np.pi * (0.5 * self.diameter_primary) ** 2
+        return np.pi * (0.5 * self.diameter_primary) ** 2 * (1.0 - self.obscuration**2)
 
     @property
     def focal_len(self):

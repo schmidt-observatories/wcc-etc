@@ -430,10 +430,26 @@ def airy_irradiance(r_mm, D, fnum, wavelength, power=1.0, envelope=False):
 
 
 def render_inner_core(
-    wavelength, fnum, D, pixel_size_um, jitter_sigma_mas, npix, oversample
+    wavelength,
+    fnum,
+    D,
+    pixel_size_um,
+    jitter_sigma_mas,
+    npix,
+    oversample,
+    obscuration=0.0,
 ):
     """Memoized ``airy.render_detector_psf`` -- the slow step when called in a loop."""
-    key = (wavelength, fnum, D, pixel_size_um, jitter_sigma_mas, npix, oversample)
+    key = (
+        wavelength,
+        fnum,
+        D,
+        pixel_size_um,
+        jitter_sigma_mas,
+        npix,
+        oversample,
+        obscuration,
+    )
     if key not in AIRY_CACHE:
         AIRY_CACHE[key] = airy.render_detector_psf(
             wavelength=wavelength,
@@ -443,6 +459,7 @@ def render_inner_core(
             jitter_sigma_mas=jitter_sigma_mas,
             n_pixels=npix,
             oversample=oversample,
+            obscuration=obscuration,
         )
     return AIRY_CACHE[key]
 
@@ -459,9 +476,12 @@ def render_airy_core(
     radial_oversample=32,
     dtype=np.float32,
     chunk=CHUNK_ROWS,
+    obscuration=0.0,
 ):
     """
-    Unobscured Airy PSF on a detector grid of ``shape``, at arbitrary size.
+    Airy PSF on a detector grid of ``shape``, at arbitrary size.
+
+    ``obscuration`` is the linear central obscuration ratio (0 = clear pupil).
 
     Why not just call ``airy.render_detector_psf`` on the whole grid?  Its cost
     is ``(npix * oversample)**2``, so a 8193-pixel core at oversample 11 would
@@ -490,7 +510,11 @@ def render_airy_core(
     ros = int(radial_oversample)
     rp = np.arange(0.0, r_max_px * ros + ros) / ros  # radius in pixels
     inten = airy.get_airy_psf(
-        D, rp * pscale_mas / mas_per_rad, wavelength, normalize=False
+        D,
+        rp * pscale_mas / mas_per_rad,
+        wavelength,
+        normalize=False,
+        obscuration=obscuration,
     )
     kernel = np.ones(ros) / ros  # one-pixel box
     inten = np.convolve(inten, kernel, mode="same")
@@ -506,7 +530,14 @@ def render_airy_core(
     # ---- exact inner block, matched to the radial scale at the seam ------- #
     n_in = make_odd(min(inner_npix, nx, ny))
     inner, pscale_check = render_inner_core(
-        wavelength, fnum, D, pixel_size_um, jitter_sigma_mas, n_in, oversample
+        wavelength,
+        fnum,
+        D,
+        pixel_size_um,
+        jitter_sigma_mas,
+        n_in,
+        oversample,
+        obscuration=obscuration,
     )
     assert np.isclose(pscale_check, pscale_mas, rtol=1e-9)
 
@@ -1153,6 +1184,7 @@ def make_total_psf(
     oversample=11,
     D=None,
     fnum=None,
+    obscuration=None,
     telescope_config="lazuli.toml",
     smooth=True,
     interp_order=3,
@@ -1199,9 +1231,9 @@ def make_total_psf(
         sets how big the exactly-pixel-integrated central block is, at a cost
         quadratic in ``inner_npix * oversample``.  ``jitter_sigma_mas`` defaults
         to 0 so the saved base PSF is purely optical; apply jitter downstream.
-    D, fnum : float, optional
-        Telescope diameter [m] and f-number.  Default: read from
-        ``telescope_config`` (Lazuli: 3.065 m, f/15).
+    D, fnum, obscuration : float, optional
+        Telescope diameter [m], f-number and linear central obscuration ratio.
+        Default: read from ``telescope_config`` (Lazuli: 3.065 m, f/15, 0).
     smooth : bool
         ``True`` (default) interpolates the irradiance smoothly and rescales to
         the exact enclosed integral.  ``False`` uses pure area-overlap rebinning
@@ -1247,6 +1279,7 @@ def make_total_psf(
     tel = Telescope.from_config(io.read_config(telescope_config)["telescope"])
     D = float(tel.diameter_primary.value) if D is None else float(D)
     fnum = float(tel.f_num) if fnum is None else float(fnum)
+    obscuration = tel.obscuration if obscuration is None else float(obscuration)
     flength_m = fnum * D
     aspmm = arcsec_per_mm(D, fnum)
     pixel_scale_mas = plate_scale_mas_per_pixel(pixel_size_um, D, fnum)
@@ -1366,6 +1399,7 @@ def make_total_psf(
             inner_npix=inner_npix,
             oversample=oversample,
             dtype=dtype,
+            obscuration=obscuration,
         )
         assert np.isclose(pscale_check, pixel_scale_mas, rtol=1e-9)
 
@@ -1406,6 +1440,7 @@ def make_total_psf(
         "JITTER": (float(jitter_sigma_mas), "jitter sigma [mas]"),
         "TELDIAM": (D, "primary diameter [m]"),
         "FNUM": (fnum, "f-number"),
+        "OBSCUR": (obscuration, "linear central obscuration ratio"),
         "SMOOTH": (bool(smooth), "smooth interp (else exact area rebin)"),
         "RENORM": (bool(renormalize), "output renormalized to sum 1"),
         "PFULL": (p_full, "integral of the full FRED map [W]"),

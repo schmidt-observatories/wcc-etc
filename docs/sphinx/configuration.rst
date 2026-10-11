@@ -84,10 +84,19 @@ Example — the telescope config
    [telescope]
    diameter_primary = 3.065   # m
    f_num            = 15.0    # unitless
+   obscuration      = 0.0     # secondary / primary diameter (0 = clear pupil)
    jitter_sigma     = 10      # mas
 
    [zodi]
    zodi_mag_r = 22.5
+
+``obscuration`` is the linear central obscuration ratio (secondary diameter over
+primary diameter). It scales the collecting area
+(:attr:`~wcc_etc.telescope.Telescope.surface`) by ``1 - obscuration**2`` and turns
+the Airy PSF into the annular-pupil form, which lowers the core peak and moves
+energy into the rings. The default is 0 (clear pupil, every number unchanged);
+set it from the Pearl pupil definition. Wavefront error / Strehl is still not
+modelled.
 
 Overriding configuration at runtime
 -----------------------------------

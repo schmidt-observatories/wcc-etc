@@ -68,6 +68,7 @@ class DetectorPSFContext:
     jitter_sigma_mas: float = 0.0
     center: Optional[tuple] = None
     oversample: int = 11
+    obscuration: float = 0.0  # linear central obscuration ratio (0 = clear pupil)
 
 
 def normalize_psf(psf):
@@ -168,6 +169,7 @@ class AiryPSF(PSFSource):
             jitter_sigma_mas=ctx.jitter_sigma_mas,
             n_pixels=ctx.npix,
             oversample=ctx.oversample,
+            obscuration=ctx.obscuration,
         )
         if psf.shape != (ctx.npix, ctx.npix):  # render_detector_psf forces odd n_pixels
             psf = center_crop_or_pad(psf, ctx.npix)
@@ -941,6 +943,7 @@ class ImageSimulator:
             jitter_sigma_mas=jitter_sigma_mas,
             center=center,
             oversample=self.oversample,
+            obscuration=sim.telescope.obscuration,
         )
 
     def simulate(
