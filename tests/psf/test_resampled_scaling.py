@@ -10,7 +10,6 @@ import pytest
 
 from wcc_etc.psfsim import (
     DEFOCUS_1WAVE_PATH,
-    DEFOCUS_1WAVE_TXT_PATH,
     DEFOCUS_2WAVE_PATH,
     DEFOCUS_REF_FNUM,
     DEFOCUS_REF_WAVELENGTH_M,
@@ -18,7 +17,6 @@ from wcc_etc.psfsim import (
     DefocusPSF,
     DetectorPSFContext,
     load_psf_fits,
-    parse_huygens_header,
 )
 
 
@@ -75,13 +73,10 @@ class TestDefocusProductMetadata:
         _, meta = load_psf_fits(DEFOCUS_2WAVE_PATH)
         assert meta["defocus_waves"] == pytest.approx(2.0)
 
-    def test_fits_matches_the_txt_export_shape(self):
-        """The FITS product is a faithful conversion of the Zemax export."""
+    def test_fits_is_the_full_huygens_grid(self):
+        """The FITS product keeps the 256 x 256 Huygens grid of the export."""
         data, _ = load_psf_fits(DEFOCUS_1WAVE_PATH)
-        assert (
-            data.shape
-            == (parse_huygens_header(DEFOCUS_1WAVE_TXT_PATH)["grid_size"],) * 2
-        )
+        assert data.shape == (256, 256)
 
 
 class TestDefocusPSFMetadata:
@@ -100,19 +95,19 @@ class TestDefocusPSFMetadata:
             DEFOCUS_REF_FNUM
         )
 
-    def test_still_loads_the_raw_zemax_export(self):
+    def test_still_loads_the_raw_zemax_export(self, huygens_export):
         """The .txt exports remain loadable, with the sampling from their header."""
-        assert DefocusPSF(DEFOCUS_1WAVE_TXT_PATH).src_um_per_pix == pytest.approx(4.0)
+        assert DefocusPSF(huygens_export).src_um_per_pix == pytest.approx(4.0)
 
-    def test_raw_export_cannot_be_scaled(self):
+    def test_raw_export_cannot_be_scaled(self, huygens_export):
         """A .txt export carries no reference optics, so rendering it must object."""
         with pytest.raises(ValueError, match="ref_wavelength_m"):
-            DefocusPSF(DEFOCUS_1WAVE_TXT_PATH).render(make_ctx())
+            DefocusPSF(huygens_export).render(make_ctx())
 
-    def test_raw_export_renders_when_told_the_optics(self):
+    def test_raw_export_renders_when_told_the_optics(self, huygens_export):
         """Supplying the missing reference optics makes a .txt export renderable."""
         psf = DefocusPSF(
-            DEFOCUS_1WAVE_TXT_PATH,
+            huygens_export,
             ref_wavelength_m=DEFOCUS_REF_WAVELENGTH_M,
             ref_fnum=DEFOCUS_REF_FNUM,
         )

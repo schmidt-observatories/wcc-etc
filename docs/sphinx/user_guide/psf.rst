@@ -220,10 +220,8 @@ as path constants:
 The FITS headers carry ``PIXSCALE`` (µm/sample), ``WAVELEN`` (the reference
 wavelength, nm), ``FNUM`` (the reference f-number) and ``DEFOCUSW`` (the
 defocus in waves), so ``DefocusPSF`` needs no hand-passed sampling and can map
-the array onto the optics it is asked about. The raw Zemax ``.txt`` exports also
-ship, as ``wcc_etc.psfsim.DEFOCUS_1WAVE_TXT_PATH`` /
-``DEFOCUS_2WAVE_TXT_PATH``; regenerate the FITS from them with
-:func:`wcc_etc.psfsim.huygens_txt_to_fits`.
+the array onto the optics it is asked about. A new Huygens ``.txt`` export is
+turned into such a product with :func:`wcc_etc.psfsim.huygens_txt_to_fits`.
 
 What the two products look like on the detector, against an in-focus Airy PSF
 for scale (noiseless, same source and exposure in each panel):

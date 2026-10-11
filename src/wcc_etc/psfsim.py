@@ -27,11 +27,10 @@ from . import airy
 from .radial_data import radial_data
 from .simulation import Simulation
 
-# Bundled Zemax Huygens defocus PSF products. The raw .txt files are the Zemax
-# exports as delivered; the .fits files are the canonical products, carrying the
-# reference wavelength and f-number in their headers so that a render can scale
-# them for the optics it is asked about instead of silently ignoring them
-# (issue #65). Regenerate the FITS with huygens_txt_to_fits.
+# Bundled defocus PSF products: FITS carrying the reference wavelength and
+# f-number in their headers so that a render can scale them for the optics it is
+# asked about instead of silently ignoring them (issue #65). Built from the
+# Huygens .txt exports with huygens_txt_to_fits.
 _PSF_DATA_DIR = os.path.join(os.path.dirname(__file__), "data", "psfs")
 _DEFOCUS_STEM = "CAD_{n}-waves-defocus_500nm_Huygens-PSF-Data_Linear"
 
@@ -42,8 +41,6 @@ DEFOCUS_REF_WAVELENGTH_M = 500e-9
 #: (``data/config/lazuli.toml``).
 DEFOCUS_REF_FNUM = 15.0
 
-DEFOCUS_1WAVE_TXT_PATH = os.path.join(_PSF_DATA_DIR, _DEFOCUS_STEM.format(n=1) + ".txt")
-DEFOCUS_2WAVE_TXT_PATH = os.path.join(_PSF_DATA_DIR, _DEFOCUS_STEM.format(n=2) + ".txt")
 DEFOCUS_1WAVE_PATH = os.path.join(_PSF_DATA_DIR, _DEFOCUS_STEM.format(n=1) + ".fits")
 DEFOCUS_2WAVE_PATH = os.path.join(_PSF_DATA_DIR, _DEFOCUS_STEM.format(n=2) + ".fits")
 

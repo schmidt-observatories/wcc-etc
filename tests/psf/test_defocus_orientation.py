@@ -13,11 +13,11 @@ from astropy.io import fits
 from wcc_etc.psfsim import (
     DEFOCUS_1WAVE_PATH,
     DEFOCUS_2WAVE_PATH,
-    DEFOCUS_2WAVE_TXT_PATH,
     CustomPSF,
     DefocusPSF,
     DetectorPSFContext,
     grid_center,
+    huygens_txt_to_fits,
     load_huygens_psf,
     load_psf_fits,
     parse_huygens_header,
@@ -48,20 +48,20 @@ def _centroid(img):
     return (img.sum(axis=0) @ i) / img.sum(), (img.sum(axis=1) @ i) / img.sum()
 
 
-def test_huygens_rows_are_flipped_so_index_increases_with_y():
-    with open(DEFOCUS_2WAVE_TXT_PATH, encoding="utf-16") as fh:
+def test_huygens_rows_are_flipped_so_index_increases_with_y(huygens_export):
+    with open(huygens_export, encoding="utf-16") as fh:
         rows = [
             ln
             for ln in fh.read().splitlines()
             if ln.strip() and not ln.lstrip().startswith("#")
         ]
     last_text_row = np.array([float(x) for x in rows[-1].split()])
-    data = load_huygens_psf(DEFOCUS_2WAVE_TXT_PATH)
+    data = load_huygens_psf(huygens_export)
     assert np.array_equal(data[0], last_text_row)
 
 
-def test_header_chief_ray_is_zero_based_center_point():
-    assert parse_huygens_header(DEFOCUS_2WAVE_TXT_PATH)["chief_ray_pix"] == (128, 128)
+def test_header_chief_ray_is_zero_based_center_point(huygens_export):
+    assert parse_huygens_header(huygens_export)["chief_ray_pix"] == (16, 16)
 
 
 @pytest.mark.parametrize("path", [DEFOCUS_1WAVE_PATH, DEFOCUS_2WAVE_PATH])
@@ -71,9 +71,10 @@ def test_bundled_products_record_the_chief_ray(path):
     assert load_psf_fits(path)[1]["chief_ray_pix"] == (128.0, 128.0)
 
 
-def test_bundled_product_matches_the_flipped_export():
-    data, _ = load_psf_fits(DEFOCUS_2WAVE_PATH)
-    flipped = load_huygens_psf(DEFOCUS_2WAVE_TXT_PATH).astype(np.float32)
+def test_converted_product_matches_the_flipped_export(huygens_export, tmp_path):
+    fits_path = huygens_txt_to_fits(huygens_export, str(tmp_path / "psf.fits"))
+    data, _ = load_psf_fits(fits_path)
+    flipped = load_huygens_psf(huygens_export).astype(np.float32)
     assert np.allclose(data, flipped)
 
 
