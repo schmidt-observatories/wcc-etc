@@ -107,3 +107,13 @@ make html                  # output in _build/html/index.html
 
 A `.readthedocs.yaml` is included so the site builds automatically once the
 repository is connected to Read the Docs.
+
+## Releasing
+
+Releases are tag-driven (`.github/workflows/publish.yml`); nothing is uploaded by hand.
+
+1. Bump `version` in `pyproject.toml` and move the `Unreleased` entries in `docs/changelog.md` under the new version.
+2. Tag and push. A tag containing `rc` (for example `v0.1.0rc1`) publishes to TestPyPI; a plain `vX.Y.Z` tag publishes to PyPI.
+3. CI checks that the tag matches the version, that no dependency is a direct URL (PyPI rejects those), builds and audits the artifacts, and installs the wheel in a fresh venv before publishing.
+
+Trusted publishing is used, so there are no API tokens: the repository, workflow file and GitHub environment (`pypi`, `testpypi`) are registered once on each index.

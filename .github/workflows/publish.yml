@@ -1,0 +1,91 @@
+name: Publish
+
+# Tag-driven release (#108). Push v0.1.0rc1 -> TestPyPI; push v0.1.0 -> PyPI.
+# workflow_dispatch builds and audits without publishing (a dry run).
+# Publishing uses PyPI trusted publishing: no API tokens in secrets. One-time
+# setup: register this repo + publish.yml + environment "pypi" on pypi.org and
+# "testpypi" on test.pypi.org, and create those two environments in GitHub.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check release metadata
+        run: python .github/scripts/check_release.py
+
+      - name: Build sdist and wheel
+        run: |
+          pip install build twine
+          python -m build
+          twine check dist/*
+
+      - name: Audit artifact contents
+        run: python .github/scripts/audit_artifacts.py
+
+      - name: Smoke-test the installed wheel
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --upgrade pip
+          /tmp/smoke/bin/pip install dist/*.whl
+          cd /tmp   # import the installed wheel, not the source tree
+          /tmp/smoke/bin/python - <<'PY'
+          from wcc_etc import get_scene, Simulation, TransitModel  # noqa: F401
+
+          scene = get_scene("K3IV", mag=20, host=None, background="zodi")
+          sim = Simulation.from_sensor_and_scene("sony:bb", scene)
+          snr = sim.get_snr(10)["snr"]
+          assert snr > 0, snr
+          print("installed-wheel SNR:", snr)
+          PY
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  testpypi:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, 'rc')
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  pypi:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, 'rc')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
