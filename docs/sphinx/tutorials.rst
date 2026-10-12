@@ -1,9 +1,9 @@
 Tutorials
 =========
 
-These tutorials are runnable Jupyter notebooks from the ``notebooks/``
-directory of the repository, rendered here with their saved outputs. Each one
-is self-contained — download it and run it interactively to experiment.
+The tutorials are Jupyter notebooks from the ``notebooks/`` directory of the
+repository, rendered here with their outputs. Each one stands on its own, so
+download it and change the numbers to see what happens.
 
 .. list-table::
    :header-rows: 1
@@ -12,22 +12,27 @@ is self-contained — download it and run it interactively to experiment.
    * - Notebook
      - What it covers
    * - :doc:`notebooks/01_getting_started`
-     - The scene → simulation → SNR workflow, updating parameters, and plotting.
+     - Building a scene and a simulation, reading the SNR, updating parameters,
+       and the plot methods.
    * - :doc:`notebooks/02_saturation_flag`
-     - Peak-pixel and saturation flagging (``get_peak_pixel``, ``is_saturated``).
+     - The peak pixel and the saturation flag (``get_peak_pixel``,
+       ``is_saturated``).
    * - :doc:`notebooks/03_from_sensorfilter`
-     - ``from_sensorfilter`` — automatic PSF selection by sensor:filter focus level.
+     - ``from_sensorfilter``: the PSF that goes with each sensor and filter,
+       in focus or defocused.
    * - :doc:`notebooks/04_psf_and_image_snr`
      - The PSF simulator, ``ImageSimulator``, and PSF-aware SNR with aperture
        optimization.
    * - :doc:`notebooks/05_n_reads_exptime`
-     - ``n_reads`` and the exposure-time-for-SNR inverses; per-frame saturation.
+     - ``n_reads``, the exposure time for a target SNR, and per-frame
+       saturation.
    * - :doc:`notebooks/06_source_spectra`
-     - Parametric source spectra (blackbody / flat / power law / emission) and
-       rebuilding them via ``update``.
+     - Parametric source spectra (blackbody, flat, power law, emission lines)
+       and rebuilding them with ``update``.
    * - :doc:`notebooks/07_sersic_host`
-     - A transient on a galaxy: Sersic-profile hosts (``profile="sersic"``),
-       total-magnitude vs :math:`\mu_e` normalization, nuclear vs offset SNR.
+     - A transient on a galaxy: Sersic hosts (``profile="sersic"``), total
+       magnitude against :math:`\mu_e` normalization, and SNR at the nucleus
+       against SNR in the outskirts.
 
 .. toctree::
    :maxdepth: 1

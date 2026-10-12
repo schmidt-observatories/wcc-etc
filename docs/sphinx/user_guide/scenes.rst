@@ -1,13 +1,13 @@
 Scenes, sources, and backgrounds
 ================================
 
-A :class:`~wcc_etc.Scene` describes everything on the sky. It is built from
-exactly three :class:`~wcc_etc.scene.SceneElement` slots — there is no way to
-add a fourth:
+A :class:`~wcc_etc.Scene` describes everything on the sky. It has exactly
+three :class:`~wcc_etc.scene.SceneElement` slots, and there is no way to add
+a fourth:
 
-- **source** — what you are measuring (required),
-- **host** — any *other* object whose light lands in the same aperture,
-- **background** — the diffuse sky.
+- ``source``: what you are measuring (required),
+- ``host``: any other object whose light lands in the same aperture,
+- ``background``: the diffuse sky.
 
 The fastest way to build one is :func:`~wcc_etc.get_scene`.
 
@@ -16,17 +16,17 @@ The fastest way to build one is :func:`~wcc_etc.get_scene`.
 What goes in which slot
 -----------------------
 
-**The slots are roles, not object types.** The same star is a ``source`` when
-you are measuring it and a ``host`` when it is sitting next to something else
-you are measuring. Ask two questions:
+The slots are roles, not object types. The same star is a ``source`` when you
+are measuring it and a ``host`` when it sits next to something else you are
+measuring. Ask two questions.
 
-**1. Am I measuring it?** Only ``source`` contributes *signal*. ``host`` and
-``background`` contribute photons — and therefore shot noise and saturation
-charge — but never signal. There is one ``source`` per scene.
+Am I measuring it? Only ``source`` contributes signal. ``host`` and
+``background`` contribute photons, and therefore shot noise and saturation
+charge, but never signal. There is one ``source`` per scene.
 
-**2. Is it resolved?** This is set by ``surface_brightness`` and decides how
-the light is spread over pixels. It matters far more than which slot the
-element sits in; see :ref:`host-spatial-treatment`.
+Is it resolved? This is set by ``surface_brightness`` and decides how the
+light is spread over pixels. It matters far more than which slot the element
+sits in; see :ref:`host-spatial-treatment`.
 
 .. list-table::
    :header-rows: 1
@@ -35,14 +35,15 @@ element sits in; see :ref:`host-spatial-treatment`.
    * -
      - I am measuring it
      - It is contaminating my aperture
-   * - **Unresolved / compact**
+   * - Unresolved or compact
      - ``source``
-     - ``host`` (default, ``surface_brightness=False``) — rides the source PSF
-   * - **Resolved / extended**
+     - ``host`` (default, ``surface_brightness=False``), which rides the
+       source PSF
+   * - Resolved or extended
      - not expressible (the source is always a point)
-     - ``host`` with ``profile="sersic"`` — a PSF-convolved galaxy profile
-       (see :ref:`sersic-host`); or ``surface_brightness=True`` alone —
-       uniform per pixel, mag/arcsec²
+     - ``host`` with ``profile="sersic"``, a PSF-convolved galaxy profile (see
+       :ref:`sersic-host`); or ``surface_brightness=True`` alone, uniform per
+       pixel in mag/arcsec²
 
 Worked examples
 ~~~~~~~~~~~~~~~
@@ -77,34 +78,35 @@ Answers to the usual questions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 *Is a star a source or a host?*
-   Whichever role it is playing. Measuring it → ``source``. Contaminating
-   someone else's aperture → ``host``.
+   Whichever role it is playing. If you are measuring it, it is the
+   ``source``. If it is contaminating someone else's aperture, it is the
+   ``host``.
 
 *Is a background galaxy a host?*
-   Yes. Then decide whether it is resolved: a compact/unresolved one keeps the
-   ``surface_brightness=False`` default; an extended one gets a
-   ``profile="sersic"`` (or, for a galaxy much larger than the field,
-   ``surface_brightness=True`` alone). Declaring an extended galaxy as a bare
+   Yes. Then decide whether it is resolved. A compact or unresolved one keeps
+   the ``surface_brightness=False`` default. An extended one gets
+   ``profile="sersic"``, or ``surface_brightness=True`` alone if the galaxy
+   is much larger than the field. Declaring an extended galaxy as a bare
    integrated magnitude concentrates all of its light into the PSF core and
    overstates the peak pixel.
 
 *Can I have two contaminants?*
-   Not currently — there is one ``host`` slot. Combine them into a single
-   equivalent magnitude, or model the dominant one.
+   Not at present, since there is one ``host`` slot. Combine them into a
+   single equivalent magnitude, or model the dominant one.
 
 *Why is it called "host"?*
-   Inherited terminology. This ETC grew out of supernova cosmology, where the
-   ``source`` is a supernova and the ``host`` is its host galaxy (the bundled
-   ``hsiao07`` SN Ia template and the Brown galaxy atlas are from that
-   lineage). Read it as **"the other object in the aperture"**, not
-   specifically as a host galaxy.
+   The ETC grew out of supernova cosmology, where the ``source`` is a
+   supernova and the ``host`` is its host galaxy. The bundled ``hsiao07`` SN
+   Ia template and the Brown galaxy atlas come from that lineage. Read it as
+   "the other object in the aperture" rather than as a host galaxy in
+   particular.
 
 .. note::
 
-   ``host`` has no special-cased physics. Since issue #63 the simulation
-   classifies every element by its own ``surface_brightness`` flag, never by
-   its slot name; the name only selects which defaults you get
-   (``background`` defaults to the zodiacal sky, ``surface_brightness=True``).
+   ``host`` has no physics of its own. The simulation classifies every
+   element by its ``surface_brightness`` flag, never by its slot name. The
+   name only selects the defaults you get: ``background`` defaults to the
+   zodiacal sky with ``surface_brightness=True``.
 
 Building a scene
 ----------------
@@ -130,23 +132,23 @@ forwarded to the host and background elements, mirroring the source keywords.
 How an element is distributed on the detector
 ---------------------------------------------
 
-Every element is classified by its own ``surface_brightness`` flag — never by
-its name — and that flag decides how its light is spread over pixels:
+Every element is classified by its own ``surface_brightness`` flag, and that
+flag decides how its light is spread over pixels:
 
 ``surface_brightness=False`` (the default for source and host)
-    The magnitude is an **integrated** magnitude, so the count rate is a
-    *total*. The element is treated as **unresolved and co-located with the
-    source**: it is rendered through the same PSF, contributing
-    ``total x enclosed_fraction`` inside an aperture. A host declared this way
-    adds shot noise and peak-pixel charge, but never counts as signal.
+    The magnitude is an integrated magnitude, so the count rate is a total.
+    The element is treated as unresolved and co-located with the source: it
+    is rendered through the same PSF and contributes
+    ``total x enclosed_fraction`` inside an aperture. A host declared this
+    way adds shot noise and peak-pixel charge, and never counts as signal.
 
 ``surface_brightness=True`` (the default for ``zodi``/``background``)
-    The magnitude is per square arcsecond, so the count rate is **per pixel**
-    and is applied uniformly across the detector — the right treatment for the
-    sky and for a host much larger than the field of view.
+    The magnitude is per square arcsecond, so the count rate is per pixel and
+    is applied uniformly across the detector. This is the right treatment for
+    the sky and for a host much larger than the field of view.
 
 ``profile="sersic"`` (any ``surface_brightness``)
-    The element has a **spatial profile**: it is rendered as a Sersic galaxy,
+    The element has a spatial profile. It is rendered as a Sersic galaxy,
     convolved with the PSF, and added pixel by pixel. See :ref:`sersic-host`.
 
 .. code-block:: python
@@ -167,11 +169,11 @@ its name — and that flag decides how its light is spread over pixels:
 Hosts with a spatial profile: Sersic galaxies
 ---------------------------------------------
 
-At the WCC plate scale (16.9 mas/pix) a 1″ galaxy spans ~60 pixels, so how
-much host light falls under the aperture depends on the galaxy's shape and on
-where the source sits in it — a TDE on the cusp of a bulge sees far more host
-shot noise than a supernova an arcsecond out on a disk. ``profile="sersic"``
-renders the host as an elliptical Sersic profile,
+At the WCC plate scale (16.9 mas/pix) a 1″ galaxy spans about 60 pixels, so
+how much host light falls under the aperture depends on the galaxy's shape
+and on where the source sits in it. A TDE on the cusp of a bulge sees far
+more host shot noise than a supernova an arcsecond out on a disk.
+``profile="sersic"`` renders the host as an elliptical Sersic profile,
 
 .. math::
 
@@ -194,18 +196,18 @@ convolves it with the rendered PSF, and shares that one image with
      - meaning
    * - ``profile``
      - str
-     - —
+     - none
      - ``"sersic"`` (the only profile so far)
    * - ``r_eff``
      - arcsec
      - required
      - half-light radius along the major axis
    * - ``n``
-     - –
+     - none
      - 1
      - Sersic index: 1 is an exponential disk, 4 a de Vaucouleurs bulge
    * - ``ellip``
-     - –
+     - none
      - 0
      - ellipticity :math:`1 - b/a`
    * - ``pa``
@@ -217,13 +219,14 @@ convolves it with the rendered PSF, and shares that one image with
      - 0
      - offset of the host centre from the source (+x right, +y up)
 
-The magnitude keeps its existing meaning: with the default
-``surface_brightness=False``, ``mag`` is the **total** integrated host
-magnitude; with ``surface_brightness=True`` it is :math:`\mu_e`, the surface
-brightness at ``r_eff`` in mag/arcsec². Parameters are angular only — convert
-physical sizes and absolute magnitudes yourself. Typical r-band values:
-:math:`n` = 1–4, :math:`r_e` ≈ 0.3–1″ for hosts at :math:`z \approx 0.5`–1
-and 1–10″ for nearby galaxies, :math:`\mu_e` ≈ 20–24 mag/arcsec².
+The magnitude keeps its usual meaning. With the default
+``surface_brightness=False``, ``mag`` is the total integrated host magnitude.
+With ``surface_brightness=True`` it is :math:`\mu_e`, the surface brightness
+at ``r_eff`` in mag/arcsec². Parameters are angular only, so convert physical
+sizes and absolute magnitudes yourself. Typical r-band values are
+:math:`n` = 1 to 4, :math:`r_e` of 0.3 to 1″ for hosts at
+:math:`z \approx 0.5` to 1 and 1 to 10″ for nearby galaxies, and
+:math:`\mu_e` of 20 to 24 mag/arcsec².
 
 .. code-block:: python
 
@@ -244,19 +247,44 @@ and 1–10″ for nearby galaxies, :math:`\mu_e` ≈ 20–24 mag/arcsec².
    sim.update(host__r_eff=1.0, host__n=1) # profile parameters are mutable
 
 The profile parameters are mutable like any other element parameter, so
-``update`` sweeps over ``host__mag``, ``host__r_eff`` or ``host__dx`` work as
-expected. The deprecated analytic path (``get_snr_airy``) cannot place a
-profile and warns that it ignores it. See the
-:doc:`Sersic host tutorial </notebooks/07_sersic_host>` for images and SNR
-sweeps.
+``update`` sweeps over ``host__mag``, ``host__r_eff`` or ``host__dx`` work.
+Moving a mag-21 transient out from the nucleus of a mag-16 bulge recovers most
+of the SNR within an arcsecond:
+
+.. plot::
+   :context: reset
+
+   import matplotlib.pyplot as plt
+   import numpy as np
+   import wcc_etc
+   from wcc_etc import get_scene, Simulation
+
+   wcc_etc.set_wcc_style()
+
+   scene = get_scene(
+       "G5V", mag=21, bandpass="johnson_r",
+       host="G5V",
+       host_prop={"mag": 16, "bandpass": "johnson_r",
+                  "profile": "sersic", "r_eff": 0.5, "n": 4, "dx": 0.0},
+       background="zodi",
+   )
+   sim = Simulation.from_sensorfilter("zwo:r", scene)
+
+   fig, ax = plt.subplots()
+   sim.plot_sweep("host__dx", [0, 0.25, 0.5, 1.0, 1.5, 2.0], time=60, ax=ax)
+   ax.set_xlabel("Source offset from the nucleus [arcsec]")
+
+The deprecated analytic path (``get_snr_airy``) cannot place a profile and
+warns that it ignores it. The :doc:`Sersic host tutorial
+</notebooks/07_sersic_host>` has images and more sweeps.
 
 Magnitude systems
 -----------------
 
-Magnitudes are interpreted in the **Vega** system by default
+Magnitudes are interpreted in the Vega system by default
 (``magsys="vegamag"``). Pass ``magsys="abmag"`` (case-insensitive) to use AB
-magnitudes instead. The setting applies per element, so source, ``host_prop``,
-and ``background_prop`` can each carry their own ``magsys``:
+magnitudes. The setting applies per element, so source, ``host_prop`` and
+``background_prop`` can each carry their own ``magsys``:
 
 .. code-block:: python
 
@@ -266,23 +294,41 @@ and ``background_prop`` can each carry their own ``magsys``:
        background_prop={"bandpass": "johnson_r", "mag": 22.5, "magsys": "abmag"},
    )
 
-The AB\ :math:`-`\ Vega offset is negligible in Johnson *V* (~0.002 mag) but
-grows toward the red (~0.26 mag in *R*, ~1.9 mag in *K*), so the chosen system
-matters most for red bandpasses.
+The AB\ :math:`-`\ Vega offset is negligible in Johnson *V* (about 0.002 mag)
+and grows toward the red (about 0.26 mag in *R* and 1.9 mag in *K*), so the
+choice matters most for red bandpasses.
 
 Stellar and galaxy templates
 ----------------------------
 
-Any name recognized by the bundled spectral libraries works as a ``source`` or
-``host`` — for example Pickles stellar types (``"G5V"``, ``"K3IV"``,
-``"M0V"`` …) and the Brown galaxy templates. These are normalized to the
-requested ``mag`` in the requested ``bandpass``.
+Any name recognized by the bundled spectral libraries works as a ``source``
+or ``host``: Pickles stellar types (``"G5V"``, ``"K3IV"``, ``"M0V"`` and so
+on) and the Brown galaxy templates. They are normalized to the requested
+``mag`` in the requested ``bandpass``. Every element draws itself with
+:meth:`~wcc_etc.scene.SceneElement.show`, which is the quickest check that
+you picked the template you meant:
+
+.. plot::
+   :context: close-figs
+
+   fig, ax = plt.subplots()
+   for spectral_type in ("A0V", "G5V", "M5V"):
+       source = get_scene(spectral_type, mag=15, bandpass="johnson_r").source
+       source.show(
+           ax=ax, wave=np.arange(3500, 9500, 5.0), flux_unit="flam",
+           label=spectral_type,
+       )
+   ax.legend()
+
+Three stars of the same r-band magnitude put very different amounts of light
+at the blue and red ends of the WCC band, which is why the PSF is rendered at
+a source-weighted wavelength (see :ref:`source-weighted-psf`).
 
 Parametric source spectra
 --------------------------
 
-Instead of a template name, ``get_scene`` accepts reserved **parametric**
-names that synthesize a ``synphot`` spectrum from keyword arguments:
+Instead of a template name, ``get_scene`` accepts reserved parametric names
+that synthesize a ``synphot`` spectrum from keyword arguments:
 
 .. list-table::
    :header-rows: 1
@@ -329,43 +375,44 @@ Examples:
 .. note::
 
    For ``"emission"`` you can pass ``mag=None`` to use the absolute integrated
-   line fluxes directly (no magnitude normalization).
+   line fluxes directly, with no magnitude normalization.
 
 .. note::
 
    Three H-alpha bands are available on the Sony sensors: ``zwo:halpha2``,
-   ``zwo:halpha6`` and ``zwo:halpha20`` (2, 6 and 20 nm wide); the ``sony:``
-   nickname works with ``from_sensor_and_scene`` but ``from_sensorfilter``
-   takes only the canonical ``zwo:`` form. The ``zwo:hbeta`` / ``zwo:heii``
-   bands are still placeholders with no throughput file, so emission-line
-   sources cannot be observed through them until those CSVs are added.
+   ``zwo:halpha6`` and ``zwo:halpha20`` (2, 6 and 20 nm wide). The ``sony:``
+   nickname works with ``from_sensor_and_scene``; ``from_sensorfilter`` takes
+   only the canonical ``zwo:`` form. The ``zwo:hbeta`` / ``zwo:heii`` bands
+   are placeholders with no throughput file, so emission-line sources cannot
+   be observed through them until those CSVs are added.
 
 Rebuilding a parametric spectrum with ``update``
 -------------------------------------------------
 
-Shape parameters of a parametric source are mutable; changing one rebuilds the
-underlying spectrum and changes the SNR:
+Shape parameters of a parametric source are mutable. Changing one rebuilds
+the underlying spectrum and changes the SNR:
 
 .. code-block:: python
 
    sim.update(source__teff=3000)        # rebuilds the blackbody, SNR changes
 
-The spectrum **type** is locked once chosen — you can change ``teff`` of a
-blackbody, but you cannot swap a blackbody for a power law via ``update``
-(rebuild the scene instead).
+The spectrum type is locked once chosen. You can change the ``teff`` of a
+blackbody, but swapping a blackbody for a power law means rebuilding the
+scene.
 
 Backgrounds
 -----------
 
 The default ``background="zodi"`` adds zodiacal light. Backgrounds are
-surface-brightness elements; their magnitude is interpreted per unit area. The
-moon-scatter contribution is modelled separately (see
-:func:`~wcc_etc.get_moon_magnitude` and the moon-scatter count-rate helper).
+surface-brightness elements, so their magnitude is per unit area. Moon
+scatter is modelled separately (see :func:`~wcc_etc.get_moon_magnitude` and
+the moon-scatter count-rate helper).
 
 Working with scene elements directly
 -------------------------------------
 
-For finer control, build elements yourself and assemble a :class:`~wcc_etc.Scene`:
+For finer control, build the elements yourself and assemble a
+:class:`~wcc_etc.Scene`:
 
 .. code-block:: python
 
