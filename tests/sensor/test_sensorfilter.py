@@ -5,8 +5,9 @@ import pytest
 import wcc_etc
 from tests.helpers import make_scene
 from wcc_etc.io import (
-    _SENSORFILTER_FOCUS,
-    _SENSORFILTER_IMPLEMENTED,
+    KIND_NAMES,
+    SENSORFILTER_FOCUS,
+    SENSORFILTER_IMPLEMENTED,
     SENSORS,
     sensor_info,
 )
@@ -44,22 +45,34 @@ class TestSensorRegistry:
 
     def test_sensorfilter_focus_covers_all_sensor_info_labels(self):
         all_sf = {entry["sensorfilter"] for entry in sensor_info.values()}
-        assert all_sf == set(_SENSORFILTER_FOCUS.keys())
+        assert all_sf == set(SENSORFILTER_FOCUS.keys())
 
     def test_zwo_r_is_0wave(self):
-        assert _SENSORFILTER_FOCUS["zwo:r"] == "0wave"
+        assert SENSORFILTER_FOCUS["zwo:r"] == "0wave"
 
     def test_qcmos_bb_is_0wave(self):
-        assert _SENSORFILTER_FOCUS["qcmos:bb"] == "0wave"
+        assert SENSORFILTER_FOCUS["qcmos:bb"] == "0wave"
 
     def test_zwo_r_plus1_is_1wave(self):
-        assert _SENSORFILTER_FOCUS["zwo:r+1"] == "1wave"
+        assert SENSORFILTER_FOCUS["zwo:r+1"] == "1wave"
 
     def test_zwo_r_minus1_is_1wave(self):
-        assert _SENSORFILTER_FOCUS["zwo:r-1"] == "1wave"
+        assert SENSORFILTER_FOCUS["zwo:r-1"] == "1wave"
 
     def test_sensorfilter_focus_2wave(self):
-        assert _SENSORFILTER_FOCUS["zwo:bb2"] == "2wave"
+        assert SENSORFILTER_FOCUS["zwo:bb2"] == "2wave"
+
+    def test_kind_names_map_sony_nicknames_to_zwo(self):
+        assert {KIND_NAMES[k] for k in ("sony", "imx", "imx455")} == {"zwo"}
+
+    @pytest.mark.parametrize(
+        "name", ["SENSORFILTER_FOCUS", "SENSORFILTER_IMPLEMENTED", "KIND_NAMES"]
+    )
+    def test_private_aliases_are_the_public_objects(self, name):
+        """wcc-sim imported the underscore names; they stay as aliases."""
+        import wcc_etc.io as io
+
+        assert getattr(io, "_" + name) is getattr(io, name)
 
     def test_psf_from_focus_level_0wave(self):
         assert isinstance(_psf_from_focus_level("0wave"), AiryPSF)
@@ -76,15 +89,15 @@ class TestSensorRegistry:
 
     def test_narrowband_filters_not_implemented(self):
         for sf in ("zwo:hbeta", "zwo:heii"):
-            assert _SENSORFILTER_IMPLEMENTED[sf] is False
+            assert SENSORFILTER_IMPLEMENTED[sf] is False
 
     @pytest.mark.parametrize("sf", HALPHA)
     def test_halpha_filters_are_implemented(self, sf):
-        assert _SENSORFILTER_IMPLEMENTED[sf] is True
+        assert SENSORFILTER_IMPLEMENTED[sf] is True
 
     def test_standard_filters_are_implemented(self):
         for sf in ("zwo:r", "zwo:r+1", "zwo:bb2", "qcmos:bb"):
-            assert _SENSORFILTER_IMPLEMENTED[sf] is True
+            assert SENSORFILTER_IMPLEMENTED[sf] is True
 
 
 class TestFromSensorfilter:

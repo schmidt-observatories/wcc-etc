@@ -26,7 +26,15 @@ ASTROFILE_DF = pandas.DataFrame(
 )
 
 
-__all__ = ["read_config", "get_sensor_config", "resolve_bandpass", "VEGA_PATH"]
+__all__ = [
+    "read_config",
+    "get_sensor_config",
+    "resolve_bandpass",
+    "VEGA_PATH",
+    "SENSORFILTER_FOCUS",
+    "SENSORFILTER_IMPLEMENTED",
+    "KIND_NAMES",
+]
 
 #: Bundled CALSPEC Vega (alpha_lyr_stis_011), the VEGAMAG zero-point spectrum.
 VEGA_PATH = os.path.join(PACKAGE_PATH, "astrophysics", "alpha_lyr_stis_011.fits")
@@ -290,16 +298,25 @@ sensor_info = {
     },
 }
 
-_SENSORFILTER_FOCUS: dict = {
+#: Focus level (``"0wave"``, ``"1wave"``, ``"2wave"``) of every ``sensor:filter``
+#: label in :data:`sensor_info`, e.g. ``SENSORFILTER_FOCUS["zwo:r+1"] == "1wave"``.
+SENSORFILTER_FOCUS: dict = {
     entry["sensorfilter"]: entry["focus_level"] for entry in sensor_info.values()
 }
 
-_SENSORFILTER_IMPLEMENTED: dict = {
+#: Whether a throughput curve is bundled for every ``sensor:filter`` label.
+SENSORFILTER_IMPLEMENTED: dict = {
     entry["sensorfilter"]: entry["implemented"] for entry in sensor_info.values()
 }
 
-# shortcut to simplify usage.
-_KIND_NAMES = {shortcut: "zwo" for shortcut in ["sony", "imx", "imx455"]}
+#: Detector nicknames accepted by :func:`get_sensor_config` in place of the
+#: canonical kind, e.g. ``"sony"`` / ``"imx"`` / ``"imx455"`` for ``"zwo"``.
+KIND_NAMES = {shortcut: "zwo" for shortcut in ["sony", "imx", "imx455"]}
+
+# Pre-0.2 private spellings; downstream code (wcc-sim) imported these.
+_SENSORFILTER_FOCUS = SENSORFILTER_FOCUS
+_SENSORFILTER_IMPLEMENTED = SENSORFILTER_IMPLEMENTED
+_KIND_NAMES = KIND_NAMES
 
 
 def get_any_astro_name(name, retry=True):
@@ -473,7 +490,7 @@ def get_sensor_config(kind, band, gain_mode=None, **kwargs):
         If the throughput curve for the specified band is not yet implemented.
     """
     # trick to allow nicknames like 'sony' in place of 'zwo'
-    kind = _KIND_NAMES.get(kind, kind)
+    kind = KIND_NAMES.get(kind, kind)
     kind_sensors = SENSORS.get(kind)
     if band not in kind_sensors:
         raise ValueError(f"{kind_sensors} sensor do not have {band} band.")

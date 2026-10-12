@@ -44,7 +44,3 @@ to the STScI files, so no network access is needed at run time.
   Jet Propulsion Laboratory), distributed in his public Python astronomy library.
   Redistributed here with attribution; the original carried no explicit license.
   Modifications: `numpy`/`scipy` updates only.
-
-## Citing wcc-etc
-
-See `CITATION.cff`.

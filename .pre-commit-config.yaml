@@ -13,6 +13,7 @@ repos:
         name: Check for large files
         description: Prevent the user from committing very large files.
         args: ["--maxkb=500"]
+        exclude: \.ipynb$  # tutorials are committed with their figures
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
     rev: v0.15.19
@@ -24,16 +25,6 @@ repos:
       # Run the formatter.
       - id: ruff-format
         files: \.(py|ipynb)$
-  - repo: local
-    hooks:
-      - id: jupyter-nb-clear-output
-        name: Clear output from Jupyter notebooks
-        description: Clear output from Jupyter notebooks.
-        files: \.ipynb$
-        exclude: ^docs/pre_executed
-        stages: [pre-commit]
-        language: system
-        entry: jupyter nbconvert --clear-output
   - repo: https://github.com/abravalheri/validate-pyproject
     rev: v0.25
     hooks:
