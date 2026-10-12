@@ -20,6 +20,7 @@ Top-level public API
    Scene
    Simulation
    Sensor
+   Telescope
    ImageSimulator
    SimulatedImage
    AiryPSF
@@ -28,10 +29,20 @@ Top-level public API
    CustomPSF
    effective_wavelength
    photon_weighted_subbands
+   LightCurveSimulator
+   LightCurve
+   TransitModel
+   FluxModel
    get_moon_magnitude
    read_config
    get_sensor_config
    set_wcc_style
+   plot_image_mpl
+   plot_image_row_mpl
+   plot_radial_mpl
+   plot_encircled_energy_mpl
+   plot_bandpass_mpl
+   plot_lightcurve_mpl
 
 Modules
 -------
@@ -44,7 +55,11 @@ Modules
    sensor
    telescope
    psfsim
+   extended
+   airy
+   radial_data
    spectral
+   lightcurve
    plotting
    astro
    io

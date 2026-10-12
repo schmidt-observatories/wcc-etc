@@ -166,17 +166,21 @@ def render_detector_psf(
     Defocus extension: a defocus kernel can be convolved alongside the jitter
     kernel at the oversampled stage without changing this function's interface.
 
-    INPUT:
+    INPUT::
+
         wavelength       - wavelength in m
         fnum             - f-number (focal ratio)
         D                - primary diameter in m
         pixel_size       - detector pixel size in microns
         jitter_sigma_mas - jitter sigma in mas (0 = none)
         n_pixels         - detector pixels per side (forced odd)
-        oversample       - Sub-pixel sampling factor per detector pixel. Any value works (centering is by symmetry); odd values place a sample exactly on the PSF peak.
+        oversample       - Sub-pixel sampling factor per detector pixel. Any value
+                           works (centering is by symmetry); odd values place a
+                           sample exactly on the PSF peak.
         verbose          - print diagnostics
 
-    OUTPUT:
+    OUTPUT::
+
         psf_detector     - (n_pixels, n_pixels) array summing to 1; its max
                            is the brightest-pixel energy fraction
         pscale_mas       - detector plate scale in mas/pixel

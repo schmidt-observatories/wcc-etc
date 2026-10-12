@@ -107,11 +107,41 @@ class TestImagePlotting:
         data = np.array([[1.0, 2.0], [3.0, 4.0]])
         assert plotting._make_norm(data, "linear") is None
 
-    def test_make_norm_log_returns_image_normalize(self):
-        from astropy.visualization.mpl_normalize import ImageNormalize
+    def test_make_norm_log_returns_lognorm(self):
+        """stretch='log' is a matplotlib LogNorm, so the colorbar ticks read as decades."""
+        from matplotlib.colors import LogNorm
 
         data = np.array([[1.0, 2.0], [3.0, 4.0]])
-        assert isinstance(plotting._make_norm(data, "log"), ImageNormalize)
+        assert isinstance(plotting._make_norm(data, "log"), LogNorm)
+
+    def test_make_norm_log_spans_the_data_when_positive(self):
+        """A positive image is shown from its minimum to its maximum."""
+        data = np.array([[1.0, 2.0], [3.0, 4.0]])
+        norm = plotting._make_norm(data, "log")
+        assert (norm.vmin, norm.vmax) == (1.0, 4.0)
+
+    def test_make_norm_log_clips_four_decades_below_the_peak(self):
+        """Zeros (a bare PSF) do not blow the log range open: vmin = vmax * 1e-4."""
+        data = np.array([[0.0, 1e-9], [1e-3, 1.0]])
+        norm = plotting._make_norm(data, "log")
+        assert norm.vmin == pytest.approx(1e-4)
+
+    def test_image_extent_arcsec(self):
+        """units='arcsec' divides the mas extent by 1000."""
+        ext = plotting._image_extent(4, 4, 10.0, "arcsec")
+        assert ext == [-0.02, 0.02, -0.02, 0.02]
+
+    def test_plot_image_mpl_arcsec_axis_label(self):
+        """units='arcsec' labels the axes in arcsec."""
+        s = _gaussian_simimg()
+        _fig, ax = plotting.plot_image_mpl(s, units="arcsec")
+        assert ax.get_xlabel() == "X [arcsec]"
+
+    def test_plot_image_row_mpl_arcsec_axis_label(self):
+        """units='arcsec' labels the row panels in arcsec."""
+        s = _gaussian_simimg()
+        _fig, axes = plotting.plot_image_row_mpl(s, units="arcsec")
+        assert axes[0].get_xlabel() == "X [arcsec]"
 
     def test_make_norm_hist_returns_image_normalize(self):
         from astropy.visualization.mpl_normalize import ImageNormalize

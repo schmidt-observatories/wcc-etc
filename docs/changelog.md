@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Simulation-level plot methods, each taking `ax=None` and returning `(fig, ax)`:
+  `Simulation.plot_snr` (alias `plot`), `plot_snr_vs_mag`, `plot_sweep`,
+  `plot_peak_pixel` (with the `saturation_e` ceiling and onset marker),
+  `plot_exptime_for_snr`, `plot_snr_vs_aperture`, and `ImageSimulator.plot_psf`.
+  `Sensor.plot`, `SceneElement.plot` and `SimulatedImage.plot` alias the existing
+  `show` / `plot_image`. The image plotters accept `units="arcsec"` alongside `mas`
+  and `pix`, and `stretch="log"` is now a matplotlib `LogNorm` clipped four decades
+  below the peak, so the colorbar ticks read as decades. The tutorials use the new
+  methods instead of hand-rolled matplotlib,
+  and their text now matches the code: saturation is `sensor.saturation_e`
+  (the full well on the Sony, the ADC on the qCMOS in high gain), the H-alpha labels
+  are `zwo:halpha*`, and `update()` with an unknown key raises. The installation,
+  concepts, configuration and API-reference pages are brought up to date.
 - The two Huygens defocus `.txt` exports are removed from the repository; the FITS
   products are the only bundled form (`DEFOCUS_*_TXT_PATH` is gone). Tests that read
   a raw export use a small synthetic one written to `tmp_path`.

@@ -779,6 +779,8 @@ class SceneElement(_MetaHolder_):
         ax.set_ylabel(f"Flux [{flux.unit}]" if hasattr(flux, "unit") else "Flux")
         return fig
 
+    plot = show
+
     # ------------ #
     #  internal    #
     # ------------ #

@@ -847,6 +847,8 @@ class SimulatedImage:
             return plotting.plot_encircled_energy_bokeh(self, **kwargs)
         raise ValueError("backend must be 'mpl' or 'bokeh'")
 
+    plot = plot_image
+
 
 class ImageSimulator:
     """Render a point source onto a detector grid with noise, driven by an ETC Simulation."""
@@ -920,6 +922,12 @@ class ImageSimulator:
         if npix is not None:
             ctx.npix = int(npix)
         return psf.render(ctx)
+
+    def plot_psf(self, psf=None, **kwargs):
+        """Plot the bare normalized PSF; see plotting.plot_psf."""
+        from . import plotting
+
+        return plotting.plot_psf(self, psf, **kwargs)
 
     def _context(self, jitter_sigma_mas=None, center=None):
         sim = self.sim

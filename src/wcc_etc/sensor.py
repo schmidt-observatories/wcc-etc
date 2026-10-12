@@ -314,6 +314,8 @@ class Sensor(_MetaHolder_):
     # ================ #
     #  Properties      #
     # ================ #
+    plot = show
+
     @property
     def bandpass(self):
         """

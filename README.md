@@ -36,6 +36,7 @@ pip install -e ".[exoarchive]"   # NASA Exoplanet Archive queries
 # Quick Start
 
 ```python
+import numpy as np
 from wcc_etc import get_scene, Simulation
 
 # Create a simple scene (stellar source only)
@@ -53,6 +54,10 @@ sim.update(source__mag=22)
 
 # Recompute SNR after the change
 snr_new = sim.get_snr(10)["snr"]
+
+# Plot SNR vs exposure time, or the peak pixel against the saturation ceiling
+sim.plot_snr(np.linspace(1, 300, 100))
+sim.plot_peak_pixel(np.logspace(-1, 3, 200))
 
 # A transient on a galaxy: give the host a Sersic profile (arcsec / degrees).
 # mag is the total host magnitude; dx/dy offset the source from the nucleus.
