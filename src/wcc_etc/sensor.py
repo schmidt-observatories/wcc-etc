@@ -301,19 +301,19 @@ class Sensor(_MetaHolder_):
 
         Returns
         -------
-        matplotlib.figure.Figure
-            The figure object.
+        (fig, ax)
+            The figure and the axis drawn on.
         """
         from .plotting import plot_bandpass_mpl
 
-        fig, _ax, _curve = plot_bandpass_mpl(
-            self.bandpass, ax=ax, label=label, **kwargs
-        )
-        return fig
+        fig, ax, _curve = plot_bandpass_mpl(self.bandpass, ax=ax, label=label, **kwargs)
+        return fig, ax
 
     # ================ #
     #  Properties      #
     # ================ #
+    plot = show
+
     @property
     def bandpass(self):
         """

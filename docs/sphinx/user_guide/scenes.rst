@@ -333,11 +333,12 @@ Examples:
 
 .. note::
 
-   Three H-alpha bands are available on the Sony sensors: ``sony:halpha2``,
-   ``sony:halpha6`` and ``sony:halpha20`` (2, 6 and 20 nm wide). The
-   ``sony:hbeta`` / ``sony:heii`` bands are still placeholders with no
-   throughput file, so emission-line sources cannot be observed through them
-   until those CSVs are added.
+   Three H-alpha bands are available on the Sony sensors: ``zwo:halpha2``,
+   ``zwo:halpha6`` and ``zwo:halpha20`` (2, 6 and 20 nm wide); the ``sony:``
+   nickname works with ``from_sensor_and_scene`` but ``from_sensorfilter``
+   takes only the canonical ``zwo:`` form. The ``zwo:hbeta`` / ``zwo:heii``
+   bands are still placeholders with no throughput file, so emission-line
+   sources cannot be observed through them until those CSVs are added.
 
 Rebuilding a parametric spectrum with ``update``
 -------------------------------------------------

@@ -758,8 +758,8 @@ class SceneElement(_MetaHolder_):
 
         Returns
         -------
-        matplotlib.figure.Figure
-            The figure object.
+        (fig, ax)
+            The figure and the axis drawn on.
         """
         if ax is None:
             import matplotlib.pyplot as plt
@@ -777,7 +777,9 @@ class SceneElement(_MetaHolder_):
         ax.plot(lbda, flux, **kwargs)
         ax.set_xlabel("Wavelength [A]")
         ax.set_ylabel(f"Flux [{flux.unit}]" if hasattr(flux, "unit") else "Flux")
-        return fig
+        return fig, ax
+
+    plot = show
 
     # ------------ #
     #  internal    #

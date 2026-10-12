@@ -1721,10 +1721,10 @@ def plot_total_psf(res, max_display_side=1100, dyn_range=1e11, figsize=(11, 9.5)
     ax_ee = fig.add_subplot(gs[1, 1])
 
     # ---- image ------------------------------------------------------------ #
-    # NOT plotting.plot_image_mpl here: its stretch='log' goes through
-    # ImageNormalize(data, LogStretch()), which is built for detector images of
-    # modest dynamic range and crushes an 11-decade PSF to a flat field. LogNorm
-    # is the right tool. The other two panels do use the package reducers.
+    # NOT plotting.plot_image_mpl here: its stretch='log' floor defaults to four
+    # decades below the peak (plotting._make_norm(dyn_range=1e4)), and this
+    # panel wants the full 11-decade range plus its own annotations, so the
+    # LogNorm is built here. The other two panels do use the package reducers.
     from matplotlib.colors import LogNorm
 
     disp = block_reduce(res.data, fac, how="max") * res.irradiance_scale

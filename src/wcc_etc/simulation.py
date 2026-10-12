@@ -1339,6 +1339,47 @@ class Simulation(_MetaHolder_):
             warn=warn,
         )
 
+    # ------- #
+    #  PLOTS  #
+    # ------- #
+    def plot_snr(self, time, **kwargs):
+        """SNR vs exposure time; see plotting.plot_snr."""
+        from . import plotting
+
+        return plotting.plot_snr(self, time, **kwargs)
+
+    plot = plot_snr
+
+    def plot_snr_vs_mag(self, mags, **kwargs):
+        """SNR vs source magnitude; see plotting.plot_snr_vs_mag."""
+        from . import plotting
+
+        return plotting.plot_snr_vs_mag(self, mags, **kwargs)
+
+    def plot_sweep(self, key, values, **kwargs):
+        """SNR vs any update() key; see plotting.plot_sweep."""
+        from . import plotting
+
+        return plotting.plot_sweep(self, key, values, **kwargs)
+
+    def plot_peak_pixel(self, time, **kwargs):
+        """Peak pixel vs time with the saturation ceiling; see plotting.plot_peak_pixel."""
+        from . import plotting
+
+        return plotting.plot_peak_pixel(self, time, **kwargs)
+
+    def plot_exptime_for_snr(self, snr, **kwargs):
+        """Exposure time vs target SNR; see plotting.plot_exptime_for_snr."""
+        from . import plotting
+
+        return plotting.plot_exptime_for_snr(self, snr, **kwargs)
+
+    def plot_snr_vs_aperture(self, radii, **kwargs):
+        """SNR vs aperture radius; see plotting.plot_snr_vs_aperture."""
+        from . import plotting
+
+        return plotting.plot_snr_vs_aperture(self, radii, **kwargs)
+
     def get_snr_airy(self, time=None, n_reads=None, warn=True):
         """
         DEPRECATED analytic Airy-disk SNR approximation.

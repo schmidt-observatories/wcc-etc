@@ -133,9 +133,19 @@ then recompute. The render cache is invalidated automatically:
    img.plot_radial(units="mas")          # azimuthally-averaged radial profile
    img.plot_encircled_energy(units="mas", ee_target=0.8)
 
+The simulation draws its own curves too, each onto an ``ax=`` of your choice:
+
+.. code-block:: python
+
+   sim.plot_snr(np.linspace(1, 300, 100))        # SNR vs exposure time
+   sim.plot_peak_pixel(np.logspace(-1, 3, 200))  # peak pixel with the saturation ceiling
+   sim.plot_snr_vs_mag(np.arange(16, 24), time=60)
+   sim.plot_exptime_for_snr([10, 30, 100])
+   sim.plot_sweep("host__mag", [14, 16, 18], time=60)
+
 Where to go next
 ----------------
 
 - :doc:`user_guide/index` — the conceptual reference for each subsystem.
-- :doc:`tutorials` — the six runnable notebooks.
+- :doc:`tutorials` — the seven runnable notebooks.
 - :doc:`api/index` — the full auto-generated API reference.

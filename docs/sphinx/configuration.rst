@@ -9,7 +9,12 @@ these values on the fly with :meth:`~wcc_etc.Simulation.update`.
 Sensor strings
 --------------
 
-Sensors are addressed as ``"kind:band"``. The available combinations:
+Sensors are addressed as ``"kind:band"``. The canonical kinds are ``zwo``
+(Sony IMX455) and ``qcmos`` (Hamamatsu qCMOS); ``sony``, ``imx`` and
+``imx455`` are accepted nicknames for ``zwo`` in
+:meth:`~wcc_etc.Simulation.from_sensor_and_scene`, but
+:meth:`~wcc_etc.Simulation.from_sensorfilter` takes only the canonical form.
+The available combinations:
 
 .. list-table::
    :header-rows: 1
@@ -18,10 +23,16 @@ Sensors are addressed as ``"kind:band"``. The available combinations:
    * - String
      - Detector
      - Notes
-   * - ``sony:r`` / ``sony:bb``
-     - Sony IMX455 (ZWO ASI6200MM)
-     - 16-bit, 3.76 µm pixels. ``adc_max = 65535``.
-   * - ``qcmos:r``
+   * - ``zwo:u`` / ``zwo:g`` / ``zwo:r`` / ``zwo:i`` / ``zwo:z`` / ``zwo:bb``
+     - Sony IMX455 (ZWO ASI6200MM), in focus
+     - 16-bit, 3.76 µm pixels. ``adc_max = 65535``; the ~16.3 ke- full well
+       binds before the ADC.
+   * - ``zwo:r+1`` / ``zwo:r-1`` / ``zwo:bb2``
+     - Sony IMX455, defocused
+     - The same detector one wave either side of focus (``+1`` / ``-1``) and
+       two waves out (``2``); ``from_sensorfilter`` picks the matching
+       :class:`~wcc_etc.DefocusPSF`.
+   * - ``qcmos:u`` / ``qcmos:g`` / ``qcmos:r`` / ``qcmos:i`` / ``qcmos:z`` / ``qcmos:bb``
      - Hamamatsu qCMOS (HWK4123)
      - 12-bit, 4.6 µm pixels, ``adc_max = 4095``. Two gain modes, selected
        with ``gain_mode=``: ``"high"`` (32x, 7.42 ADU/e, 0.25 e read noise,
@@ -32,10 +43,12 @@ Sensors are addressed as ``"kind:band"``. The available combinations:
 
 .. note::
 
-   The H-alpha bands ``sony:halpha2`` / ``sony:halpha6`` / ``sony:halpha20``
-   (2, 6 and 20 nm wide) have EOL throughput files. ``sony:hbeta`` /
-   ``sony:heii`` exist as placeholders but have no throughput file yet, so they
-   are not usable until those CSVs are added.
+   The H-alpha bands ``zwo:halpha2`` / ``zwo:halpha6`` / ``zwo:halpha20``
+   (2, 6 and 20 nm wide) have EOL throughput files. ``zwo:hbeta`` /
+   ``zwo:heii`` exist as placeholders but have no throughput file yet, so they
+   are not usable until those CSVs are added. ``qcmos:r`` has a throughput
+   curve but no position in the WCC filter layout, so it works with
+   ``from_sensor_and_scene`` but not with ``from_sensorfilter``.
 
 The configuration files
 ------------------------

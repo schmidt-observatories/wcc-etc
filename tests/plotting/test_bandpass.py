@@ -94,9 +94,10 @@ class TestPlotBandpassMpl:
 class TestSensorShow:
     """Sensor.show plots the sensor's own filter curve."""
 
-    def test_returns_a_figure(self, sensor):
-        """show() returns the matplotlib Figure, like SceneElement.show."""
-        assert isinstance(sensor.show(), matplotlib.figure.Figure)
+    def test_returns_fig_and_ax(self, sensor):
+        """show() returns (fig, ax), like SceneElement.show and every .plot."""
+        fig, _ax = sensor.show()
+        assert isinstance(fig, matplotlib.figure.Figure)
 
     def test_draws_onto_a_supplied_axis(self, sensor):
         """Passing ax= draws the curve into the caller's axis."""

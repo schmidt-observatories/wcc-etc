@@ -6,8 +6,9 @@ Requirements
 
 - **Python 3.11 or newer.**
 - The scientific stack pulled in automatically as dependencies: ``numpy``,
-  ``astropy``, ``synphot``, ``matplotlib``, ``pandas``, ``photutils``,
-  ``bokeh``, ``flask``, ``toml``, and ``tifffile``.
+  ``scipy``, ``astropy``, ``synphot``, ``matplotlib``, ``pandas``,
+  ``photutils``, ``bokeh``, ``tifffile``, and ``lazuli-exo`` (the transit
+  models, installed from its GitHub tag until it is on PyPI).
 
 Install from source (recommended)
 ---------------------------------
@@ -17,16 +18,19 @@ local changes to ``src/`` are picked up immediately:
 
 .. code-block:: bash
 
-   git clone git@github.com:schmidt-observatories/wcc-etc.git
+   git clone https://github.com/schmidt-observatories/wcc-etc.git
    cd wcc-etc
    pip install -e .
 
-If you only need the pinned extra dependencies that are not declared in
-``pyproject.toml`` you can additionally run:
+Optional extras add the development tools, the documentation toolchain, and
+the light-curve / Exoplanet Archive helpers:
 
 .. code-block:: bash
 
-   pip install -r requirements.txt
+   pip install -e ".[dev]"          # pytest, ruff, mypy, pre-commit
+   pip install -e ".[docs]"         # Sphinx, nbsphinx, the theme
+   pip install -e ".[lightcurve]"   # transit light-curve modelling
+   pip install -e ".[exoarchive]"   # NASA Exoplanet Archive queries
 
 Using a conda environment
 -------------------------
@@ -78,19 +82,12 @@ pages are rendered from the Jupyter notebooks via `nbsphinx
 .. code-block:: bash
 
    # from the repository root
-   pip install -e .                              # so autodoc can import the package
-   pip install -r docs/sphinx/requirements.txt   # Sphinx + theme + nbsphinx
+   pip install -e ".[docs]"                      # the package + Sphinx + theme + nbsphinx
    # plus a pandoc binary, e.g.  conda install pandoc   or   brew install pandoc
 
    cd docs/sphinx
    make html
 
 Open ``docs/sphinx/_build/html/index.html`` in a browser. To force a clean
-rebuild, run ``make clean html``.
-
-.. note::
-
-   A legacy `MkDocs <https://www.mkdocs.org>`_ site also lives under ``docs/``
-   (``mkdocs.yml`` + ``docs/*.md``). The Sphinx site documented here is the
-   richer, autodoc-driven build and lives entirely under ``docs/sphinx/``; the
-   two do not interfere.
+rebuild, run ``make clean html``. The build executes every tutorial notebook,
+so it doubles as a smoke test of the public API and takes several minutes.

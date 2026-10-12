@@ -79,8 +79,9 @@ The plots
 A single image
 ~~~~~~~~~~~~~~
 
-``show_saturation=True`` overlays the saturated pixels in red. The bright star
-below drives the core well past the Sony full well:
+``show_saturation=True`` overlays the saturated pixels in red, and ``units=``
+labels the axes in ``"pix"``, ``"mas"`` or ``"arcsec"``. The bright star below
+drives the core well past the Sony full well:
 
 .. plot::
    :context: close-figs
@@ -230,11 +231,58 @@ selects:
        plot_bandpass_mpl(Sensor.from_config(label), ax=ax, label=label)
    ax.legend()
 
+Curves from a Simulation
+------------------------
+
+The quantities a :class:`~wcc_etc.Simulation` computes have plot methods of
+their own. Each takes the grid to evaluate on, an optional ``ax=``, and extra
+keywords for ``ax.plot`` (``label=`` triggers a legend), and returns
+``(fig, ax)``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Method
+     - What it draws
+   * - ``sim.plot_snr(time)`` (also ``sim.plot``)
+     - SNR vs exposure time, from ``get_snr``.
+   * - ``sim.plot_snr_vs_mag(mags, time=)``
+     - SNR vs source magnitude off one cached render
+       (``get_image_snr(mags=)``).
+   * - ``sim.plot_sweep(key, values, time=)``
+     - SNR vs any ``update()`` key (``"host__mag"``, ``"n_reads"``, ...);
+       the original value is restored afterwards.
+   * - ``sim.plot_peak_pixel(time)``
+     - Peak pixel vs time on log axes, with the ``saturation_e`` ceiling
+       dashed and the onset time dotted.
+   * - ``sim.plot_exptime_for_snr(snr)``
+     - Exposure time needed for each target SNR.
+   * - ``sim.plot_snr_vs_aperture(radii, time=)``
+     - SNR vs aperture radius; a square marks the default aperture, a circle
+       the ``optimize=True`` one.
+   * - ``imsim.plot_psf(psf=None)``
+     - The bare normalized PSF from ``render_psf``, through ``plot_image_mpl``.
+
+Overlaying several simulations is one loop:
+
+.. plot::
+   :context: close-figs
+
+   sim = Simulation.from_sensor_and_scene("sony:r", scene)
+   texp = np.logspace(-1, 3, 200)
+   fig, ax = plt.subplots()
+   for mag in (12, 15, 18):
+       sim.update(source__mag=mag)
+       sim.plot_peak_pixel(texp, ax=ax, label=f"r = {mag}")
+   sim.update(source__mag=12)
+
 Objects that plot themselves
 ----------------------------
 
 Two objects know how to draw themselves onto a supplied axis, which is the
-quickest check that the scene and filter are the ones you intended:
+quickest check that the scene and filter are the ones you intended (each also
+answers to ``.plot``):
 
 .. plot::
    :context: close-figs

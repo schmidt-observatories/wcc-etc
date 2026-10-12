@@ -38,8 +38,9 @@ There are several convenience constructors, from lowest to highest level:
    # From a sensor spec ("kind:band") and a Scene:
    sim = Simulation.from_sensor_and_scene("sony:r", scene)
 
-   # Auto-select the PSF focus level appropriate to a given sensor:filter:
-   sim = Simulation.from_sensorfilter("sony:r", scene)
+   # Auto-select the PSF focus level appropriate to a given sensor:filter.
+   # Only canonical labels are accepted here ("zwo:r", not the "sony:r" nickname):
+   sim = Simulation.from_sensorfilter("zwo:r", scene)
 
    # From an explicit Sensor object, scene optional:
    sim = Simulation.from_sensor(sensor, scene)

@@ -8,13 +8,37 @@ raw arrays as keywords, so the Flask web portal can pass arrays directly.
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.visualization import HistEqStretch, LogStretch
+from astropy.visualization import HistEqStretch
 from astropy.visualization.mpl_normalize import ImageNormalize
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import ListedColormap, LogNorm
 
 from .airy import psf_to_encircled_energy
 from .psfsim import calc_hwhm
 from .radial_data import radial_data
+
+__all__ = [
+    "WCC_STYLE",
+    "set_wcc_style",
+    "apply_ax_settings",
+    "plot_image_mpl",
+    "plot_image_row_mpl",
+    "plot_radial_mpl",
+    "plot_encircled_energy_mpl",
+    "plot_bandpass_mpl",
+    "plot_lightcurve_mpl",
+    "plot_image_bokeh",
+    "plot_image_row_bokeh",
+    "plot_radial_bokeh",
+    "plot_encircled_energy_bokeh",
+    "plot_lightcurve_bokeh",
+    "plot_snr",
+    "plot_snr_vs_mag",
+    "plot_sweep",
+    "plot_peak_pixel",
+    "plot_exptime_for_snr",
+    "plot_snr_vs_aperture",
+    "plot_psf",
+]
 
 # Shared look-and-feel for WCC matplotlib plots: STIX math/text font, higher dpi,
 # inward minor+major ticks, and faint gridlines. Grid is enabled globally (1D line
@@ -75,22 +99,47 @@ def _resolve_inputs(
     return image_e, image_clean, saturation_mask, pixel_scale_mas
 
 
-def _make_norm(data, stretch):
-    """Build an astropy ImageNormalize for the given stretch ('log'|'hist'|'linear')."""
+def _make_norm(data, stretch, vmin=None, vmax=None, dyn_range=1e4):
+    """Normalization for the given stretch ('log'|'hist'|'linear').
+
+    'log' is a matplotlib LogNorm from the data minimum to its maximum, with the
+    floor no lower than `vmax / dyn_range` so a bare PSF (zeros far out) keeps a
+    readable range and the colorbar ticks read as decades. Pixels at or below
+    the floor (read-noise negatives) are clipped to it, not masked. `vmin` and
+    `vmax` override the data-derived range. An image with no positive pixel
+    cannot be log-scaled and gets None (linear)."""
+    data = np.asarray(data, dtype=float)
     if stretch == "hist":
-        return ImageNormalize(stretch=HistEqStretch(np.asarray(data)))
+        return ImageNormalize(stretch=HistEqStretch(data))
     if stretch == "log":
-        return ImageNormalize(np.asarray(data), stretch=LogStretch())
+        if vmax is None:
+            vmax = float(np.nanmax(data))
+        if vmax <= 0:
+            return None
+        if vmin is None:
+            positive = data[data > 0]
+            vmin = float(positive.min()) if positive.size else vmax / dyn_range
+            vmin = max(vmin, vmax / dyn_range)
+        return LogNorm(vmin=vmin, vmax=vmax, clip=True)
     return None  # linear: no normalization object
 
 
+ANGULAR_UNITS = {"mas": 1.0, "arcsec": 1e-3}
+
+
 def _image_extent(ny, nx, pixel_scale_mas, units):
-    """imshow extent centered on the grid, in mas, or None for pixel units."""
-    if units == "mas" and pixel_scale_mas:
-        hx = nx / 2.0 * pixel_scale_mas
-        hy = ny / 2.0 * pixel_scale_mas
+    """imshow extent centered on the grid in mas or arcsec, or None for pixels."""
+    if units in ANGULAR_UNITS and pixel_scale_mas:
+        scale = pixel_scale_mas * ANGULAR_UNITS[units]
+        hx = nx / 2.0 * scale
+        hy = ny / 2.0 * scale
         return [-hx, hx, -hy, hy]
     return None
+
+
+def axis_unit(units, extent):
+    """The unit printed on the image axes: the angular unit, or 'pix'."""
+    return units if extent else "pix"
 
 
 def _saturation_overlay(saturation_mask):
@@ -123,8 +172,9 @@ def plot_image_mpl(
     """Plot a single simulated detector image with equal x/y scale.
 
     noise=True shows the noisy image_e; noise=False shows the noiseless
-    image_clean. show_saturation overlays the saturation mask. units='mas'
-    labels the axes in milliarcsec using pixel_scale_mas. Returns (fig, ax)."""
+    image_clean. show_saturation overlays the saturation mask. units='mas' or
+    'arcsec' labels the axes in angle using pixel_scale_mas; 'pix' in pixels.
+    Returns (fig, ax)."""
     ie, ic, sat, ps = _resolve_inputs(
         source,
         image_e=image_e,
@@ -141,14 +191,14 @@ def plot_image_mpl(
     else:
         fig = ax.figure
 
-    norm = _make_norm(data, stretch)
+    norm = _make_norm(data, stretch, vmin=vmin, vmax=vmax)
     im = ax.imshow(
         data,
         origin="lower",
         cmap=cmap,
         norm=norm,
-        vmin=vmin,
-        vmax=vmax,
+        vmin=None if norm is not None else vmin,
+        vmax=None if norm is not None else vmax,
         extent=extent,
         aspect="equal",
     )
@@ -163,8 +213,8 @@ def plot_image_mpl(
             aspect="equal",
         )
 
-    ax.set_xlabel("X [mas]" if extent else "X [pix]")
-    ax.set_ylabel("Y [mas]" if extent else "Y [pix]")
+    ax.set_xlabel(f"X [{axis_unit(units, extent)}]")
+    ax.set_ylabel(f"Y [{axis_unit(units, extent)}]")
     ax.set_title(title)
     ax.grid(False)  # no gridlines over a 2D image
     if colorbar:
@@ -222,8 +272,8 @@ def plot_image_row_mpl(
             aspect="equal",
         )
         ax.set_title(title)
-        ax.set_xlabel("X [mas]" if extent else "X [pix]")
-        ax.set_ylabel("Y [mas]" if extent else "Y [pix]")
+        ax.set_xlabel(f"X [{axis_unit(units, extent)}]")
+        ax.set_ylabel(f"Y [{axis_unit(units, extent)}]")
 
     axes[2].imshow(
         np.asarray(sat, dtype=float),
@@ -233,8 +283,8 @@ def plot_image_row_mpl(
         aspect="equal",
     )
     axes[2].set_title(titles[2])
-    axes[2].set_xlabel("X [mas]" if extent else "X [pix]")
-    axes[2].set_ylabel("Y [mas]" if extent else "Y [pix]")
+    axes[2].set_xlabel(f"X [{axis_unit(units, extent)}]")
+    axes[2].set_ylabel(f"Y [{axis_unit(units, extent)}]")
     for ax in axes:
         ax.grid(False)  # no gridlines over the 2D image panels
     return fig, axes
@@ -728,3 +778,221 @@ def plot_lightcurve_bokeh(
     if p.legend:
         p.legend.location = "bottom_right"
     return _finish_bokeh(p, return_)
+
+
+# --------------------------------------------------------------------------- #
+#  Simulation-level curves (SNR, saturation, exposure time) and bare PSFs      #
+# --------------------------------------------------------------------------- #
+
+
+def seconds(time):
+    """Exposure time(s) as a float array in seconds; a Quantity is converted."""
+    return np.atleast_1d(u.Quantity(time, u.s).value).astype(float)
+
+
+def resolve_ax(ax=None, **subplots_kw):
+    """Return (fig, ax): a new figure when `ax` is None, else `ax` and its figure."""
+    if ax is None:
+        return plt.subplots(**subplots_kw)
+    return ax.figure, ax
+
+
+def legend_if_labelled(ax):
+    """Draw a legend when something on the axis carries a label, one entry per
+    distinct label (overlaid calls redraw the same ceiling line)."""
+    handles, labels = ax.get_legend_handles_labels()
+    if not handles:
+        return
+    unique = {}
+    for handle, label in zip(handles, labels):
+        unique.setdefault(label, handle)
+    ax.legend(unique.values(), unique.keys())
+
+
+def plot_snr(sim, time, *, psf=None, n_reads=None, warn=False, ax=None, **kw):
+    """SNR vs exposure time for a Simulation.
+
+    `time` is an array of exposure times (seconds, or a Quantity). `psf`,
+    `n_reads` and `warn` go to `get_snr`; `kw` goes to ax.plot, so several
+    simulations overlay on one axis with `label=`. Returns (fig, ax)."""
+    time = seconds(time)
+    snr = sim.get_snr(time=time, psf=psf, n_reads=n_reads, warn=warn)["snr"]
+    fig, ax = resolve_ax(ax)
+    ax.plot(time, snr, **kw)
+    ax.set_xlabel("Exposure time [s]")
+    ax.set_ylabel("SNR")
+    legend_if_labelled(ax)
+    return fig, ax
+
+
+def plot_snr_vs_mag(
+    sim, mags, *, time=None, psf=None, n_reads=None, warn=False, ax=None, **kw
+):
+    """SNR vs source magnitude at a fixed exposure time.
+
+    Uses `get_image_snr(mags=...)`, which rescales the source off one cached
+    render instead of rebuilding the scene per point. `psf`, `n_reads` and
+    `warn` go to `get_image_snr`; `kw` goes to ax.plot. Returns (fig, ax)."""
+    mags = np.asarray(mags, dtype=float)
+    snr = sim.get_image_snr(time=time, mags=mags, psf=psf, n_reads=n_reads, warn=warn)[
+        "snr"
+    ]
+    fig, ax = resolve_ax(ax)
+    ax.plot(mags, snr, **kw)
+    ax.set_xlabel("Source magnitude")
+    ax.set_ylabel("SNR")
+    legend_if_labelled(ax)
+    return fig, ax
+
+
+def plot_sweep(
+    sim, key, values, *, time=None, psf=None, n_reads=None, warn=False, ax=None, **kw
+):
+    """SNR vs any `update()` key (e.g. 'host__mag', 'host__r_eff', 'n_reads').
+
+    Each value is set with `sim.update(key=value)` and the SNR evaluated at
+    `time`; the original value is restored afterwards, even if a point raises.
+    `psf`, `n_reads` and `warn` go to `get_snr`; `kw` goes to ax.plot.
+    Returns (fig, ax)."""
+    original = sim.get_parameter(key)[0]
+    snr = []
+    try:
+        for value in values:
+            sim.update(**{key: value})
+            snr.append(
+                sim.get_snr(time=time, psf=psf, n_reads=n_reads, warn=warn)["snr"]
+            )
+    finally:
+        sim.update(**{key: original})
+    fig, ax = resolve_ax(ax)
+    ax.plot(values, snr, **kw)
+    ax.set_xlabel(key)
+    ax.set_ylabel("SNR")
+    legend_if_labelled(ax)
+    return fig, ax
+
+
+def plot_peak_pixel(
+    sim,
+    time,
+    *,
+    units="adu",
+    psf=None,
+    n_reads=None,
+    show_ceiling=True,
+    ax=None,
+    **kw,
+):
+    """Peak pixel vs exposure time on log axes, with the saturation ceiling.
+
+    The dashed line is `sensor.saturation_e` (the smaller of full well and ADC
+    clip) in the chosen units; a dotted vertical line marks the earliest time
+    at which `is_saturated` is True. `time` is in seconds or a Quantity; `psf`
+    and `n_reads` go to `get_peak_pixel`. Returns (fig, ax)."""
+    time = seconds(time)
+    peak = sim.get_peak_pixel(time, units=units, n_reads=n_reads, psf=psf).value
+    fig, ax = resolve_ax(ax)
+    (line,) = ax.loglog(time, peak, **kw)
+    if show_ceiling:
+        sensor = sim.sensor
+        if units.lower() == "adu":
+            ceiling = (sensor.saturation_e / sensor.gain).to(u.ct) + sensor.bias_level
+            unit_label = "ADU"
+        else:
+            ceiling, unit_label = sensor.saturation_e, "e-"
+        ceiling = float(getattr(ceiling, "value", ceiling))
+        ax.axhline(
+            ceiling,
+            color="0.3",
+            ls="--",
+            lw=1,
+            label=f"saturation ({sensor.saturation_limit}) = {ceiling:.0f} {unit_label}",
+        )
+        sat = np.asarray(sim.is_saturated(time, n_reads=n_reads, psf=psf), dtype=bool)
+        if sat.any():
+            t_sat = time[sat].min()
+            ax.axvline(
+                t_sat,
+                color=line.get_color(),
+                ls=":",
+                lw=1,
+                label=f"saturates at {t_sat:.2g} s",
+            )
+    ax.set_xlabel("Exposure time [s]")
+    ax.set_ylabel("Peak pixel [ADU]" if units.lower() == "adu" else "Peak pixel [e-]")
+    legend_if_labelled(ax)
+    return fig, ax
+
+
+def plot_exptime_for_snr(
+    sim, snr, *, psf=None, n_reads=None, warn=False, ax=None, **kw
+):
+    """Exposure time needed to reach each target SNR (PSF-aware inverse).
+
+    `psf`, `n_reads` and `warn` go to `get_image_exptime_for_snr`; `kw` goes to
+    ax.plot. Returns (fig, ax)."""
+    snr = np.asarray(snr, dtype=float)
+    times = [
+        sim.get_image_exptime_for_snr(s, psf=psf, n_reads=n_reads, warn=warn)["time_s"]
+        for s in snr
+    ]
+    fig, ax = resolve_ax(ax)
+    ax.plot(snr, times, **kw)
+    ax.set_xlabel("Target SNR")
+    ax.set_ylabel("Exposure time [s]")
+    legend_if_labelled(ax)
+    return fig, ax
+
+
+def plot_snr_vs_aperture(
+    sim,
+    radii,
+    *,
+    time=None,
+    psf=None,
+    n_reads=None,
+    warn=False,
+    show_markers=True,
+    ax=None,
+    **kw,
+):
+    """SNR vs fixed aperture radius, with the default and optimized apertures.
+
+    A square marks the aperture `get_image_snr` picks by default and a circle
+    the `optimize=True` radius. `psf`, `n_reads` and `warn` go to
+    `get_image_snr`; `kw` goes to ax.plot. Returns (fig, ax)."""
+    radii = np.asarray(radii, dtype=float)
+    common = dict(time=time, psf=psf, n_reads=n_reads, warn=warn)
+    snr = [sim.get_image_snr(r_aper_mas=r, **common)["snr"] for r in radii]
+    fig, ax = resolve_ax(ax)
+    (line,) = ax.plot(radii, snr, **kw)
+    if show_markers:
+        default = sim.get_image_snr(**common)
+        best = sim.get_image_snr(optimize=True, **common)
+        ax.plot(
+            default["r_aper_mas"], default["snr"], "s", color=line.get_color(), ms=7
+        )
+        ax.plot(best["r_aper_mas"], best["snr"], "o", color=line.get_color(), ms=9)
+    ax.set_xlabel("Aperture radius [mas]")
+    ax.set_ylabel("SNR")
+    legend_if_labelled(ax)
+    return fig, ax
+
+
+def plot_psf(
+    imsim, psf=None, *, jitter_sigma_mas=None, npix=None, units="mas", ax=None, **kw
+):
+    """The bare normalized PSF on the detector grid (log stretch by default).
+
+    Wraps `ImageSimulator.render_psf` and `plot_image_mpl`; `kw` reaches the
+    latter (`title=`, `cmap=`, `colorbar=`, `stretch=` ...). Returns (fig, ax)."""
+    img = imsim.render_psf(psf, jitter_sigma_mas=jitter_sigma_mas, npix=npix)
+    kw.setdefault("stretch", "log")
+    return plot_image_mpl(
+        image_clean=img,
+        noise=False,
+        pixel_scale_mas=imsim.plate_scale_mas,
+        units=units,
+        ax=ax,
+        **kw,
+    )
