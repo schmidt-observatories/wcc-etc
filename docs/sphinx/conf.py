@@ -80,13 +80,11 @@ napoleon_use_param = True
 napoleon_use_ivar = True
 
 # -- nbsphinx ----------------------------------------------------------------
-# Execute the tutorials at build time. The `jupyter-nb-clear-output` pre-commit
-# hook strips every notebook's outputs, so anything committed carries no figures
-# at all -- with nbsphinx_execute = "never" the published tutorials rendered as
-# bare code cells with nothing underneath. Executing here keeps the figures and
-# printed numbers in the docs guaranteed consistent with the code that built
-# them, and (with allow_errors off) turns the tutorials into a smoke test: a
-# notebook that no longer runs against the current API fails the docs build.
+# Execute the tutorials at build time even though they are committed with their
+# outputs. That keeps the published figures and printed numbers consistent with
+# the code that built them, and (with allow_errors off) turns the tutorials into
+# a smoke test: a notebook that no longer runs against the current API fails
+# the docs build.
 nbsphinx_execute = "always"
 nbsphinx_allow_errors = False
 nbsphinx_timeout = 600  # seconds per cell; the PSF sweeps are the slow ones

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The tutorial notebooks are committed with their outputs, so the figures and printed
+  numbers are visible on GitHub without running them; the pre-commit hook that stripped
+  outputs is gone. `CITATION.cff` is removed until there is something to cite.
 - `wcc_etc.io` exposes `SENSORFILTER_FOCUS`, `SENSORFILTER_IMPLEMENTED` and `KIND_NAMES`
   as public names (in `__all__`, documented). The underscore spellings remain as aliases
   so wcc-sim keeps importing until it moves to the public ones.
@@ -36,8 +39,8 @@
   Pickles `dat_uvi/` atlas are removed; `hsiao07.dat` is now the phase-0 slice (2 columns,
   130 kB instead of 8 MB) and loads with `get_scene("hsiao07", ...)` instead of raising.
   Wheel and sdist are 8 MB; CI fails a build over 20 MB or carrying local products (#62, #101).
-- `DATA_SOURCES.md` lists every bundled dataset with its citation or origin, and
-  `CITATION.cff` gives the software citation; `radial_data.py` carries its attribution (#101).
+- `DATA_SOURCES.md` lists every bundled dataset with its citation or origin;
+  `radial_data.py` carries its attribution (#101).
 - Release hygiene (#101): the CALSPEC Vega spectrum and the Johnson V curve are bundled
   (`data/astrophysics/alpha_lyr_stis_011.fits`, `data/throughput/other_filters/johnson_v_004_syn.fits`)
   instead of downloaded from STScI at first use, so zero points cannot drift and no
