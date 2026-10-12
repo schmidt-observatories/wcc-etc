@@ -8,7 +8,7 @@ Requirements
 - The scientific stack, pulled in automatically as dependencies: ``numpy``,
   ``scipy``, ``astropy``, ``synphot``, ``matplotlib``, ``pandas``,
   ``photutils``, ``bokeh``, ``tifffile``, and ``lazuli-exo`` (the transit
-  models, installed from its GitHub tag until it is on PyPI).
+  models).
 
 Install from source (recommended)
 ---------------------------------

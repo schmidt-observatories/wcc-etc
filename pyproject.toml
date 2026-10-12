@@ -29,14 +29,12 @@ dependencies = [
   "tifffile",
   "photutils>=1.10",
   # Transit models + Exoplanet Archive helpers (lazuli_exo.transit).
-  # TODO(#107): switch to "lazuli-exo>=0.1.1" once lazuli-exo is on PyPI; a
-  # direct URL works for pip/CI/RTD but PyPI refuses to host a wheel that has one.
-  "lazuli-exo @ git+https://github.com/schmidt-observatories/lazuli-exo.git@v0.1.1",
+  "lazuli-exo>=0.1.2",
 ]
 
 [project.optional-dependencies]
-lightcurve = ["lazuli-exo[transit]"]
-exoarchive = ["lazuli-exo[archive]"]
+lightcurve = ["lazuli-exo[transit]>=0.1.2"]
+exoarchive = ["lazuli-exo[archive]>=0.1.2"]
 docs = [
   "sphinx>=7",
   "sphinx-rtd-theme>=2.0",

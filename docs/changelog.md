@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `lazuli-exo` is now required from PyPI (`>=0.1.2`) instead of a GitHub tag, which
+  removes the direct-URL dependency that PyPI refuses to host (#107).
 - The user guide is rewritten for a first-time reader: the SNR page states the noise
   model and shows the source-limited and background-limited regimes, the saturation and
   scenes pages gain figures drawn with the new plot methods, and change-history asides are
