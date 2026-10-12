@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.1.0 (2026-10-12)
+
+First PyPI release. Everything in this section, through the initial highlights at the end, ships in it.
 
 - `lazuli-exo` is now required from PyPI (`>=0.1.2`) instead of a GitHub tag, which
   removes the direct-URL dependency that PyPI refuses to host (#107).
@@ -213,7 +215,7 @@ to hand-roll:
   either `ref_wavelength_m` and `ref_fnum`, or
   `wavelength_scaling="none"`.
 
-## v0.1.0
+### Initial highlights
 
 Initial public release. Highlights:
 
