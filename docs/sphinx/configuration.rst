@@ -27,10 +27,11 @@ The available combinations:
      - Sony IMX455 (ZWO ASI6200MM), in focus
      - 16-bit, 3.76 µm pixels. ``adc_max = 65535``; the ~16.3 ke- full well
        binds before the ADC.
-   * - ``zwo:r+1`` / ``zwo:bb2``
+   * - ``zwo:r+1`` / ``zwo:r-1`` / ``zwo:bb2``
      - Sony IMX455, defocused
-     - The same detector one and two waves out of focus;
-       ``from_sensorfilter`` picks the matching :class:`~wcc_etc.DefocusPSF`.
+     - The same detector one wave either side of focus (``+1`` / ``-1``) and
+       two waves out (``2``); ``from_sensorfilter`` picks the matching
+       :class:`~wcc_etc.DefocusPSF`.
    * - ``qcmos:u`` / ``qcmos:g`` / ``qcmos:r`` / ``qcmos:i`` / ``qcmos:z`` / ``qcmos:bb``
      - Hamamatsu qCMOS (HWK4123)
      - 12-bit, 4.6 µm pixels, ``adc_max = 4095``. Two gain modes, selected

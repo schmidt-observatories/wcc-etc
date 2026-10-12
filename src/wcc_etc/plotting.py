@@ -16,6 +16,30 @@ from .airy import psf_to_encircled_energy
 from .psfsim import calc_hwhm
 from .radial_data import radial_data
 
+__all__ = [
+    "WCC_STYLE",
+    "set_wcc_style",
+    "apply_ax_settings",
+    "plot_image_mpl",
+    "plot_image_row_mpl",
+    "plot_radial_mpl",
+    "plot_encircled_energy_mpl",
+    "plot_bandpass_mpl",
+    "plot_lightcurve_mpl",
+    "plot_image_bokeh",
+    "plot_image_row_bokeh",
+    "plot_radial_bokeh",
+    "plot_encircled_energy_bokeh",
+    "plot_lightcurve_bokeh",
+    "plot_snr",
+    "plot_snr_vs_mag",
+    "plot_sweep",
+    "plot_peak_pixel",
+    "plot_exptime_for_snr",
+    "plot_snr_vs_aperture",
+    "plot_psf",
+]
+
 # Shared look-and-feel for WCC matplotlib plots: STIX math/text font, higher dpi,
 # inward minor+major ticks, and faint gridlines. Grid is enabled globally (1D line
 # plots pick it up automatically); the 2D image plotters explicitly disable it.
@@ -75,20 +99,28 @@ def _resolve_inputs(
     return image_e, image_clean, saturation_mask, pixel_scale_mas
 
 
-def _make_norm(data, stretch):
+def _make_norm(data, stretch, vmin=None, vmax=None, dyn_range=1e4):
     """Normalization for the given stretch ('log'|'hist'|'linear').
 
     'log' is a matplotlib LogNorm from the data minimum to its maximum, with the
-    floor clipped to four decades below the peak so a bare PSF (zeros far out)
-    keeps a readable range and the colorbar ticks read as decades."""
+    floor no lower than `vmax / dyn_range` so a bare PSF (zeros far out) keeps a
+    readable range and the colorbar ticks read as decades. Pixels at or below
+    the floor (read-noise negatives) are clipped to it, not masked. `vmin` and
+    `vmax` override the data-derived range. An image with no positive pixel
+    cannot be log-scaled and gets None (linear)."""
     data = np.asarray(data, dtype=float)
     if stretch == "hist":
         return ImageNormalize(stretch=HistEqStretch(data))
     if stretch == "log":
-        vmax = float(np.nanmax(data))
-        positive = data[data > 0]
-        vmin = float(positive.min()) if positive.size else vmax * 1e-4
-        return LogNorm(vmin=max(vmin, vmax * 1e-4), vmax=vmax)
+        if vmax is None:
+            vmax = float(np.nanmax(data))
+        if vmax <= 0:
+            return None
+        if vmin is None:
+            positive = data[data > 0]
+            vmin = float(positive.min()) if positive.size else vmax / dyn_range
+            vmin = max(vmin, vmax / dyn_range)
+        return LogNorm(vmin=vmin, vmax=vmax, clip=True)
     return None  # linear: no normalization object
 
 
@@ -159,14 +191,14 @@ def plot_image_mpl(
     else:
         fig = ax.figure
 
-    norm = _make_norm(data, stretch)
+    norm = _make_norm(data, stretch, vmin=vmin, vmax=vmax)
     im = ax.imshow(
         data,
         origin="lower",
         cmap=cmap,
         norm=norm,
-        vmin=vmin,
-        vmax=vmax,
+        vmin=None if norm is not None else vmin,
+        vmax=None if norm is not None else vmax,
         extent=extent,
         aspect="equal",
     )
@@ -753,6 +785,11 @@ def plot_lightcurve_bokeh(
 # --------------------------------------------------------------------------- #
 
 
+def seconds(time):
+    """Exposure time(s) as a float array in seconds; a Quantity is converted."""
+    return np.atleast_1d(u.Quantity(time, u.s).value).astype(float)
+
+
 def resolve_ax(ax=None, **subplots_kw):
     """Return (fig, ax): a new figure when `ax` is None, else `ax` and its figure."""
     if ax is None:
@@ -772,13 +809,14 @@ def legend_if_labelled(ax):
     ax.legend(unique.values(), unique.keys())
 
 
-def plot_snr(sim, time, *, ax=None, **kw):
+def plot_snr(sim, time, *, psf=None, n_reads=None, warn=False, ax=None, **kw):
     """SNR vs exposure time for a Simulation.
 
-    `time` is an array of exposure times in seconds; `kw` goes to ax.plot, so
-    several simulations overlay on one axis with `label=`. Returns (fig, ax)."""
-    time = np.asarray(time, dtype=float)
-    snr = sim.get_snr(time=time, warn=False)["snr"]
+    `time` is an array of exposure times (seconds, or a Quantity). `psf`,
+    `n_reads` and `warn` go to `get_snr`; `kw` goes to ax.plot, so several
+    simulations overlay on one axis with `label=`. Returns (fig, ax)."""
+    time = seconds(time)
+    snr = sim.get_snr(time=time, psf=psf, n_reads=n_reads, warn=warn)["snr"]
     fig, ax = resolve_ax(ax)
     ax.plot(time, snr, **kw)
     ax.set_xlabel("Exposure time [s]")
@@ -787,13 +825,18 @@ def plot_snr(sim, time, *, ax=None, **kw):
     return fig, ax
 
 
-def plot_snr_vs_mag(sim, mags, *, time=None, ax=None, **kw):
+def plot_snr_vs_mag(
+    sim, mags, *, time=None, psf=None, n_reads=None, warn=False, ax=None, **kw
+):
     """SNR vs source magnitude at a fixed exposure time.
 
     Uses `get_image_snr(mags=...)`, which rescales the source off one cached
-    render instead of rebuilding the scene per point. Returns (fig, ax)."""
+    render instead of rebuilding the scene per point. `psf`, `n_reads` and
+    `warn` go to `get_image_snr`; `kw` goes to ax.plot. Returns (fig, ax)."""
     mags = np.asarray(mags, dtype=float)
-    snr = sim.get_image_snr(time=time, mags=mags, warn=False)["snr"]
+    snr = sim.get_image_snr(time=time, mags=mags, psf=psf, n_reads=n_reads, warn=warn)[
+        "snr"
+    ]
     fig, ax = resolve_ax(ax)
     ax.plot(mags, snr, **kw)
     ax.set_xlabel("Source magnitude")
@@ -802,18 +845,23 @@ def plot_snr_vs_mag(sim, mags, *, time=None, ax=None, **kw):
     return fig, ax
 
 
-def plot_sweep(sim, key, values, *, time=None, ax=None, warn=False, **kw):
+def plot_sweep(
+    sim, key, values, *, time=None, psf=None, n_reads=None, warn=False, ax=None, **kw
+):
     """SNR vs any `update()` key (e.g. 'host__mag', 'host__r_eff', 'n_reads').
 
     Each value is set with `sim.update(key=value)` and the SNR evaluated at
     `time`; the original value is restored afterwards, even if a point raises.
+    `psf`, `n_reads` and `warn` go to `get_snr`; `kw` goes to ax.plot.
     Returns (fig, ax)."""
     original = sim.get_parameter(key)[0]
     snr = []
     try:
         for value in values:
             sim.update(**{key: value})
-            snr.append(sim.get_snr(time=time, warn=warn)["snr"])
+            snr.append(
+                sim.get_snr(time=time, psf=psf, n_reads=n_reads, warn=warn)["snr"]
+            )
     finally:
         sim.update(**{key: original})
     fig, ax = resolve_ax(ax)
@@ -825,15 +873,24 @@ def plot_sweep(sim, key, values, *, time=None, ax=None, warn=False, **kw):
 
 
 def plot_peak_pixel(
-    sim, time, *, units="adu", n_reads=None, show_ceiling=True, ax=None, **kw
+    sim,
+    time,
+    *,
+    units="adu",
+    psf=None,
+    n_reads=None,
+    show_ceiling=True,
+    ax=None,
+    **kw,
 ):
     """Peak pixel vs exposure time on log axes, with the saturation ceiling.
 
     The dashed line is `sensor.saturation_e` (the smaller of full well and ADC
-    clip) in the chosen units; a dotted vertical line marks the first time at
-    which `is_saturated` is True. Returns (fig, ax)."""
-    time = np.asarray(time, dtype=float)
-    peak = sim.get_peak_pixel(time, units=units, n_reads=n_reads).value
+    clip) in the chosen units; a dotted vertical line marks the earliest time
+    at which `is_saturated` is True. `time` is in seconds or a Quantity; `psf`
+    and `n_reads` go to `get_peak_pixel`. Returns (fig, ax)."""
+    time = seconds(time)
+    peak = sim.get_peak_pixel(time, units=units, n_reads=n_reads, psf=psf).value
     fig, ax = resolve_ax(ax)
     (line,) = ax.loglog(time, peak, **kw)
     if show_ceiling:
@@ -851,9 +908,9 @@ def plot_peak_pixel(
             lw=1,
             label=f"saturation ({sensor.saturation_limit}) = {ceiling:.0f} {unit_label}",
         )
-        sat = np.asarray(sim.is_saturated(time, n_reads=n_reads), dtype=bool)
+        sat = np.asarray(sim.is_saturated(time, n_reads=n_reads, psf=psf), dtype=bool)
         if sat.any():
-            t_sat = time[sat][0]
+            t_sat = time[sat].min()
             ax.axvline(
                 t_sat,
                 color=line.get_color(),
@@ -867,12 +924,18 @@ def plot_peak_pixel(
     return fig, ax
 
 
-def plot_exptime_for_snr(sim, snr, *, ax=None, **kw):
+def plot_exptime_for_snr(
+    sim, snr, *, psf=None, n_reads=None, warn=False, ax=None, **kw
+):
     """Exposure time needed to reach each target SNR (PSF-aware inverse).
 
-    Returns (fig, ax)."""
+    `psf`, `n_reads` and `warn` go to `get_image_exptime_for_snr`; `kw` goes to
+    ax.plot. Returns (fig, ax)."""
     snr = np.asarray(snr, dtype=float)
-    times = [sim.get_image_exptime_for_snr(s, warn=False)["time_s"] for s in snr]
+    times = [
+        sim.get_image_exptime_for_snr(s, psf=psf, n_reads=n_reads, warn=warn)["time_s"]
+        for s in snr
+    ]
     fig, ax = resolve_ax(ax)
     ax.plot(snr, times, **kw)
     ax.set_xlabel("Target SNR")
@@ -882,22 +945,30 @@ def plot_exptime_for_snr(sim, snr, *, ax=None, **kw):
 
 
 def plot_snr_vs_aperture(
-    sim, radii, *, time=None, psf=None, show_markers=True, ax=None, **kw
+    sim,
+    radii,
+    *,
+    time=None,
+    psf=None,
+    n_reads=None,
+    warn=False,
+    show_markers=True,
+    ax=None,
+    **kw,
 ):
     """SNR vs fixed aperture radius, with the default and optimized apertures.
 
     A square marks the aperture `get_image_snr` picks by default and a circle
-    the `optimize=True` radius. Returns (fig, ax)."""
+    the `optimize=True` radius. `psf`, `n_reads` and `warn` go to
+    `get_image_snr`; `kw` goes to ax.plot. Returns (fig, ax)."""
     radii = np.asarray(radii, dtype=float)
-    snr = [
-        sim.get_image_snr(time=time, psf=psf, r_aper_mas=r, warn=False)["snr"]
-        for r in radii
-    ]
+    common = dict(time=time, psf=psf, n_reads=n_reads, warn=warn)
+    snr = [sim.get_image_snr(r_aper_mas=r, **common)["snr"] for r in radii]
     fig, ax = resolve_ax(ax)
     (line,) = ax.plot(radii, snr, **kw)
     if show_markers:
-        default = sim.get_image_snr(time=time, psf=psf, warn=False)
-        best = sim.get_image_snr(time=time, psf=psf, optimize=True, warn=False)
+        default = sim.get_image_snr(**common)
+        best = sim.get_image_snr(optimize=True, **common)
         ax.plot(
             default["r_aper_mas"], default["snr"], "s", color=line.get_color(), ms=7
         )

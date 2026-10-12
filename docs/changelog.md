@@ -7,9 +7,12 @@
   `plot_peak_pixel` (with the `saturation_e` ceiling and onset marker),
   `plot_exptime_for_snr`, `plot_snr_vs_aperture`, and `ImageSimulator.plot_psf`.
   `Sensor.plot`, `SceneElement.plot` and `SimulatedImage.plot` alias the existing
-  `show` / `plot_image`. The image plotters accept `units="arcsec"` alongside `mas`
-  and `pix`, and `stretch="log"` is now a matplotlib `LogNorm` clipped four decades
-  below the peak, so the colorbar ticks read as decades. The tutorials use the new
+  `show` / `plot_image`; `Sensor.show` and `SceneElement.show` now return `(fig, ax)`
+  like the rest (they returned the bare figure). The image plotters accept
+  `units="arcsec"` alongside `mas` and `pix`, and `stretch="log"` is now a matplotlib
+  `LogNorm` (clipped, so read-noise-negative pixels keep the floor colour) whose
+  floor sits `dyn_range` (default 1e4) below the peak; `vmin=` / `vmax=` fold into
+  it. `plotting` declares `__all__`. The tutorials use the new
   methods instead of hand-rolled matplotlib,
   and their text now matches the code: saturation is `sensor.saturation_e`
   (the full well on the Sony, the ADC on the qCMOS in high gain), the H-alpha labels
