@@ -1,7 +1,8 @@
 Concepts and architecture
 =========================
 
-This page describes the objects that make up a calculation and how they relate.
+A calculation is built from three objects and a :class:`~wcc_etc.Simulation`
+that owns one of each.
 
 The three building blocks
 -------------------------
@@ -13,23 +14,23 @@ The three building blocks
    * - Object
      - Role
    * - :class:`~wcc_etc.Scene`
-     - What is on the sky: a **source**, an optional **host** galaxy, and an
-       optional sky **background**. Each is a
-       :class:`~wcc_etc.scene.SceneElement` wrapping a ``synphot`` spectrum and
-       a magnitude.
+     - What is on the sky: a source, an optional host galaxy, and an optional
+       sky background. Each is a :class:`~wcc_etc.scene.SceneElement` that
+       wraps a ``synphot`` spectrum and a magnitude.
    * - :class:`~wcc_etc.Sensor`
-     - The detector + filter: read noise, dark current, gain, full well, pixel
-       size, bit depth, bias level, and the filter **bandpass**.
+     - The detector and its filter: read noise, dark current, gain, full well,
+       pixel size, bit depth, bias level, and the filter bandpass.
    * - :class:`~wcc_etc.telescope.Telescope`
      - The optics: primary diameter, focal ratio, throughput surface, and
-       pointing **jitter**.
+       pointing jitter.
 
-A :class:`~wcc_etc.Simulation` owns one of each and turns them into photometry.
+The :class:`~wcc_etc.Simulation` turns the three into photometry: count
+rates, SNR, exposure time, the peak pixel and simulated images.
 
 Constructing a simulation
 --------------------------
 
-There are several convenience constructors, from lowest to highest level:
+There are several constructors, from lowest to highest level:
 
 .. code-block:: python
 
@@ -48,17 +49,17 @@ There are several convenience constructors, from lowest to highest level:
    # From a configuration dict / file:
    sim = Simulation.from_config(config)
 
-``from_sensorfilter`` additionally records a *default PSF* for that sensor and
-filter (in-focus vs. defocused), which is then used by the SNR and image
-methods when you do not pass an explicit ``psf=``.
+``from_sensorfilter`` also records a default PSF for that sensor and filter,
+in focus or defocused, which the SNR and image methods use whenever you do not
+pass ``psf=`` yourself.
 
 Inspecting and updating parameters
 ----------------------------------
 
-Every sub-object is a "meta holder": its tunable parameters are exposed through
-``mutable_parameters`` and can be changed with :meth:`~wcc_etc.Simulation.update`
-using ``element__key`` double-underscore syntax. The element prefix selects
-which sub-object the key belongs to:
+Every sub-object exposes its tunable parameters through
+``mutable_parameters``. Change them with :meth:`~wcc_etc.Simulation.update`
+using ``element__key`` double-underscore syntax, where the prefix names the
+sub-object the key belongs to:
 
 .. code-block:: python
 
@@ -70,26 +71,29 @@ which sub-object the key belongs to:
    sim.get_parameter("source__mag")   # read a single parameter
    sim.reset()                        # restore the original configuration
 
-You can also target a single sub-object explicitly with
+You can also target one sub-object with
 :meth:`~wcc_etc.Simulation.update_scene`,
-:meth:`~wcc_etc.Simulation.update_sensor`, and
-:meth:`~wcc_etc.Simulation.update_telescope`.
+:meth:`~wcc_etc.Simulation.update_sensor` and
+:meth:`~wcc_etc.Simulation.update_telescope`. A key that matches no
+parameter, or more than one, raises ``KeyError`` instead of being ignored.
 
 .. important::
 
-   Updating a parameter invalidates the internal PSF / count-rate **render
-   cache**, so the next SNR or image call reflects the change. This fixed an
-   earlier bug where a stale render survived a jitter update.
+   Updating a parameter clears the internal PSF and count-rate render cache,
+   so the next SNR or image call reflects the change.
+
+To see how the SNR responds to a parameter, sweep it with
+:meth:`~wcc_etc.Simulation.plot_sweep`, which updates the key for each value
+and restores the original afterwards. See :doc:`plotting`.
 
 Count rates and the electron budget
 ------------------------------------
 
-Beneath the SNR helpers, :meth:`~wcc_etc.Simulation.get_countrates` returns the
-per-second electron rates for the source, host, background, and dark current.
-These feed the signal-and-variance accounting in
-:meth:`~wcc_etc.Simulation.get_signal_and_variance` and, ultimately, the SNR.
-You rarely need them directly, but they are handy for debugging a surprising
-SNR:
+Beneath the SNR helpers, :meth:`~wcc_etc.Simulation.get_countrates` returns
+the per-second electron rates for the source, host, background and dark
+current. These feed :meth:`~wcc_etc.Simulation.get_signal_and_variance` and
+from there the SNR. You rarely need them directly, but they are the first
+place to look when an SNR surprises you:
 
 .. code-block:: python
 
@@ -100,6 +104,6 @@ Accessor properties
 --------------------
 
 A :class:`~wcc_etc.Simulation` exposes its parts as read-only properties:
-``sim.scene``, ``sim.sensor``, ``sim.telescope``, ``sim.meta``, and
-``sim.psf_profile``. Likewise a :class:`~wcc_etc.Scene` exposes ``scene.source``,
-``scene.host``, ``scene.background``, and ``scene.element_names``.
+``sim.scene``, ``sim.sensor``, ``sim.telescope``, ``sim.meta`` and
+``sim.psf_profile``. A :class:`~wcc_etc.Scene` exposes ``scene.source``,
+``scene.host``, ``scene.background`` and ``scene.element_names``.

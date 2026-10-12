@@ -1,9 +1,9 @@
 PSFs and image simulation
 =========================
 
-``wcc-etc`` can render a realistic detector image of the scene, including the
-point-spread function, telescope jitter, sky background, Poisson and read
-noise, and per-pixel saturation.
+``wcc-etc`` can render a detector image of the scene with the point-spread
+function, telescope jitter, sky background, Poisson and read noise, and
+per-pixel saturation.
 
 PSF models
 ----------
@@ -19,7 +19,7 @@ All PSF models subclass :class:`~wcc_etc.psfsim.PSFSource` and implement
      - Description
    * - :class:`~wcc_etc.AiryPSF`
      - Diffraction-limited Airy disk computed for the simulation's
-       source-weighted effective wavelength, plate scale, and aperture. The
+       source-weighted effective wavelength, plate scale and aperture. The
        default when no PSF is given.
    * - :class:`~wcc_etc.PolychromaticPSF`
      - A photon-weighted coadd of a base PSF rendered at several wavelengths
@@ -29,17 +29,17 @@ All PSF models subclass :class:`~wcc_etc.psfsim.PSFSource` and implement
      - A resampled Zemax Huygens PSF loaded from disk. Two defocus products
        ship with the package (see below).
    * - :class:`~wcc_etc.CustomPSF`
-     - An arbitrary PSF from a NumPy array or a file, with a given source pixel
-       scale (``src_um_per_pix``).
+     - An arbitrary PSF from a NumPy array or a file, with a given source
+       pixel scale (``src_um_per_pix``).
 
 .. _source-weighted-psf:
 
 The wavelength the PSF is rendered at
 -------------------------------------
 
-The diffraction scale is linear in wavelength, so *which* wavelength stands in
-for a broad band matters. ``wcc-etc`` renders the PSF at the **source-weighted
-effective wavelength**
+The diffraction scale is linear in wavelength, so which wavelength stands in
+for a broad band matters. ``wcc-etc`` renders the PSF at the source-weighted
+effective wavelength
 
 .. math::
 
@@ -48,8 +48,8 @@ effective wavelength**
             {\int S(\lambda)\, T(\lambda)\, d\lambda},
 
 with :math:`S` the source photon flux density and :math:`T` the total
-throughput — available as :attr:`~wcc_etc.Simulation.effective_wavelength`, or
-directly as :func:`wcc_etc.effective_wavelength`:
+throughput. It is available as :attr:`~wcc_etc.Simulation.effective_wavelength`
+and as the standalone :func:`wcc_etc.effective_wavelength`:
 
 .. code-block:: python
 
@@ -58,11 +58,11 @@ directly as :func:`wcc_etc.effective_wavelength`:
    sim.effective_wavelength                                    # <Quantity 716.5 nm>
    effective_wavelength(sim.sensor.bandpass, spectrum)         # the same, standalone
 
-This is deliberately **not** ``sensor.wavelength``, the filter pivot
-wavelength. The pivot is computed from the throughput curve alone, so it is the
-same for every source; the WCC broad band has a pivot of 582.1 nm whether the
-star is an O5V or an M5V. Weighting by the SED as well moves it by more than
-150 nm across the main sequence, and with it the modelled central-pixel
+This is deliberately different from ``sensor.wavelength``, the filter pivot
+wavelength. The pivot is computed from the throughput curve alone, so it is
+the same for every source: the WCC broad band has a pivot of 582.1 nm whether
+the star is an O5V or an M5V. Weighting by the SED as well moves it by more
+than 150 nm across the main sequence, and with it the modelled central-pixel
 fraction (``sony:bb``, 10 mas jitter):
 
 .. list-table::
@@ -100,11 +100,11 @@ fraction (``sony:bb``, 10 mas jitter):
      - 0.0762
      - +35.6 %
 
-The last column is what the pivot-only model got wrong: it predicted 0.1033 for
-every one of these sources, so for an M5V it overpredicted the brightest pixel
-by 36 % and therefore predicted saturation well before it actually occurs
-(and underpredicted it for blue sources). Since WCC's purpose is broadband
-context imaging, the broad bands are the common case, not the edge case.
+The last column is the error of a render at the pivot, which predicts 0.1033
+for every one of these sources. For an M5V that overpredicts the brightest
+pixel by 36 % and so predicts saturation well before it happens, and it
+underpredicts for blue sources. WCC's purpose is broadband context imaging,
+so the broad bands are the common case.
 
 .. plot::
    :context: reset
@@ -136,24 +136,15 @@ context imaging, the broad bands are the common case, not the edge case.
    )
    ax.set_xlabel("Source spectral type")
    ax.set_ylabel("Wavelength (nm)")
-   ax.set_title("sony:bb — the PSF wavelength follows the source")
+   ax.set_title("sony:bb: the PSF wavelength follows the source")
    ax.legend()
-
-.. note::
-
-   This is the resolution of issue #65, which offered a choice between
-   implementing source-weighted PSFs (option **A**) and documenting the ETC as
-   monochromatic-at-pivot (option **B**). **Option A was implemented**:
-   ``lambda_eff`` drives every PSF render, a polychromatic coadd is available,
-   and the bundled defocus products now carry the metadata a render needs to
-   honour the optics it is given.
 
 Polychromatic PSFs
 ~~~~~~~~~~~~~~~~~~
 
-Rendering at :math:`\lambda_\mathrm{eff}` fixes the PSF *width* but still
-leaves a single monochromatic PSF, with diffraction rings at full contrast. For
-the real broadband shape, coadd renders across the band with
+Rendering at :math:`\lambda_\mathrm{eff}` fixes the PSF width, but the result
+is still a single monochromatic PSF with diffraction rings at full contrast.
+For the real broadband shape, coadd renders across the band with
 :meth:`~wcc_etc.Simulation.polychromatic_psf`:
 
 .. code-block:: python
@@ -162,21 +153,21 @@ the real broadband shape, coadd renders across the band with
    sim.get_image_snr(time=30, psf=psf)
    sim.get_peak_pixel(30, psf=psf)
 
-The sub-band edges are placed at equal quantiles of the cumulative photon
-weight (:func:`wcc_etc.photon_weighted_subbands`), so the samples cluster where
-the source actually delivers light and no render is spent on a negligible
-sub-band. ``n_sub=1`` reduces exactly to the monochromatic
-:math:`\lambda_\mathrm{eff}` case; 5–9 is plenty for a broad optical band, and
-the cost is linear in ``n_sub``. The effect on the central-pixel fraction is a
-few percent (a coadd of narrower and wider PSFs peaks slightly above the PSF at
-the mean wavelength), so it is a refinement on top of the
-:math:`\lambda_\mathrm{eff}` fix rather than a second large correction.
+The sub-band edges sit at equal quantiles of the cumulative photon weight
+(:func:`wcc_etc.photon_weighted_subbands`), so the samples cluster where the
+source delivers light and no render is spent on a negligible sub-band.
+``n_sub=1`` reduces exactly to the monochromatic :math:`\lambda_\mathrm{eff}`
+case. Five to nine sub-bands is plenty for a broad optical band, and the cost
+is linear in ``n_sub``. The effect on the central-pixel fraction is a few
+percent, since a coadd of narrower and wider PSFs peaks slightly above the PSF
+at the mean wavelength, so this is a refinement on top of the
+:math:`\lambda_\mathrm{eff}` choice and not a second large correction.
 
 On an M5V source the coadd fills in the monochromatic diffraction minima and
 takes the tops off the maxima, while leaving the overall width alone. The
 comparison below switches jitter off (``jitter_sigma_mas=0``) and zooms into
-the core — at the telescope's real jitter the ring structure is smeared out and
-the two profiles lie on top of each other:
+the core. At the telescope's real jitter the ring structure is smeared out
+and the two profiles lie on top of each other:
 
 .. plot::
    :context: close-figs
@@ -207,8 +198,8 @@ Bundled defocus PSFs
 ~~~~~~~~~~~~~~~~~~~~~
 
 Two Zemax Huygens PSFs (1 and 2 waves of defocus, computed at 500 nm and f/15
-with 4 µm data spacing) ship with the package as FITS products and are exposed
-as path constants:
+with 4 µm data spacing) ship with the package as FITS products and are
+exposed as path constants:
 
 .. code-block:: python
 
@@ -223,8 +214,8 @@ defocus in waves), so ``DefocusPSF`` needs no hand-passed sampling and can map
 the array onto the optics it is asked about. A new Huygens ``.txt`` export is
 turned into such a product with :func:`wcc_etc.psfsim.huygens_txt_to_fits`.
 
-What the two products look like on the detector, against an in-focus Airy PSF
-for scale (noiseless, same source and exposure in each panel):
+This is what the two products look like on the detector, against an in-focus
+Airy PSF for scale (noiseless, same source and exposure in each panel):
 
 .. plot::
    :context: close-figs
@@ -249,9 +240,9 @@ How a resampled PSF is scaled
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A sampled PSF array was computed for one wavelength and one f-number, so
-rendering it onto a detector means deciding how its spatial scale maps onto the
-optics in hand. ``DefocusPSF`` and ``CustomPSF`` take a ``wavelength_scaling``
-argument for exactly that. A defocus blur diameter is
+rendering it onto a detector means deciding how its spatial scale maps onto
+the optics in hand. ``DefocusPSF`` and ``CustomPSF`` take a
+``wavelength_scaling`` argument for that. A defocus blur diameter is
 :math:`\Delta z / F\#`, with :math:`\Delta z` the longitudinal focus error:
 
 .. list-table::
@@ -261,26 +252,26 @@ argument for exactly that. A defocus blur diameter is
    * - Mode
      - Meaning
    * - ``"despace"``
-     - **Default.** A fixed longitudinal focus error — a mechanical despace, or
-       a filter substrate of a given thickness in the converging beam.
-       :math:`\Delta z` is then a fixed distance, so the blur diameter
-       :math:`\Delta z / F\#` carries **no wavelength dependence** and source
-       colour only alters the fine diffraction structure inside the blur (a
+     - The default. A fixed longitudinal focus error, such as a mechanical
+       despace or a filter substrate of a given thickness in the converging
+       beam. :math:`\Delta z` is then a fixed distance, so the blur diameter
+       :math:`\Delta z / F\#` has no wavelength dependence, and source colour
+       only alters the fine diffraction structure inside the blur (a
        second-order effect at these Strehl ratios: 0.011 for the 1-wave
        product). Scale factor :math:`F\#_\mathrm{ref} / F\#`.
    * - ``"waves"``
-     - A defocus held at a constant number of waves of wavefront error at every
-       wavelength: :math:`\Delta z = 8 W \lambda F\#^2`, so the blur diameter
-       is :math:`8 W \lambda F\#`. Scale factor
-       :math:`(\lambda / \lambda_\mathrm{ref})(F\# / F\#_\mathrm{ref})`.
-       Use this if your product's defocus is specified as a wavefront error
+     - A defocus held at a constant number of waves of wavefront error at
+       every wavelength: :math:`\Delta z = 8 W \lambda F\#^2`, so the blur
+       diameter is :math:`8 W \lambda F\#`. Scale factor
+       :math:`(\lambda / \lambda_\mathrm{ref})(F\# / F\#_\mathrm{ref})`. Use
+       this if your product's defocus is specified as a wavefront error
        rather than as a distance.
    * - ``"none"``
-     - Render at the array's native sampling, ignoring ``ctx.wavelength_m`` and
-       ``ctx.fnum``. Must be requested explicitly.
+     - Render at the array's native sampling, ignoring ``ctx.wavelength_m``
+       and ``ctx.fnum``. Must be requested explicitly.
 
-Both metadata-driven modes agree at the wavelength and f-number the product was
-computed at. A PSF that carries no reference metadata **raises** rather than
+Both metadata-driven modes agree at the wavelength and f-number the product
+was computed at. A PSF that carries no reference metadata raises instead of
 silently ignoring the optics it was handed:
 
 .. code-block:: python
@@ -312,10 +303,10 @@ Automatic PSF selection by focus level
 --------------------------------------
 
 When you build a simulation with
-:meth:`~wcc_etc.Simulation.from_sensorfilter`, an appropriate default PSF
-(in-focus vs. defocused) is selected for that sensor:filter and used whenever
-you omit ``psf=`` — in ``simulate``, ``render_psf``, ``get_image_snr`` and
-``get_image_exptime_for_snr`` alike. Read it back with
+:meth:`~wcc_etc.Simulation.from_sensorfilter`, the default PSF for that
+sensor and filter, in focus or defocused, is used whenever you omit ``psf=``
+in ``simulate``, ``render_psf``, ``get_image_snr`` and
+``get_image_exptime_for_snr``. Read it back with
 :attr:`~wcc_etc.Simulation.default_psf`, which falls back to a
 diffraction-limited :class:`~wcc_etc.AiryPSF` for simulations built any other
 way:
@@ -328,17 +319,19 @@ way:
 Rendering a PSF on its own
 --------------------------
 
-:meth:`~wcc_etc.ImageSimulator.render_psf` returns the bare PSF on the detector
-grid, normalized to unit sum — no source flux, no background, no noise. It is
-the right tool for comparing PSF shapes, peak-pixel fractions, radial profiles
-and encircled energy across focus levels or jitter values. Because it builds
-its render context the same way ``simulate`` does, it honours the
-source-weighted :math:`\lambda_\mathrm{eff}` described above.
+:meth:`~wcc_etc.ImageSimulator.render_psf` returns the bare PSF on the
+detector grid, normalized to unit sum, with no source flux, background or
+noise. It is the right tool for comparing PSF shapes, peak-pixel fractions,
+radial profiles and encircled energy across focus levels or jitter values.
+Because it builds its render context the same way ``simulate`` does, it
+honours the source-weighted :math:`\lambda_\mathrm{eff}` described above.
+:meth:`~wcc_etc.ImageSimulator.plot_psf` draws that render as an image with a
+log stretch.
 
-Pair it with :attr:`~wcc_etc.ImageSimulator.plate_scale_mas` to feed the
-plotting helpers in milliarcseconds. The peak of the normalized PSF is the
-central-pixel fraction that sets when the detector saturates — here it falls
-by a factor of ~200 from in-focus to two waves of defocus:
+Pair ``render_psf`` with :attr:`~wcc_etc.ImageSimulator.plate_scale_mas` to
+feed the plotting helpers in milliarcseconds. The peak of the normalized PSF
+is the central-pixel fraction that sets when the detector saturates. Here it
+falls by a factor of about 200 from in-focus to two waves of defocus:
 
 .. plot::
    :context: close-figs
@@ -354,7 +347,7 @@ by a factor of ~200 from in-focus to two waves of defocus:
            units="mas",
            ax=ax,
            show_hwhm=False,
-           label=f"{label} — peak {psf_img.max():.4f}",
+           label=f"{label}, peak {psf_img.max():.4f}",
        )
    ax.set_yscale("log")
    ax.set_xlabel("Radius [mas]")
@@ -394,20 +387,21 @@ Use :class:`~wcc_etc.ImageSimulator`:
    * - ``saturation_mask``
      - Boolean mask of saturated pixels.
    * - ``to_adu()``
-     - Image converted to ADU using the sensor gain / bit depth.
+     - Image converted to ADU using the sensor gain and bit depth.
    * - ``to_fitsimg()``
      - A :class:`~wcc_etc.psfsim.FitsImg` for aperture photometry and plotting.
-   * - ``plot_image()`` … ``plot_encircled_energy()``
-     - Convenience plotting dispatchers (see :doc:`plotting`).
+   * - ``plot_image()`` (also ``plot``), ``plot_image_row()``,
+       ``plot_radial()``, ``plot_encircled_energy()``
+     - Plotting dispatchers (see :doc:`plotting`).
 
 Grid size and oversampling
 --------------------------
 
-``npix`` sets the rendered grid and must be large enough to contain the PSF;
-``oversample`` controls sub-pixel rendering before binning to detector pixels.
-The default ``npix`` used inside the SNR path (128) contains the bundled
-defocus PSFs for the current sensors, but very small pixels or stronger defocus
-may need a larger value.
+``npix`` sets the rendered grid and must be large enough to contain the PSF.
+``oversample`` controls sub-pixel rendering before binning to detector
+pixels. The default ``npix`` inside the SNR path (128) contains the bundled
+defocus PSFs for the current sensors, but very small pixels or stronger
+defocus may need a larger value.
 
 Telescope jitter
 ----------------

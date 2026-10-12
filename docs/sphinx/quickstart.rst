@@ -2,7 +2,7 @@ Quick start
 ===========
 
 This page walks through the core workflow in a few minutes. Every snippet
-below uses only the public top-level API exported from ``wcc_etc``.
+uses only the public top-level API exported from ``wcc_etc``.
 
 The mental model
 ----------------
@@ -16,12 +16,13 @@ A calculation is built from three pieces, combined into a
    Sensor (the detector + filter)      ├──►  Simulation  ──►  SNR / exptime / images
    Telescope (aperture, jitter)       ─┘
 
-- A :class:`~wcc_etc.Scene` holds a **source**, an optional **host**, and an
-  optional **background**, each an astronomical spectrum with a magnitude.
-- A :class:`~wcc_etc.Sensor` couples a detector configuration (read noise, dark
-  current, gain, full well, pixel size, bit depth) with a **filter** bandpass.
+- A :class:`~wcc_etc.Scene` holds a source, an optional host, and an optional
+  background, each an astronomical spectrum with a magnitude.
+- A :class:`~wcc_etc.Sensor` couples a detector configuration (read noise,
+  dark current, gain, full well, pixel size, bit depth) with a filter
+  bandpass.
 - A :class:`~wcc_etc.Simulation` ties them to a telescope and exposes the
-  photometry: SNR, exposure time, saturation, simulated images.
+  photometry: SNR, exposure time, saturation, simulated images, plots.
 
 1. Build a scene
 ----------------
@@ -37,8 +38,9 @@ A calculation is built from three pieces, combined into a
        bandpass="johnson_r",
    )
 
-See :doc:`user_guide/scenes` for stellar/galaxy templates, parametric spectra
-(blackbody, flat, power law, emission lines), host galaxies, and backgrounds.
+See :doc:`user_guide/scenes` for stellar and galaxy templates, parametric
+spectra (blackbody, flat, power law, emission lines), host galaxies, and
+backgrounds.
 
 2. Create a simulation for a sensor
 -----------------------------------
@@ -52,13 +54,14 @@ Sensors are addressed as ``"kind:band"`` strings:
    sim = Simulation.from_sensor_and_scene("sony:r", scene)
 
 Available sensors include ``sony:r`` / ``sony:bb`` (Sony IMX455, 16-bit) and
-``qcmos:r`` (Hamamatsu qCMOS, 12-bit, ``gain_mode="high"`` or ``"low"``). See :doc:`configuration` for the full
-list and how the TOML configs are structured.
+``qcmos:r`` (Hamamatsu qCMOS, 12-bit, ``gain_mode="high"`` or ``"low"``). See
+:doc:`configuration` for the full list and how the TOML configs are
+structured.
 
 3. Compute signal-to-noise
 --------------------------
 
-``get_snr`` returns a **dictionary**. The signal-to-noise itself is under the
+``get_snr`` returns a dictionary. The signal-to-noise itself is under the
 ``"snr"`` key:
 
 .. code-block:: python
@@ -80,10 +83,10 @@ list and how the TOML configs are structured.
 
 .. note::
 
-   ``get_snr`` now delegates to the PSF-aware, image-based
-   :meth:`~wcc_etc.Simulation.get_image_snr`. The old analytic Airy-disk
-   formula is still available as ``get_snr_airy`` (deprecated) for cross-checks.
-   See :doc:`user_guide/snr`.
+   ``get_snr`` is the PSF-aware, image-based
+   :meth:`~wcc_etc.Simulation.get_image_snr`. The analytic Airy-disk formula
+   is still available as ``get_snr_airy`` (deprecated) for cross-checks. See
+   :doc:`user_guide/snr`.
 
 4. Invert: exposure time for a target SNR
 -----------------------------------------
@@ -96,7 +99,7 @@ list and how the TOML configs are structured.
 ----------------------------------
 
 Update scene or instrument parameters in place with double-underscore keys,
-then recompute. The render cache is invalidated automatically:
+then recompute. The render cache is cleared for you:
 
 .. code-block:: python
 
@@ -146,6 +149,6 @@ The simulation draws its own curves too, each onto an ``ax=`` of your choice:
 Where to go next
 ----------------
 
-- :doc:`user_guide/index` — the conceptual reference for each subsystem.
-- :doc:`tutorials` — the seven runnable notebooks.
-- :doc:`api/index` — the full auto-generated API reference.
+- :doc:`user_guide/index`, the conceptual reference for each subsystem.
+- :doc:`tutorials`, the seven runnable notebooks.
+- :doc:`api/index`, the full auto-generated API reference.

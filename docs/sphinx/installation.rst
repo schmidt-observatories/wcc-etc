@@ -4,8 +4,8 @@ Installation
 Requirements
 ------------
 
-- **Python 3.11 or newer.**
-- The scientific stack pulled in automatically as dependencies: ``numpy``,
+- Python 3.11 or newer.
+- The scientific stack, pulled in automatically as dependencies: ``numpy``,
   ``scipy``, ``astropy``, ``synphot``, ``matplotlib``, ``pandas``,
   ``photutils``, ``bokeh``, ``tifffile``, and ``lazuli-exo`` (the transit
   models, installed from its GitHub tag until it is on PyPI).
@@ -13,8 +13,8 @@ Requirements
 Install from source (recommended)
 ---------------------------------
 
-The package is developed on GitHub. Clone it and install in *editable* mode so
-local changes to ``src/`` are picked up immediately:
+The package is developed on GitHub. Clone it and install in editable mode so
+local changes to ``src/`` are picked up at once:
 
 .. code-block:: bash
 
@@ -23,7 +23,7 @@ local changes to ``src/`` are picked up immediately:
    pip install -e .
 
 Optional extras add the development tools, the documentation toolchain, and
-the light-curve / Exoplanet Archive helpers:
+the light-curve and Exoplanet Archive helpers:
 
 .. code-block:: bash
 
@@ -35,7 +35,7 @@ the light-curve / Exoplanet Archive helpers:
 Using a conda environment
 -------------------------
 
-The synphot / astropy / photutils stack is happiest in a dedicated
+The synphot, astropy and photutils stack is happiest in a dedicated
 environment:
 
 .. code-block:: bash
@@ -57,8 +57,8 @@ Verify the installation
    sim = Simulation.from_sensor_and_scene("sony:bb", scene)
    print(sim.get_snr(10)["snr"])
 
-If that prints a version string and a signal-to-noise value, you are ready to
-go. Continue with :doc:`quickstart`.
+If that prints a version string and a signal-to-noise value, continue with
+:doc:`quickstart`.
 
 Running the test suite
 ----------------------
@@ -73,11 +73,10 @@ The package ships with a ``pytest`` suite. From the repository root:
 Building the documentation locally
 -----------------------------------
 
-The documentation you are reading is built with `Sphinx
-<https://www.sphinx-doc.org>`_ and the *Read the Docs* theme. The tutorial
-pages are rendered from the Jupyter notebooks via `nbsphinx
-<https://nbsphinx.readthedocs.io>`_, which requires `pandoc
-<https://pandoc.org>`_ to be installed.
+The documentation is built with `Sphinx <https://www.sphinx-doc.org>`_ and
+the *Read the Docs* theme. The tutorial pages are rendered from the Jupyter
+notebooks by `nbsphinx <https://nbsphinx.readthedocs.io>`_, which needs
+`pandoc <https://pandoc.org>`_ installed.
 
 .. code-block:: bash
 
@@ -89,5 +88,6 @@ pages are rendered from the Jupyter notebooks via `nbsphinx
    make html
 
 Open ``docs/sphinx/_build/html/index.html`` in a browser. To force a clean
-rebuild, run ``make clean html``. The build executes every tutorial notebook,
-so it doubles as a smoke test of the public API and takes several minutes.
+rebuild, run ``make clean html``. The build re-executes every tutorial
+notebook and every figure in the user guide, so it doubles as a smoke test
+of the public API and takes several minutes.

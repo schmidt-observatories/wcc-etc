@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The user guide is rewritten for a first-time reader: the SNR page states the noise
+  model and shows the source-limited and background-limited regimes, the saturation and
+  scenes pages gain figures drawn with the new plot methods, and change-history asides are
+  gone from the prose.
 - The tutorial notebooks are committed with their outputs, so the figures and printed
   numbers are visible on GitHub without running them; the pre-commit hook that stripped
   outputs is gone. `CITATION.cff` is removed until there is something to cite.

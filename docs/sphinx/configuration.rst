@@ -39,7 +39,7 @@ The available combinations:
        default; the ADC clips at 552 e) or ``"low"`` (1x, 0.242 ADU/e,
        2.33 e read noise; the 7500 e well clips first).
 
-(The ``zwo`` and ``hwk`` configs back the Sony and qCMOS sensors respectively.)
+The ``zwo`` and ``hwk`` configs back the Sony and qCMOS sensors respectively.
 
 .. note::
 
@@ -64,7 +64,7 @@ The configuration files
        bit depth, and paths to the dark-current, gain, read-noise, and
        well-depth CSV calibration curves.
    * - ``qcmos.toml``
-     - Hamamatsu qCMOS detector (12-bit) — same structure as ``zwo.toml``,
+     - Hamamatsu qCMOS detector (12-bit), the same structure as ``zwo.toml``
        plus ``gain_mode`` and a ``[sensor.gain_modes.<mode>]`` table per mode.
    * - ``lazuli.toml``
      - Telescope: primary diameter (3.065 m), focal ratio (f/15), pointing
@@ -72,8 +72,8 @@ The configuration files
    * - ``astro.toml``
      - Astrophysical defaults, e.g. the background surface brightness.
 
-Example — the Sony detector config
------------------------------------
+Example: the Sony detector config
+---------------------------------
 
 .. code-block:: toml
 
@@ -89,8 +89,8 @@ Example — the Sony detector config
    path_read_noise   = "sensors/.../Read_Noise_vs_Gain_Setting.csv"
    path_well_depth   = "sensors/.../Well_Depth_vs_Gain_Setting.csv"
 
-Example — the telescope config
--------------------------------
+Example: the telescope config
+-----------------------------
 
 .. code-block:: toml
 

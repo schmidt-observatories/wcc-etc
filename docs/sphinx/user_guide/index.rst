@@ -1,9 +1,8 @@
 User guide
 ==========
 
-The user guide explains the concepts behind ``wcc-etc`` and how the pieces fit
-together. It complements the auto-generated :doc:`../api/index`, which gives
-the exact signatures and docstrings.
+The user guide explains the ideas behind ``wcc-etc`` and how the pieces fit
+together. The :doc:`../api/index` has the exact signatures and docstrings.
 
 .. toctree::
    :maxdepth: 2
@@ -15,5 +14,5 @@ the exact signatures and docstrings.
    saturation
    plotting
 
-If you prefer to learn by example, the :doc:`../tutorials` cover the same
-material as runnable notebooks.
+If you would rather learn from a worked example, the :doc:`../tutorials` cover
+the same ground as runnable notebooks.
