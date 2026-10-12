@@ -65,6 +65,9 @@
   are clamped outside their range, and a zwo config without `sensor_temp` raises a
   clear `ValueError` instead of an `AttributeError`.
 
+- Tag-driven PyPI publishing (`publish.yml`): `v*rc*` tags go to TestPyPI, plain `vX.Y.Z` tags
+  to PyPI, via trusted publishing. CI checks the tag against the `pyproject.toml` version,
+  rejects direct-URL dependencies, audits the artifacts and smoke-tests the installed wheel (#108).
 - Sersic hosts: the 5x5 pixels around the cusp are now integrated exactly (adaptive
   quadrature split at the cusp) instead of sampled on the `oversample` sub-grid, which
   overshot the analytic total by up to 3x (n=4) and 4 orders of magnitude (n=8) for
