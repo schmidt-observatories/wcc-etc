@@ -5,7 +5,7 @@ import pytest
 
 import wcc_etc
 from tests.helpers import make_scene
-from wcc_etc.io import _SENSORFILTER_FOCUS, _SENSORFILTER_IMPLEMENTED
+from wcc_etc.io import SENSORFILTER_FOCUS, SENSORFILTER_IMPLEMENTED
 from wcc_etc.simulation import DEFAULT_R_APER_MAS
 
 
@@ -45,8 +45,8 @@ class TestSNRReferenceValues:
 
 DEFOCUSED = sorted(
     label
-    for label, focus in _SENSORFILTER_FOCUS.items()
-    if focus != "0wave" and _SENSORFILTER_IMPLEMENTED[label]
+    for label, focus in SENSORFILTER_FOCUS.items()
+    if focus != "0wave" and SENSORFILTER_IMPLEMENTED[label]
 )
 
 

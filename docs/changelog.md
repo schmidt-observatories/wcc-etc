@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `wcc_etc.io` exposes `SENSORFILTER_FOCUS`, `SENSORFILTER_IMPLEMENTED` and `KIND_NAMES`
+  as public names (in `__all__`, documented). The underscore spellings remain as aliases
+  so wcc-sim keeps importing until it moves to the public ones.
 - Simulation-level plot methods, each taking `ax=None` and returning `(fig, ax)`:
   `Simulation.plot_snr` (alias `plot`), `plot_snr_vs_mag`, `plot_sweep`,
   `plot_peak_pixel` (with the `saturation_e` ceiling and onset marker),
