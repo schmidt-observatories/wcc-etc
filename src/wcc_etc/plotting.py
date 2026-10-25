@@ -996,3 +996,52 @@ def plot_psf(
         ax=ax,
         **kw,
     )
+
+
+def plot_host(
+    sim,
+    time,
+    *,
+    psf=None,
+    seed=0,
+    npix=128,
+    oversample=11,
+    units="mas",
+    axes=None,
+    **kw,
+):
+    """A transient in its host: the simulated frame next to the host alone.
+
+    Left: one noisy ``ImageSimulator.simulate`` realization of the whole scene
+    for ``time`` seconds (``seed`` fixes the noise). Right: the PSF-convolved,
+    noiseless host image for the same time (``Simulation.extended_rate_image``),
+    i.e. what the galaxy contributes under the transient. Both panels share
+    ``units`` and ``kw`` (``cmap=``, ``stretch=`` ...). Returns (fig, axes).
+    """
+    from .psfsim import ImageSimulator
+
+    imsim = ImageSimulator(sim, npix=npix, oversample=oversample)
+    frame = imsim.simulate(time, psf=psf, seed=seed)
+    bundle = sim._image_render_bundle(
+        psf if psf is not None else sim.default_psf, None, npix, oversample
+    )
+    t_sec = float(np.squeeze(seconds(time)))
+    host = bundle["extended_rate_image"] * t_sec
+
+    if axes is None:
+        fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+    else:
+        fig = axes[0].figure
+    plot_image_mpl(
+        frame, noise=True, units=units, ax=axes[0], title=f"{t_sec:g} s frame", **kw
+    )
+    plot_image_mpl(
+        image_clean=host,
+        noise=False,
+        pixel_scale_mas=imsim.plate_scale_mas,
+        units=units,
+        ax=axes[1],
+        title="host alone, no noise",
+        **kw,
+    )
+    return fig, axes

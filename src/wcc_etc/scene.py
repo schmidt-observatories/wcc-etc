@@ -912,6 +912,38 @@ class SceneElement(_MetaHolder_):
 
     plot = show
 
+    def show_image(self, plate_scale_arcsec, npix=256, ax=None, **kwargs):
+        """Draw the element's spatial profile alone on a detector grid.
+
+        The Sersic or NGC galaxy image (see :attr:`profile`) is rendered with
+        :func:`wcc_etc.extended.render_profile` at ``plate_scale_arcsec`` on an
+        ``npix`` x ``npix`` grid, no PSF, and shown with
+        :func:`wcc_etc.plotting.plot_image_mpl` (log stretch by default;
+        ``kwargs`` reach it: ``cmap=``, ``title=``, ``units=`` ...).
+
+        Returns
+        -------
+        (fig, ax)
+        """
+        from .extended import render_profile
+        from .plotting import plot_image_mpl
+
+        profile = self.profile
+        if profile is None:
+            raise ValueError("this element has no spatial profile to show")
+        image = render_profile(profile, plate_scale_arcsec, npix)
+        label = profile.get("name", profile["model"])
+        if "redshift" in self.meta:
+            label += f" at z={self.meta['redshift']}"
+        kwargs = {"stretch": "log", "units": "mas", "title": label} | kwargs
+        return plot_image_mpl(
+            image_clean=image,
+            noise=False,
+            pixel_scale_mas=plate_scale_arcsec * 1000.0,
+            ax=ax,
+            **kwargs,
+        )
+
     # ------------ #
     #  internal    #
     # ------------ #

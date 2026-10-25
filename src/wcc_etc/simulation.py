@@ -1375,6 +1375,12 @@ class Simulation(_MetaHolder_):
 
         return plotting.plot_exptime_for_snr(self, snr, **kwargs)
 
+    def plot_host(self, time, **kwargs):
+        """The simulated frame next to the host alone; see plotting.plot_host."""
+        from . import plotting
+
+        return plotting.plot_host(self, time, **kwargs)
+
     def plot_snr_vs_aperture(self, radii, **kwargs):
         """SNR vs aperture radius; see plotting.plot_snr_vs_aperture."""
         from . import plotting
