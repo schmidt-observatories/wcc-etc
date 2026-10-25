@@ -610,6 +610,7 @@ class SceneElement(_MetaHolder_):
             spectrum = spec_or_file
 
         self._spectrum = spectrum
+        self._normalized_cache = None
 
     def update(self, reset=False, **kwargs):
         """
@@ -688,12 +689,7 @@ class SceneElement(_MetaHolder_):
         if isinstance(self.spectrum, SourceSpectrum):
             mag = self.get_mag(area=area) if apply_mag else None
             if apply_mag and mag is not None:
-                if mag.unit == su.VEGAMAG:
-                    spectrum = self.spectrum.normalize(
-                        mag, band=self.band, vegaspec=_get_vega()
-                    )
-                else:
-                    spectrum = self.spectrum.normalize(mag, band=self.band)
+                spectrum = self.normalized_spectrum(mag)
             else:
                 # mag is None -> spectrum already carries absolute flux
                 # (e.g. emission-line sources); pass it through unchanged,
@@ -709,6 +705,35 @@ class SceneElement(_MetaHolder_):
             kwargs = {} if flux_unit is None else {"flux_unit": flux_unit}
             spectrum = spectrum._get_arrays(wave, **kwargs)
 
+        return spectrum
+
+    def normalized_spectrum(self, mag):
+        """``self.spectrum`` normalized to ``mag`` in ``self.band``, memoized.
+
+        Single-entry cache keyed on the magnitude value and unit, the band
+        object and the stored spectrum object, so a change to ``mag``,
+        ``magsys``, ``band`` (or ``area`` for a surface brightness, which is
+        folded into ``mag``) or a rebuilt spectrum simply misses. The band
+        compares by identity: ``io.resolve_bandpass`` returns one object per
+        name, so a string band hits across calls.
+        """
+        band = self.band
+        key = (float(mag.value), str(mag.unit)) if mag.isscalar else None
+        cached = self._normalized_cache
+        if (
+            key is not None
+            and cached is not None
+            and cached[0] == key
+            and cached[1] is band
+            and cached[2] is self.spectrum
+        ):
+            return cached[3]
+        if mag.unit == su.VEGAMAG:
+            spectrum = self.spectrum.normalize(mag, band=band, vegaspec=_get_vega())
+        else:
+            spectrum = self.spectrum.normalize(mag, band=band)
+        if key is not None:
+            self._normalized_cache = (key, band, self.spectrum, spectrum)
         return spectrum
 
     def get_observation(self, band=None, area=None):
