@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Real galaxies as hosts, ported from slicersim: `host="ngc0628"` uses the r-band
+  image and the spectrum of an NGC galaxy (`lazuli-astrosim-data`, now a dependency),
+  projected to the scene `redshift` at fixed physical size with an offset and a rotation
+  (`wcc_etc.galaxy`). Scene elements take `redshift` (a 1+z stretch of the spectrum) and
+  `magabs` (a rest-frame absolute magnitude, dimmed by the distance modulus), so a
+  transient and its host follow one redshift; a Sersic host accepts `r_kpc`. New plots
+  `SceneElement.show_image` and `Simulation.plot_host`; tutorial `08_galaxy_host.ipynb`.
+- The per-request caches: `airy.get_airy_and_ee_curve`, `airy.render_detector_psf`,
+  `io.resolve_bandpass` and the normalised scene spectrum are memoized (#129).
+
 ## v0.1.0 (2026-10-12)
 
 First PyPI release. Everything in this section, through the initial highlights at the end, ships in it.

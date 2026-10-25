@@ -68,6 +68,31 @@ scene = get_scene(
 )
 ```
 
+## A supernova in its host galaxy
+
+A host can also be a real galaxy: `host="ngc0628"` takes the r-band image and
+the spectrum of NGC 0628 (from the `lazuli_astrosim_data` package, 76 NGC
+galaxies). One `redshift` moves source and host together: the spectra are
+stretched by 1+z, the brightness follows a rest-frame absolute magnitude
+(`magabs`, default -21 in sdss r for a galaxy) through the distance modulus,
+and the galaxy keeps its physical size, so it shrinks on the sky with distance.
+
+```python
+from wcc_etc import Simulation, get_scene
+
+# A SN Ia (M = -19.3) at z = 0.9 in NGC 0628, 0.4" off the nucleus
+scene = get_scene(
+    "hsiao07", mag=None, magabs=-19.3, redshift=0.9, bandpass="sdss_r", magsys="abmag",
+    host="ngc0628", host_prop={"dx": 0.4, "pa": 30},
+)
+sim = Simulation.from_sensorfilter("zwo:r", scene)
+sim.get_image_snr(300)["snr"]      # the host adds flux and noise under the SN
+sim.plot_host(300)                 # the simulated frame next to the host alone
+scene.host.show_image(0.0169)      # the galaxy image on the WCC plate scale
+```
+
+A Sersic host can be sized in kpc the same way (`"r_kpc": 5` with a `redshift`).
+
 # Tutorial
 See the `notebooks/` directory for example tutorials:
 
@@ -80,6 +105,7 @@ See the `notebooks/` directory for example tutorials:
 | `05_n_reads_exptime.ipynb` | `n_reads` and the exposure-time-for-SNR inverses (`get_exptime_for_snr`, `get_image_exptime_for_snr`); per-frame saturation. |
 | `06_source_spectra.ipynb` | Parametric source spectra in `get_scene` (blackbody/flat/powerlaw/emission) and rebuilding via `update`. |
 | `07_sersic_host.ipynb` | A transient on a galaxy: Sersic-profile hosts (`profile="sersic"`), total-mag vs μ_e normalization, nuclear vs offset SNR and saturation. |
+| `08_galaxy_host.ipynb` | A supernova in a real galaxy: NGC hosts moved to the SN redshift (`host="ngc0628"`, `redshift`, `magabs`), the host under the transient, SNR against offset. |
 
 
 # Known limitations (0.1.0)

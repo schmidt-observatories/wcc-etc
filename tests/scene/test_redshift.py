@@ -2,7 +2,6 @@
 
 import astropy.units as u
 import numpy as np
-import pytest
 from astropy.cosmology import Planck18
 from synphot import Empirical1D, Observation, SourceSpectrum
 from synphot import units as su

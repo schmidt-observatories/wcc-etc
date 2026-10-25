@@ -117,7 +117,6 @@ class TestSceneRedshift:
     def test_extended_rate_image_sums_to_host_rate(self):
         """The PSF-convolved NGC host image carries the host rate times its on-grid fraction."""
         from wcc_etc import Simulation
-        from wcc_etc.psfsim import ImageSimulator
 
         scene = get_scene(
             "hsiao07",
