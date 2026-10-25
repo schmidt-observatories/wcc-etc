@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.1 (2026-10-25)
 
 - Real galaxies as hosts, ported from slicersim: `host="ngc0628"` uses the r-band
   image and the spectrum of an NGC galaxy (`lazuli-astrosim-data`, now a dependency),

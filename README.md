@@ -108,7 +108,7 @@ See the `notebooks/` directory for example tutorials:
 | `08_galaxy_host.ipynb` | A supernova in a real galaxy: NGC hosts moved to the SN redshift (`host="ngc0628"`, `redshift`, `magabs`), the host under the transient, SNR against offset. |
 
 
-# Known limitations (0.1.0)
+# Known limitations (0.1.1)
 
 - The zodiacal background is a fixed V = 22.5 mag/arcsec² (Vega) with no dependence on ecliptic latitude, solar elongation or season. The L3 requirement value is 22.1 (#98).
 - The noise model has photon, dark and read terms only: no systematic floor (flat field, intrapixel × jitter, gain drift), no sky-estimation variance, no cosmic rays, no stray-light background (#100).
