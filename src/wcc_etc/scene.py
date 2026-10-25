@@ -14,6 +14,7 @@ from synphot.models import (
 )
 
 from .extended import SERSIC_DEFAULTS
+from .galaxy import COSMOLOGY, load_galaxy_spectrum
 from .meta import _MetaHolder_
 
 __all__ = ["get_scene", "get_scene_from_file", "get_scene_element", "Scene"]
@@ -497,7 +498,14 @@ class SceneElement(_MetaHolder_):
 
     # NOTE: "spectrum" is deliberately absent — the source *type* is fixed at
     # creation. Type-specific shape parameters are added in mutable_parameters.
-    _mutable_parameters = ["mag", "magsys", "bandpass", "surface_brightness"]
+    _mutable_parameters = [
+        "mag",
+        "magsys",
+        "bandpass",
+        "surface_brightness",
+        "redshift",
+        "magabs",
+    ]
 
     def __init__(
         self,
@@ -506,6 +514,8 @@ class SceneElement(_MetaHolder_):
         magsys=None,
         bandpass="johnson_v",
         surface_brightness=False,
+        redshift=None,
+        magabs=None,
         meta={},
     ):
         """
@@ -525,6 +535,16 @@ class SceneElement(_MetaHolder_):
             The bandpass filter. Default is "johnson_v".
         surface_brightness : bool, optional
             Whether the magnitude is surface brightness (mag/arcsec^2). Default is False.
+        redshift : float, optional
+            Redshift: the spectrum's wavelengths are stretched by 1+z (no
+            dimming; that is in ``mag`` or ``magabs``). An NGC spatial model
+            and a Sersic ``r_kpc`` are sized at this redshift. None is 0.
+        magabs : float, optional
+            Rest-frame absolute magnitude in ``bandpass``/``magsys``, used
+            when ``mag`` is None: the rest-frame spectrum is scaled to
+            ``magabs`` at 10 pc, then dimmed by the distance modulus and by
+            1+z (per-Angstrom flux density), as slicersim does. Needs
+            ``redshift`` > 0. See :meth:`absolute_to_observed_mag`.
         meta : dict, optional
             Additional metadata. Default is {}.
         """
@@ -596,6 +616,9 @@ class SceneElement(_MetaHolder_):
                 # parametric spectrum (blackbody, flat, powerlaw, emission)
                 # built from parameters carried in self.meta.
                 spectrum = _SPECTRUM_BUILDERS[spec_or_file.lower()](self.meta)
+            elif spec_or_file.lower().startswith("ngc"):
+                # a real galaxy's own template (wcc_etc.galaxy)
+                spectrum = load_galaxy_spectrum(spec_or_file.lower())
             else:
                 if not os.path.isfile(spec_or_file):
                     # may that is a spectral type:
@@ -609,8 +632,15 @@ class SceneElement(_MetaHolder_):
         elif isinstance(spec_or_file, SourceSpectrum) or spec_or_file is None:
             spectrum = spec_or_file
 
+        # keep the rest-frame template (shared, never mutated) for magabs and
+        # build a fresh redshifted copy for everything else.
+        self._spectrum_rest = spectrum
+        redshift = self.meta.get("redshift")
+        if spectrum is not None and redshift:
+            spectrum = SourceSpectrum(spectrum.model, z=float(redshift))
         self._spectrum = spectrum
         self._normalized_cache = None
+        self._absmag_cache = None
 
     def update(self, reset=False, **kwargs):
         """
@@ -619,15 +649,16 @@ class SceneElement(_MetaHolder_):
 
         The spectrum *type* is fixed at creation, so ``spectrum`` is not mutable.
         Updating a type-specific shape parameter (e.g. ``teff``, ``alpha``,
-        ``lines``) rebuilds the underlying synphot spectrum; ``mag`` / ``bandpass``
-        / etc. take effect at ``get_spectrum`` time and need no rebuild.
+        ``lines``) or ``redshift`` rebuilds the underlying synphot spectrum;
+        ``mag`` / ``bandpass`` / etc. take effect at ``get_spectrum`` time and
+        need no rebuild.
         """
         updated = super().update(reset=reset, **kwargs)
         name = self.meta.get("spectrum")
         shape_params = (
             _SPECTRUM_PARAMS.get(name.lower(), []) if isinstance(name, str) else []
         )
-        if any(key in shape_params for key in updated):
+        if any(key in shape_params or key == "redshift" for key in updated):
             self.set_spectrum(name)
         return updated
 
@@ -706,6 +737,49 @@ class SceneElement(_MetaHolder_):
             spectrum = spectrum._get_arrays(wave, **kwargs)
 
         return spectrum
+
+    def absolute_to_observed_mag(self, magabs):
+        """Observed magnitude in ``band``/``magsys`` of the spectrum at
+        rest-frame absolute magnitude ``magabs`` and the element's ``redshift``.
+
+        The rest-frame template is scaled to ``magabs`` at 10 pc, dimmed by
+        ``distmod(z)`` (:data:`wcc_etc.galaxy.COSMOLOGY`) and by ``1+z`` for
+        the per-Angstrom flux density, and the result is measured in ``band``:
+        the slicersim convention (``generic_get_flux``), i.e. K-corrected
+        through the template's own shape. Single-entry cache keyed on
+        ``magabs``, ``magsys``, the band object and the spectrum object.
+        """
+        redshift = self.meta.get("redshift")
+        if not redshift or redshift <= 0:
+            raise ValueError("magabs needs a redshift > 0 (distance modulus)")
+        band = self.band
+        magsys = _resolve_magsys(self.meta.get("magsys", "vegamag"))
+        key = (float(magabs), str(magsys))
+        cached = self._absmag_cache
+        if (
+            cached is not None
+            and cached[0] == key
+            and cached[1] is band
+            and cached[2] is self.spectrum
+        ):
+            return cached[3]
+        if magsys == su.VEGAMAG:
+            unit, kw = "vegamag", {"vegaspec": _get_vega()}
+        else:
+            unit, kw = "abmag", {}
+        z = float(redshift)
+        rest_mag = (
+            Observation(self._spectrum_rest, band, force="extrap")
+            .effstim(unit, **kw)
+            .value
+        )
+        ratio = 10 ** (-0.4 * (magabs + COSMOLOGY.distmod(z).value - rest_mag))
+        ratio /= 1.0 + z
+        mag = Observation(self.spectrum * ratio, band, force="extrap").effstim(
+            unit, **kw
+        )
+        self._absmag_cache = (key, band, self.spectrum, mag)
+        return mag
 
     def normalized_spectrum(self, mag):
         """``self.spectrum`` normalized to ``mag`` in ``self.band``, memoized.
@@ -820,7 +894,9 @@ class SceneElement(_MetaHolder_):
         """
         # magnitude
         mag = self.meta.get("mag", None)
-        if mag is None:
+        if mag is None and self.meta.get("magabs") is not None:
+            mag = self.absolute_to_observed_mag(self.meta["magabs"])
+        elif mag is None:
             # explicit None is a valid "no normalization" sentinel (e.g.
             # absolute-flux emission sources); only warn if it is truly missing.
             if "mag" not in self.meta:
