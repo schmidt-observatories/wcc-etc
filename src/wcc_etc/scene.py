@@ -251,7 +251,19 @@ _SPECTRUM_PARAMS = {
 }
 
 # Spatial-profile shape parameters, mutable like the spectrum shape parameters.
-_PROFILE_PARAMS = {"sersic": ["r_eff", *SERSIC_DEFAULTS]}
+_PROFILE_PARAMS = {
+    "sersic": ["r_eff", "r_kpc", *SERSIC_DEFAULTS],
+    "ngc": ["dx", "dy", "pa"],
+}
+
+
+def profile_model(profile):
+    """Spatial-model key of a ``profile`` meta entry: ``"sersic"`` or ``"ngc"``
+    (any NGC galaxy name, e.g. ``"ngc0628"``); None for no profile."""
+    if isinstance(profile, str) and profile.lower().startswith("ngc"):
+        return "ngc"
+    return profile
+
 
 # Top level
 
@@ -309,6 +321,8 @@ def get_scene(
         Properties for the background spectrum. None is treated as {}.
     **kwargs
         Additional keyword arguments passed to get_scene_element for the source.
+        A ``redshift`` here is also given to the host unless ``host_prop`` sets
+        its own, so a transient and its galaxy share one redshift.
 
     Returns
     -------
@@ -317,6 +331,8 @@ def get_scene(
     """
     host_prop = host_prop or {}
     background_prop = background_prop or {}
+    if kwargs.get("redshift") is not None and (host is not None or host_prop):
+        host_prop = {"redshift": kwargs["redshift"]} | host_prop
 
     source = get_scene_element(name, mag=mag, **kwargs)
     if host is None and not host_prop:
@@ -435,6 +451,19 @@ def get_scene_element(element=None, **kwargs):
             "surface_brightness": False,
             "bandpass": "johnson_v",
         }
+    ## a real galaxy: its own image and spectrum at a rest-frame absolute
+    ## magnitude (slicersim's defaults: -21 in sdss r, AB)
+    elif profile_model(name) == "ngc":
+        default_config = {
+            "mag": None,
+            "magabs": -21,
+            "surface_brightness": False,
+            "bandpass": "sdss_r",
+            "magsys": "abmag",
+            "profile": name.lower(),
+        }
+        if kwargs.get("mag") is not None:
+            default_config.pop("magabs")
     ## anything else
     else:
         default_config = {
@@ -744,9 +773,10 @@ class SceneElement(_MetaHolder_):
 
         The rest-frame template is scaled to ``magabs`` at 10 pc, dimmed by
         ``distmod(z)`` (:data:`wcc_etc.galaxy.COSMOLOGY`) and by ``1+z`` for
-        the per-Angstrom flux density, and the result is measured in ``band``:
-        the slicersim convention (``generic_get_flux``), i.e. K-corrected
-        through the template's own shape. Single-entry cache keyed on
+        the per-Angstrom flux density (which synphot's redshift provides),
+        and the result is measured in ``band``: the slicersim convention
+        (``generic_get_flux``), i.e. K-corrected through the template's own
+        shape. Single-entry cache keyed on
         ``magabs``, ``magsys``, the band object and the spectrum object.
         """
         redshift = self.meta.get("redshift")
@@ -773,8 +803,10 @@ class SceneElement(_MetaHolder_):
             .effstim(unit, **kw)
             .value
         )
+        # synphot's wavelength-only redshift keeps the photon flux density, so
+        # in erg/s/cm^2/A the spectrum is already dimmed by 1+z: only the
+        # distance modulus is applied here.
         ratio = 10 ** (-0.4 * (magabs + COSMOLOGY.distmod(z).value - rest_mag))
-        ratio /= 1.0 + z
         mag = Observation(self.spectrum * ratio, band, force="extrap").effstim(
             unit, **kw
         )
@@ -949,7 +981,7 @@ class SceneElement(_MetaHolder_):
         name = self.meta.get("spectrum")
         if isinstance(name, str):
             params += _SPECTRUM_PARAMS.get(name.lower(), [])
-        params += _PROFILE_PARAMS.get(self.meta.get("profile"), [])
+        params += _PROFILE_PARAMS.get(profile_model(self.meta.get("profile")), [])
         return params
 
     @property
@@ -984,21 +1016,52 @@ class SceneElement(_MetaHolder_):
     def profile(self):
         """
         Spatial profile parameters (defaults filled), or None for a point /
-        uniform-surface-brightness element. Only ``"sersic"`` is supported;
-        ``r_eff`` (arcsec) is required, see :mod:`wcc_etc.extended`.
+        uniform-surface-brightness element. ``profile`` is ``"sersic"``
+        (``r_eff`` in arcsec, or ``r_kpc`` sized at ``redshift``; see
+        :mod:`wcc_etc.extended`) or an NGC galaxy name such as ``"ngc0628"``
+        (its image at ``redshift``, offset ``dx``/``dy`` in arcsec and
+        rotated by ``pa`` degrees; see :mod:`wcc_etc.galaxy`). The returned
+        dict carries ``model`` for :func:`wcc_etc.extended.render_profile`.
         """
         name = self.meta.get("profile")
         if name is None:
             return None
-        if name not in _PROFILE_PARAMS:
+        model = profile_model(name)
+        if model not in _PROFILE_PARAMS:
             raise ValueError(
                 f"unknown profile {name!r}; supported: {list(_PROFILE_PARAMS)}"
             )
-        if self.meta.get("r_eff") is None:
-            raise ValueError("a 'sersic' profile requires r_eff (arcsec)")
-        p = SERSIC_DEFAULTS | {
-            k: self.meta[k] for k in _PROFILE_PARAMS[name] if k in self.meta
-        }
+        given = {k: self.meta[k] for k in _PROFILE_PARAMS[model] if k in self.meta}
+        redshift = self.meta.get("redshift")
+
+        if model == "ngc":
+            if not redshift or redshift <= 0:
+                raise ValueError("an NGC galaxy image needs redshift > 0")
+            if self.mag_is_surface_brightness:
+                raise ValueError(
+                    "an NGC galaxy image is total-flux normalised; "
+                    "surface_brightness is not supported"
+                )
+            return {
+                "model": "ngc",
+                "name": name.lower(),
+                "redshift": float(redshift),
+                "dx": 0.0,
+                "dy": 0.0,
+                "pa": 0.0,
+            } | given
+
+        p = SERSIC_DEFAULTS | given
+        r_eff, r_kpc = p.pop("r_eff", None), p.pop("r_kpc", None)
+        if r_eff is None and r_kpc is not None:
+            if not redshift or redshift <= 0:
+                raise ValueError("a sersic r_kpc needs redshift > 0")
+            r_eff = r_kpc * COSMOLOGY.arcsec_per_kpc_proper(float(redshift)).value
+        if r_eff is None:
+            raise ValueError(
+                "a 'sersic' profile requires r_eff (arcsec) or r_kpc with redshift"
+            )
+        p = {"r_eff": r_eff} | p
         if not (
             all(np.isfinite(v) for v in p.values())
             and p["r_eff"] > 0
@@ -1009,7 +1072,7 @@ class SceneElement(_MetaHolder_):
                 "invalid sersic profile: need finite values, r_eff > 0, n > 0, "
                 f"0 <= ellip < 1; got {p}"
             )
-        return p
+        return {"model": "sersic"} | p
 
 
 class Scene(_MetaHolder_):

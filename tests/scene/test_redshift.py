@@ -87,7 +87,10 @@ class TestAbsoluteMagnitude:
         ab = get_scene_element("hsiao07", magsys="abmag", **kw)
         vega = get_scene_element("hsiao07", magsys="vegamag", **kw)
         assert not np.isclose(
-            ab.get_spectrum()(6000 * u.AA).value, vega.get_spectrum()(6000 * u.AA).value
+            ab.get_spectrum()(6000 * u.AA).value,
+            vega.get_spectrum()(6000 * u.AA).value,
+            rtol=1e-4,
+            atol=0,
         )
 
     def test_update_magabs_invalidates_cache(self):
