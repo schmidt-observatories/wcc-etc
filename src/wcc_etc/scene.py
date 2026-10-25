@@ -312,7 +312,8 @@ def get_scene(
     mag : float
         Magnitude of the source.
     host : str, optional
-        Name of the host spectrum. Default is None.
+        Name of the host spectrum, or an NGC galaxy name like ``"ngc0628"`` for
+        a real galaxy image and spectrum (see get_scene_element). Default is None.
     host_prop : dict or None, optional
         Properties for the host spectrum. None is treated as {}.
     background : str, optional
@@ -410,7 +411,10 @@ def get_scene_element(element=None, **kwargs):
     ----------
     element : str, dict, or None, optional
         Flexible variable to help instantiating a scene element.
-        - If str: name of a specific pre-defined entry, like 'zodi'.
+        - If str: name of a specific pre-defined entry, like 'zodi', or an NGC
+          galaxy name like 'ngc0628': its own image (``profile``) and spectrum,
+          ``magabs=-21`` in ``sdss_r`` AB unless ``mag`` is given, and it needs
+          a ``redshift``.
         - If dict: configuration that will supersede default config. It overrides kwargs entries.
         - If None: not used, all rely on kwargs.
         Example equivalent calls:
@@ -691,6 +695,11 @@ class SceneElement(_MetaHolder_):
             self.set_spectrum(name)
         return updated
 
+    def reset(self):
+        """Revert meta to the initial parameters and rebuild the spectrum."""
+        super().reset()
+        self.set_spectrum(self.meta.get("spectrum"))
+
     # ------- #
     # GETTER  #
     # ------- #
@@ -782,6 +791,10 @@ class SceneElement(_MetaHolder_):
         redshift = self.meta.get("redshift")
         if not redshift or redshift <= 0:
             raise ValueError("magabs needs a redshift > 0 (distance modulus)")
+        if self.mag_is_surface_brightness:
+            raise ValueError(
+                "magabs is a total magnitude; surface_brightness=True is not supported"
+            )
         band = self.band
         magsys = _resolve_magsys(self.meta.get("magsys", "vegamag"))
         key = (float(magabs), str(magsys))
@@ -1085,6 +1098,8 @@ class SceneElement(_MetaHolder_):
 
         p = SERSIC_DEFAULTS | given
         r_eff, r_kpc = p.pop("r_eff", None), p.pop("r_kpc", None)
+        if r_eff is not None and r_kpc is not None:
+            raise ValueError("give a sersic r_eff (arcsec) or r_kpc, not both")
         if r_eff is None and r_kpc is not None:
             if not redshift or redshift <= 0:
                 raise ValueError("a sersic r_kpc needs redshift > 0")

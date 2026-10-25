@@ -56,6 +56,7 @@ Modules
    telescope
    psfsim
    extended
+   galaxy
    airy
    radial_data
    spectral

@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from astropy.cosmology import Planck18
 
+from tests.helpers import make_host_scene
 from wcc_etc import get_scene
 from wcc_etc.scene import get_scene_element
 
@@ -22,12 +23,13 @@ class TestSersicKpc:
             el.profile["r_eff"], 5 * Planck18.arcsec_per_kpc_proper(Z).value
         )
 
-    def test_r_eff_wins_over_r_kpc(self):
-        """An explicit r_eff is used as is."""
+    def test_r_eff_and_r_kpc_together_raise(self):
+        """Two sizes for one host is an error, not a silent choice."""
         el = get_scene_element(
             "G5V", mag=16, profile="sersic", r_kpc=5, r_eff=0.3, redshift=Z
         )
-        assert el.profile["r_eff"] == 0.3
+        with pytest.raises(ValueError):
+            el.profile
 
     def test_r_kpc_needs_redshift(self):
         """r_kpc without a redshift cannot be sized."""
@@ -96,16 +98,7 @@ class TestNgcDefaults:
 class TestSceneRedshift:
     def test_redshift_reaches_the_host(self):
         """get_scene(redshift=z) sets the host redshift too."""
-        scene = get_scene(
-            "hsiao07",
-            mag=None,
-            magabs=-19.3,
-            redshift=Z,
-            bandpass="sdss_r",
-            magsys="abmag",
-            host="ngc0628",
-        )
-        assert scene.host.meta["redshift"] == Z
+        assert make_host_scene(redshift=Z).host.meta["redshift"] == Z
 
     def test_host_prop_redshift_wins(self):
         """A redshift in host_prop is kept."""
@@ -118,16 +111,7 @@ class TestSceneRedshift:
         """The PSF-convolved NGC host image carries the host rate times its on-grid fraction."""
         from wcc_etc import Simulation
 
-        scene = get_scene(
-            "hsiao07",
-            mag=None,
-            magabs=-19.3,
-            redshift=Z,
-            bandpass="sdss_r",
-            magsys="abmag",
-            host="ngc0628",
-            background=None,
-        )
+        scene = make_host_scene(redshift=Z, background=None)
         sim = Simulation.from_sensorfilter("zwo:r", scene)
         b = sim._image_render_bundle(sim.default_psf, None, 128, 5)
         host_rate = sim._count_rate_components()["extended"][0][0]

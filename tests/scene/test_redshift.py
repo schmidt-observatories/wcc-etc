@@ -2,6 +2,7 @@
 
 import astropy.units as u
 import numpy as np
+import pytest
 from astropy.cosmology import Planck18
 from synphot import Empirical1D, Observation, SourceSpectrum
 from synphot import units as su
@@ -57,6 +58,16 @@ class TestRedshift:
         """redshift is listed among the mutable parameters."""
         assert "redshift" in sn(mag=20).mutable_parameters
 
+    def test_reset_rebuilds_the_spectrum(self):
+        """reset() puts the spectrum back at the initial redshift."""
+        el = sn(mag=20, redshift=Z)
+        el.update(redshift=0.5)
+        el.reset()
+        assert np.isclose(
+            el.spectrum.waveset.max().value,
+            sn(mag=20, redshift=Z).spectrum.waveset.max().value,
+        )
+
 
 class TestAbsoluteMagnitude:
     def test_recovers_rest_frame_absmag(self):
@@ -91,6 +102,12 @@ class TestAbsoluteMagnitude:
             rtol=1e-4,
             atol=0,
         )
+
+    def test_surface_brightness_rejected(self):
+        """magabs is a total magnitude, not a surface brightness."""
+        el = sn(mag=None, magabs=-19.3, redshift=Z, surface_brightness=True)
+        with pytest.raises(ValueError):
+            el.mag
 
     def test_update_magabs_invalidates_cache(self):
         """Changing magabs misses the normalised-spectrum cache."""

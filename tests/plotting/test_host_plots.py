@@ -10,6 +10,7 @@ from matplotlib.figure import Figure
 
 import wcc_etc
 from wcc_etc import get_scene, plotting
+from tests.helpers import make_host_scene
 
 PLATE = 0.016869
 
@@ -22,16 +23,7 @@ def close_figures():
 
 @pytest.fixture
 def sn_in_host():
-    return get_scene(
-        "hsiao07",
-        mag=None,
-        magabs=-19.3,
-        redshift=0.9,
-        bandpass="sdss_r",
-        magsys="abmag",
-        host="ngc0628",
-        host_prop={"dx": 0.3},
-    )
+    return make_host_scene(host_prop={"dx": 0.3})
 
 
 @pytest.fixture
@@ -74,3 +66,8 @@ class TestPlotHost:
     def test_simulation_method(self, sim):
         """Simulation.plot_host is the same plot."""
         assert len(sim.plot_host(60, npix=64, oversample=3)[1]) == 2
+
+    def test_title_kwarg_wins(self, sim):
+        """A caller's title replaces the default on both panels."""
+        axes = sim.plot_host(60, npix=64, oversample=3, title="x")[1]
+        assert [ax.get_title() for ax in axes] == ["x", "x"]

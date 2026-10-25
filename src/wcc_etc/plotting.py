@@ -38,6 +38,7 @@ __all__ = [
     "plot_exptime_for_snr",
     "plot_snr_vs_aperture",
     "plot_psf",
+    "plot_host",
 ]
 
 # Shared look-and-feel for WCC matplotlib plots: STIX math/text font, higher dpi,
@@ -1033,7 +1034,11 @@ def plot_host(
     else:
         fig = axes[0].figure
     plot_image_mpl(
-        frame, noise=True, units=units, ax=axes[0], title=f"{t_sec:g} s frame", **kw
+        frame,
+        noise=True,
+        units=units,
+        ax=axes[0],
+        **({"title": f"{t_sec:g} s frame"} | kw),
     )
     plot_image_mpl(
         image_clean=host,
@@ -1041,7 +1046,6 @@ def plot_host(
         pixel_scale_mas=imsim.plate_scale_mas,
         units=units,
         ax=axes[1],
-        title="host alone, no noise",
-        **kw,
+        **({"title": "host alone, no noise"} | kw),
     )
     return fig, axes
