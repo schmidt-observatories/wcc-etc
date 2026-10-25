@@ -119,7 +119,6 @@ ARCSEC_PER_RAD = 206265.0
 DEFAULT_NPIX = 2001  # "default" extent
 CHUNK_ROWS = 512  # output rows processed at a time (memory cap)
 KEEP_COMPONENTS_MAX_MB = 200  # above this, drop .core/.scatter to save memory
-AIRY_CACHE = {}  # rendering the core is the slow part; memoize it
 
 
 def get_sensor_geometry(sensor):
@@ -429,24 +428,6 @@ def airy_irradiance(r_mm, D, fnum, wavelength, power=1.0, envelope=False):
     return out
 
 
-def render_inner_core(
-    wavelength, fnum, D, pixel_size_um, jitter_sigma_mas, npix, oversample
-):
-    """Memoized ``airy.render_detector_psf`` -- the slow step when called in a loop."""
-    key = (wavelength, fnum, D, pixel_size_um, jitter_sigma_mas, npix, oversample)
-    if key not in AIRY_CACHE:
-        AIRY_CACHE[key] = airy.render_detector_psf(
-            wavelength=wavelength,
-            fnum=fnum,
-            D=D,
-            pixel_size=pixel_size_um,
-            jitter_sigma_mas=jitter_sigma_mas,
-            n_pixels=npix,
-            oversample=oversample,
-        )
-    return AIRY_CACHE[key]
-
-
 def render_airy_core(
     wavelength,
     fnum,
@@ -505,8 +486,14 @@ def render_airy_core(
 
     # ---- exact inner block, matched to the radial scale at the seam ------- #
     n_in = make_odd(min(inner_npix, nx, ny))
-    inner, pscale_check = render_inner_core(
-        wavelength, fnum, D, pixel_size_um, jitter_sigma_mas, n_in, oversample
+    inner, pscale_check = airy.render_detector_psf(  # memoized in wcc_etc.airy
+        wavelength=wavelength,
+        fnum=fnum,
+        D=D,
+        pixel_size=pixel_size_um,
+        jitter_sigma_mas=jitter_sigma_mas,
+        n_pixels=n_in,
+        oversample=oversample,
     )
     assert np.isclose(pscale_check, pscale_mas, rtol=1e-9)
 

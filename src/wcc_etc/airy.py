@@ -1,4 +1,5 @@
 import sys
+from functools import lru_cache
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -163,6 +164,10 @@ def render_detector_psf(
     fraction conservative for a saturation check. The result is normalized so
     the rendered window sums to 1.
 
+    The render is memoized on its plain-float arguments
+    (:func:`render_detector_psf_cached`); the returned array is a fresh copy,
+    so callers may modify it in place.
+
     Defocus extension: a defocus kernel can be convolved alongside the jitter
     kernel at the oversampled stage without changing this function's interface.
 
@@ -214,6 +219,30 @@ def render_detector_psf(
                 file=sys.stderr,
             )
 
+    psf_detector, pscale_mas = render_detector_psf_cached(
+        wavelength, fnum, D, pixel_size, jitter_sigma_mas, n_pixels, oversample
+    )
+    psf_detector = psf_detector.copy()
+
+    if verbose:
+        print(
+            f"render_detector_psf: pscale={pscale_mas:.3f} mas/pix, "
+            f"n_pixels={n_pixels}, oversample={oversample}, "
+            f"peak_fraction={psf_detector.max():.4f}"
+        )
+
+    return psf_detector, pscale_mas
+
+
+@lru_cache(maxsize=64)
+def render_detector_psf_cached(
+    wavelength, fnum, D, pixel_size, jitter_sigma_mas, n_pixels, oversample
+):
+    """Memoized core of :func:`render_detector_psf` (plain floats, odd n_pixels).
+
+    Returns the cached ``(psf_detector, pscale_mas)`` by reference: callers must
+    copy the array before modifying it (``render_detector_psf`` does).
+    """
     # Detector and oversampled plate scales (mas/pix)
     pscale_mas = calc_plate_scale_from_flength(fnum * D, pixel_size) * 1000.0
     fine_pscale_mas = pscale_mas / oversample
@@ -248,13 +277,6 @@ def render_detector_psf(
     total = psf_detector.sum()
     if total > 0:
         psf_detector = psf_detector / total
-
-    if verbose:
-        print(
-            f"render_detector_psf: pscale={pscale_mas:.3f} mas/pix, "
-            f"n_pixels={n_pixels}, oversample={oversample}, "
-            f"peak_fraction={psf_detector.max():.4f}"
-        )
 
     return psf_detector, pscale_mas
 
@@ -444,6 +466,11 @@ def get_airy_and_ee_curve(
     """
     Calculate airy curve
 
+    The render is memoized on its plain-float arguments
+    (:func:`airy_ee_curve_cached`); the returned arrays are fresh copies.
+    ``plot``/``verbose``/``pixel_size``/``fnum`` do not affect the result and
+    are kept out of the cache key.
+
     INPUT:
         wavelength - wavelength in m
         grid_size - number of pixels in the grid (square)
@@ -476,43 +503,22 @@ def get_airy_and_ee_curve(
     fnum = float(fnum.value) if hasattr(fnum, "unit") else float(fnum)
     D = float(D.value) if hasattr(D, "unit") else float(D)
 
-    arcsec_per_radian = 206265.0
-    mas_per_radian = arcsec_per_radian * 1000.0
-    extent_rad = extent_mas / mas_per_radian
-
-    x = np.linspace(-extent_rad, extent_rad, grid_size)
-    y = np.linspace(-extent_rad, extent_rad, grid_size)
-    xx, yy = np.meshgrid(x, y, indexing="xy")
-    rr = np.sqrt(xx**2 + yy**2)
-    psf2d = get_airy_psf(D, rr, wavelength, normalize=True)
-    pixel_scale_mas = (2.0 * extent_mas) / grid_size
-    px_scale_x_mas = pixel_scale_mas
-    px_scale_y_mas = pixel_scale_mas
     if verbose:
-        source_desc = f"Airy PSF (D={D:.2f} m, λ={wavelength * 1e6} μm), grid={grid_size}², px={pixel_scale_mas:.3f} mas"
-        print("Source:", source_desc)
+        pixel_scale_mas = (2.0 * extent_mas) / grid_size
         print(
-            f"Pixel scales: {px_scale_x_mas:.3f} mas/px (x), {px_scale_y_mas:.3f} mas/px (y)"
+            "Source:",
+            f"Airy PSF (D={D:.2f} m, λ={wavelength * 1e6} μm), grid={grid_size}², px={pixel_scale_mas:.3f} mas",
         )
-
-    # Baseline, no jitter
-    r_mas, psf1d, ee = psf_to_encircled_energy(psf2d, px_scale_x_mas, px_scale_y_mas)
-
-    if jitter_sigma_mas != 0:
-        if verbose:
+        print(
+            f"Pixel scales: {pixel_scale_mas:.3f} mas/px (x), {pixel_scale_mas:.3f} mas/px (y)"
+        )
+        if jitter_sigma_mas != 0:
             print("Broadening with {}mas".format(jitter_sigma_mas))
 
-        # Assuming symmetric
-        px_scale_mean = np.sqrt(px_scale_x_mas * px_scale_y_mas)
-        sigma_pix = jitter_sigma_mas / px_scale_mean
-        ker = gaussian_kernel_2d(sigma_pix)
-        psf_blur = fftconvolve(psf2d, ker, mode="same")
-        s = psf_blur.sum()
-        if s > 0:
-            psf_blur /= s
-        r_mas, psf1d, ee = psf_to_encircled_energy(
-            psf_blur, px_scale_x_mas, px_scale_y_mas
-        )
+    r_mas, psf1d, ee = airy_ee_curve_cached(
+        wavelength, D, grid_size, extent_mas, jitter_sigma_mas
+    )
+    r_mas, psf1d, ee = r_mas.copy(), psf1d.copy(), ee.copy()
 
     ee_aper = get_ee_value_at_radius(r_mas, ee, r_aper_mas)
     if plot:
@@ -575,6 +581,47 @@ def get_airy_and_ee_curve(
         bx.set_xlabel("Pixels", fontsize=16)
 
     return r_mas, psf1d, ee, ee_aper
+
+
+@lru_cache(maxsize=64)
+def airy_ee_curve_cached(wavelength, D, grid_size, extent_mas, jitter_sigma_mas):
+    """Memoized core of :func:`get_airy_and_ee_curve` (plain floats).
+
+    Renders the ``grid_size``^2 Airy PSF, applies the jitter blur and bins the
+    radial profile / encircled-energy curve. The aperture radius is not part of
+    the key: reading the curve at ``r_aper_mas`` is cheap and done by the caller.
+    Returns ``(r_mas, psf1d, ee)`` by reference: copy before modifying.
+    """
+    arcsec_per_radian = 206265.0
+    mas_per_radian = arcsec_per_radian * 1000.0
+    extent_rad = extent_mas / mas_per_radian
+
+    x = np.linspace(-extent_rad, extent_rad, grid_size)
+    y = np.linspace(-extent_rad, extent_rad, grid_size)
+    xx, yy = np.meshgrid(x, y, indexing="xy")
+    rr = np.sqrt(xx**2 + yy**2)
+    psf2d = get_airy_psf(D, rr, wavelength, normalize=True)
+    pixel_scale_mas = (2.0 * extent_mas) / grid_size
+    px_scale_x_mas = pixel_scale_mas
+    px_scale_y_mas = pixel_scale_mas
+
+    # Baseline, no jitter
+    r_mas, psf1d, ee = psf_to_encircled_energy(psf2d, px_scale_x_mas, px_scale_y_mas)
+
+    if jitter_sigma_mas != 0:
+        # Assuming symmetric
+        px_scale_mean = np.sqrt(px_scale_x_mas * px_scale_y_mas)
+        sigma_pix = jitter_sigma_mas / px_scale_mean
+        ker = gaussian_kernel_2d(sigma_pix)
+        psf_blur = fftconvolve(psf2d, ker, mode="same")
+        s = psf_blur.sum()
+        if s > 0:
+            psf_blur /= s
+        r_mas, psf1d, ee = psf_to_encircled_energy(
+            psf_blur, px_scale_x_mas, px_scale_y_mas
+        )
+
+    return r_mas, psf1d, ee
 
 
 # Multi-jitter list

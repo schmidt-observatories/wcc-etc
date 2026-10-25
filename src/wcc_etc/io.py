@@ -1,6 +1,7 @@
 import os
 import tomllib
 import warnings
+from functools import lru_cache
 from glob import glob
 from importlib.resources import files
 
@@ -74,14 +75,25 @@ def resolve_bandpass(bandpass):
 
     if isinstance(bandpass, SpectralElement):
         return bandpass
+    return load_bandpass(str(bandpass))
 
-    fname = _LOCAL_FILTERS.get(str(bandpass).lower())
+
+@lru_cache(maxsize=None)
+def load_bandpass(name):
+    """Load the ``SpectralElement`` for a bandpass name; memoized per name.
+
+    The same object is returned on every call (synphot spectra are immutable
+    under arithmetic), so a name resolves to one loaded curve per process.
+    """
+    from synphot import SpectralElement
+
+    fname = _LOCAL_FILTERS.get(name.lower())
     if fname is not None:
         path = os.path.join(_OTHER_FILTERS_DIR, fname)
         if path.endswith(".fits"):
             return SpectralElement.from_file(path)
         return SpectralElement.from_file(path, wave_unit="Angstrom")
-    return SpectralElement.from_filter(bandpass)
+    return SpectralElement.from_filter(name)
 
 
 SENSORS = {
