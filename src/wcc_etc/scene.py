@@ -411,16 +411,15 @@ def get_scene_element(element=None, **kwargs):
     ----------
     element : str, dict, or None, optional
         Flexible variable to help instantiating a scene element.
-        - If str: name of a specific pre-defined entry, like 'zodi', or an NGC
-          galaxy name like 'ngc0628': its own image (``profile``) and spectrum,
-          ``magabs=-21`` in ``sdss_r`` AB unless ``mag`` is given, and it needs
-          a ``redshift``.
+        - If str: name of a specific pre-defined entry, like 'zodi' or 'ngc0628'.
         - If dict: configuration that will supersede default config. It overrides kwargs entries.
         - If None: not used, all rely on kwargs.
         Example equivalent calls:
         - get_scene_element("G5IV", mag=20)
         - get_scene_element({"name": "G5IV", "mag": 20})
         - get_scene_element(name="G5IV", mag=20)
+        An NGC galaxy name brings its own image (``profile``) and spectrum, with
+        ``magabs=-21`` in ``sdss_r`` AB unless ``mag`` is given; it needs a ``redshift``.
     **kwargs
         Configuration parameters used as SceneElement.from_config(kwargs).
 
