@@ -33,6 +33,10 @@ download it and change the numbers to see what happens.
      - A transient on a galaxy: Sersic hosts (``profile="sersic"``), total
        magnitude against :math:`\mu_e` normalization, and SNR at the nucleus
        against SNR in the outskirts.
+   * - :doc:`notebooks/08_galaxy_host`
+     - A supernova in a real galaxy: NGC hosts moved to the SN redshift
+       (``host="ngc0628"``, ``redshift``, ``magabs``), the host under the
+       transient, and SNR against offset.
 
 .. toctree::
    :maxdepth: 1
@@ -45,3 +49,4 @@ download it and change the numbers to see what happens.
    notebooks/05_n_reads_exptime
    notebooks/06_source_spectra
    notebooks/07_sersic_host
+   notebooks/08_galaxy_host

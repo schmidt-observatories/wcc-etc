@@ -42,8 +42,9 @@ sits in; see :ref:`host-spatial-treatment`.
    * - Resolved or extended
      - not expressible (the source is always a point)
      - ``host`` with ``profile="sersic"``, a PSF-convolved galaxy profile (see
-       :ref:`sersic-host`); or ``surface_brightness=True`` alone, uniform per
-       pixel in mag/arcsec²
+       :ref:`sersic-host`), or ``host="ngc0628"``, a real galaxy image moved
+       to ``redshift`` (see :ref:`galaxy-host`); or ``surface_brightness=True``
+       alone, uniform per pixel in mag/arcsec²
 
 Worked examples
 ~~~~~~~~~~~~~~~
@@ -197,11 +198,16 @@ convolves it with the rendered PSF, and shares that one image with
    * - ``profile``
      - str
      - none
-     - ``"sersic"`` (the only profile so far)
+     - ``"sersic"``, or an NGC name such as ``"ngc0628"`` (see :ref:`galaxy-host`)
    * - ``r_eff``
      - arcsec
-     - required
+     - required unless ``r_kpc``
      - half-light radius along the major axis
+   * - ``r_kpc``
+     - kpc
+     - none
+     - physical half-light radius, converted to ``r_eff`` at the element's
+       ``redshift``; give one of ``r_eff`` or ``r_kpc``, not both
    * - ``n``
      - none
      - 1
@@ -277,6 +283,36 @@ of the SNR within an arcsecond:
 The deprecated analytic path (``get_snr_airy``) cannot place a profile and
 warns that it ignores it. The :doc:`Sersic host tutorial
 </notebooks/07_sersic_host>` has images and more sweeps.
+
+.. _galaxy-host:
+
+Real galaxies as hosts
+----------------------
+
+``host="ngc0628"`` (any NGC galaxy in ``lazuli-astrosim-data``) uses the
+galaxy's own r-band image as the spatial profile and its own spectrum as the
+template. The image keeps its physical size, so the host needs a ``redshift``
+larger than the galaxy's own; ``get_scene(..., redshift=z)`` gives the source
+redshift to the host unless ``host_prop`` sets one. The default normalization
+is an absolute magnitude, ``magabs=-21`` in ``sdss_r`` AB, dimmed by the
+distance modulus and K-corrected through the template; pass ``mag`` instead
+for an observed magnitude. ``dx``, ``dy`` (arcsec) and ``pa`` (degrees)
+place and rotate the galaxy. ``redshift`` and ``magabs`` work on any element,
+so the transient can be given the same way:
+
+.. code-block:: python
+
+   scene = get_scene(
+       "hsiao07", mag=None, magabs=-19.3, redshift=0.9,
+       bandpass="sdss_r", magsys="abmag",
+       host="ngc0628", host_prop={"dx": 0.3},
+   )
+   scene.host.show_image(0.0169)   # the host alone, arcsec/pixel
+   sim = Simulation.from_sensorfilter("zwo:r", scene)
+   sim.plot_host(300)              # a 300 s frame next to the host
+
+See the :doc:`galaxy host tutorial </notebooks/08_galaxy_host>` and
+:mod:`wcc_etc.galaxy`.
 
 Magnitude systems
 -----------------

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wcc_etc"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
   {name = "Gudmundur Stefansson", email = "gstefansson@schmidtsciences.org"},
   {name = "Mickael Rigault", email = "m.rigault@ip2i.in2p3.fr"},
@@ -30,6 +30,8 @@ dependencies = [
   "photutils>=1.10",
   # Transit models + Exoplanet Archive helpers (lazuli_exo.transit).
   "lazuli-exo>=0.1.2",
+  # NGC galaxy thumbnails and spectra for real-galaxy hosts (wcc_etc.galaxy).
+  "lazuli-astrosim-data>=0.1.0",
 ]
 
 [project.optional-dependencies]

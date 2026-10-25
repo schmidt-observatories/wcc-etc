@@ -14,6 +14,7 @@ from synphot.models import (
 )
 
 from .extended import SERSIC_DEFAULTS
+from .galaxy import COSMOLOGY, load_galaxy_spectrum
 from .meta import _MetaHolder_
 
 __all__ = ["get_scene", "get_scene_from_file", "get_scene_element", "Scene"]
@@ -250,7 +251,19 @@ _SPECTRUM_PARAMS = {
 }
 
 # Spatial-profile shape parameters, mutable like the spectrum shape parameters.
-_PROFILE_PARAMS = {"sersic": ["r_eff", *SERSIC_DEFAULTS]}
+_PROFILE_PARAMS = {
+    "sersic": ["r_eff", "r_kpc", *SERSIC_DEFAULTS],
+    "ngc": ["dx", "dy", "pa"],
+}
+
+
+def profile_model(profile):
+    """Spatial-model key of a ``profile`` meta entry: ``"sersic"`` or ``"ngc"``
+    (any NGC galaxy name, e.g. ``"ngc0628"``); None for no profile."""
+    if isinstance(profile, str) and profile.lower().startswith("ngc"):
+        return "ngc"
+    return profile
+
 
 # Top level
 
@@ -299,7 +312,8 @@ def get_scene(
     mag : float
         Magnitude of the source.
     host : str, optional
-        Name of the host spectrum. Default is None.
+        Name of the host spectrum, or an NGC galaxy name like ``"ngc0628"`` for
+        a real galaxy image and spectrum (see get_scene_element). Default is None.
     host_prop : dict or None, optional
         Properties for the host spectrum. None is treated as {}.
     background : str, optional
@@ -308,6 +322,8 @@ def get_scene(
         Properties for the background spectrum. None is treated as {}.
     **kwargs
         Additional keyword arguments passed to get_scene_element for the source.
+        A ``redshift`` here is also given to the host unless ``host_prop`` sets
+        its own, so a transient and its galaxy share one redshift.
 
     Returns
     -------
@@ -316,6 +332,8 @@ def get_scene(
     """
     host_prop = host_prop or {}
     background_prop = background_prop or {}
+    if kwargs.get("redshift") is not None and (host is not None or host_prop):
+        host_prop = {"redshift": kwargs["redshift"]} | host_prop
 
     source = get_scene_element(name, mag=mag, **kwargs)
     if host is None and not host_prop:
@@ -393,13 +411,15 @@ def get_scene_element(element=None, **kwargs):
     ----------
     element : str, dict, or None, optional
         Flexible variable to help instantiating a scene element.
-        - If str: name of a specific pre-defined entry, like 'zodi'.
+        - If str: name of a specific pre-defined entry, like 'zodi' or 'ngc0628'.
         - If dict: configuration that will supersede default config. It overrides kwargs entries.
         - If None: not used, all rely on kwargs.
         Example equivalent calls:
         - get_scene_element("G5IV", mag=20)
         - get_scene_element({"name": "G5IV", "mag": 20})
         - get_scene_element(name="G5IV", mag=20)
+        An NGC galaxy name brings its own image (``profile``) and spectrum, with
+        ``magabs=-21`` in ``sdss_r`` AB unless ``mag`` is given; it needs a ``redshift``.
     **kwargs
         Configuration parameters used as SceneElement.from_config(kwargs).
 
@@ -434,6 +454,19 @@ def get_scene_element(element=None, **kwargs):
             "surface_brightness": False,
             "bandpass": "johnson_v",
         }
+    ## a real galaxy: its own image and spectrum at a rest-frame absolute
+    ## magnitude (slicersim's defaults: -21 in sdss r, AB)
+    elif profile_model(name) == "ngc":
+        default_config = {
+            "mag": None,
+            "magabs": -21,
+            "surface_brightness": False,
+            "bandpass": "sdss_r",
+            "magsys": "abmag",
+            "profile": name.lower(),
+        }
+        if kwargs.get("mag") is not None:
+            default_config.pop("magabs")
     ## anything else
     else:
         default_config = {
@@ -497,7 +530,14 @@ class SceneElement(_MetaHolder_):
 
     # NOTE: "spectrum" is deliberately absent — the source *type* is fixed at
     # creation. Type-specific shape parameters are added in mutable_parameters.
-    _mutable_parameters = ["mag", "magsys", "bandpass", "surface_brightness"]
+    _mutable_parameters = [
+        "mag",
+        "magsys",
+        "bandpass",
+        "surface_brightness",
+        "redshift",
+        "magabs",
+    ]
 
     def __init__(
         self,
@@ -506,6 +546,8 @@ class SceneElement(_MetaHolder_):
         magsys=None,
         bandpass="johnson_v",
         surface_brightness=False,
+        redshift=None,
+        magabs=None,
         meta={},
     ):
         """
@@ -525,6 +567,16 @@ class SceneElement(_MetaHolder_):
             The bandpass filter. Default is "johnson_v".
         surface_brightness : bool, optional
             Whether the magnitude is surface brightness (mag/arcsec^2). Default is False.
+        redshift : float, optional
+            Redshift: the spectrum's wavelengths are stretched by 1+z (no
+            dimming; that is in ``mag`` or ``magabs``). An NGC spatial model
+            and a Sersic ``r_kpc`` are sized at this redshift. None is 0.
+        magabs : float, optional
+            Rest-frame absolute magnitude in ``bandpass``/``magsys``, used
+            when ``mag`` is None: the rest-frame spectrum is scaled to
+            ``magabs`` at 10 pc, then dimmed by the distance modulus and by
+            1+z (per-Angstrom flux density), as slicersim does. Needs
+            ``redshift`` > 0. See :meth:`absolute_to_observed_mag`.
         meta : dict, optional
             Additional metadata. Default is {}.
         """
@@ -596,6 +648,9 @@ class SceneElement(_MetaHolder_):
                 # parametric spectrum (blackbody, flat, powerlaw, emission)
                 # built from parameters carried in self.meta.
                 spectrum = _SPECTRUM_BUILDERS[spec_or_file.lower()](self.meta)
+            elif spec_or_file.lower().startswith("ngc"):
+                # a real galaxy's own template (wcc_etc.galaxy)
+                spectrum = load_galaxy_spectrum(spec_or_file.lower())
             else:
                 if not os.path.isfile(spec_or_file):
                     # may that is a spectral type:
@@ -609,8 +664,15 @@ class SceneElement(_MetaHolder_):
         elif isinstance(spec_or_file, SourceSpectrum) or spec_or_file is None:
             spectrum = spec_or_file
 
+        # keep the rest-frame template (shared, never mutated) for magabs and
+        # build a fresh redshifted copy for everything else.
+        self._spectrum_rest = spectrum
+        redshift = self.meta.get("redshift")
+        if spectrum is not None and redshift:
+            spectrum = SourceSpectrum(spectrum.model, z=float(redshift))
         self._spectrum = spectrum
         self._normalized_cache = None
+        self._absmag_cache = None
 
     def update(self, reset=False, **kwargs):
         """
@@ -619,17 +681,23 @@ class SceneElement(_MetaHolder_):
 
         The spectrum *type* is fixed at creation, so ``spectrum`` is not mutable.
         Updating a type-specific shape parameter (e.g. ``teff``, ``alpha``,
-        ``lines``) rebuilds the underlying synphot spectrum; ``mag`` / ``bandpass``
-        / etc. take effect at ``get_spectrum`` time and need no rebuild.
+        ``lines``) or ``redshift`` rebuilds the underlying synphot spectrum;
+        ``mag`` / ``bandpass`` / etc. take effect at ``get_spectrum`` time and
+        need no rebuild.
         """
         updated = super().update(reset=reset, **kwargs)
         name = self.meta.get("spectrum")
         shape_params = (
             _SPECTRUM_PARAMS.get(name.lower(), []) if isinstance(name, str) else []
         )
-        if any(key in shape_params for key in updated):
+        if any(key in shape_params or key == "redshift" for key in updated):
             self.set_spectrum(name)
         return updated
+
+    def reset(self):
+        """Revert meta to the initial parameters and rebuild the spectrum."""
+        super().reset()
+        self.set_spectrum(self.meta.get("spectrum"))
 
     # ------- #
     # GETTER  #
@@ -706,6 +774,56 @@ class SceneElement(_MetaHolder_):
             spectrum = spectrum._get_arrays(wave, **kwargs)
 
         return spectrum
+
+    def absolute_to_observed_mag(self, magabs):
+        """Observed magnitude in ``band``/``magsys`` of the spectrum at
+        rest-frame absolute magnitude ``magabs`` and the element's ``redshift``.
+
+        The rest-frame template is scaled to ``magabs`` at 10 pc, dimmed by
+        ``distmod(z)`` (:data:`wcc_etc.galaxy.COSMOLOGY`) and by ``1+z`` for
+        the per-Angstrom flux density (which synphot's redshift provides),
+        and the result is measured in ``band``: the slicersim convention
+        (``generic_get_flux``), i.e. K-corrected through the template's own
+        shape. Single-entry cache keyed on
+        ``magabs``, ``magsys``, the band object and the spectrum object.
+        """
+        redshift = self.meta.get("redshift")
+        if not redshift or redshift <= 0:
+            raise ValueError("magabs needs a redshift > 0 (distance modulus)")
+        if self.mag_is_surface_brightness:
+            raise ValueError(
+                "magabs is a total magnitude; surface_brightness=True is not supported"
+            )
+        band = self.band
+        magsys = _resolve_magsys(self.meta.get("magsys", "vegamag"))
+        key = (float(magabs), str(magsys))
+        cached = self._absmag_cache
+        if (
+            cached is not None
+            and cached[0] == key
+            and cached[1] is band
+            and cached[2] is self.spectrum
+        ):
+            return cached[3]
+        if magsys == su.VEGAMAG:
+            unit, kw = "vegamag", {"vegaspec": _get_vega()}
+        else:
+            unit, kw = "abmag", {}
+        z = float(redshift)
+        rest_mag = (
+            Observation(self._spectrum_rest, band, force="extrap")
+            .effstim(unit, **kw)
+            .value
+        )
+        # synphot's wavelength-only redshift keeps the photon flux density, so
+        # in erg/s/cm^2/A the spectrum is already dimmed by 1+z: only the
+        # distance modulus is applied here.
+        ratio = 10 ** (-0.4 * (magabs + COSMOLOGY.distmod(z).value - rest_mag))
+        mag = Observation(self.spectrum * ratio, band, force="extrap").effstim(
+            unit, **kw
+        )
+        self._absmag_cache = (key, band, self.spectrum, mag)
+        return mag
 
     def normalized_spectrum(self, mag):
         """``self.spectrum`` normalized to ``mag`` in ``self.band``, memoized.
@@ -806,6 +924,38 @@ class SceneElement(_MetaHolder_):
 
     plot = show
 
+    def show_image(self, plate_scale_arcsec, npix=256, ax=None, **kwargs):
+        """Draw the element's spatial profile alone on a detector grid.
+
+        The Sersic or NGC galaxy image (see :attr:`profile`) is rendered with
+        :func:`wcc_etc.extended.render_profile` at ``plate_scale_arcsec`` on an
+        ``npix`` x ``npix`` grid, no PSF, and shown with
+        :func:`wcc_etc.plotting.plot_image_mpl` (log stretch by default;
+        ``kwargs`` reach it: ``cmap=``, ``title=``, ``units=`` ...).
+
+        Returns
+        -------
+        (fig, ax)
+        """
+        from .extended import render_profile
+        from .plotting import plot_image_mpl
+
+        profile = self.profile
+        if profile is None:
+            raise ValueError("this element has no spatial profile to show")
+        image = render_profile(profile, plate_scale_arcsec, npix)
+        label = profile.get("name", profile["model"])
+        if "redshift" in self.meta:
+            label += f" at z={self.meta['redshift']}"
+        kwargs = {"stretch": "log", "units": "mas", "title": label} | kwargs
+        return plot_image_mpl(
+            image_clean=image,
+            noise=False,
+            pixel_scale_mas=plate_scale_arcsec * 1000.0,
+            ax=ax,
+            **kwargs,
+        )
+
     # ------------ #
     #  internal    #
     # ------------ #
@@ -820,7 +970,9 @@ class SceneElement(_MetaHolder_):
         """
         # magnitude
         mag = self.meta.get("mag", None)
-        if mag is None:
+        if mag is None and self.meta.get("magabs") is not None:
+            mag = self.absolute_to_observed_mag(self.meta["magabs"])
+        elif mag is None:
             # explicit None is a valid "no normalization" sentinel (e.g.
             # absolute-flux emission sources); only warn if it is truly missing.
             if "mag" not in self.meta:
@@ -873,7 +1025,7 @@ class SceneElement(_MetaHolder_):
         name = self.meta.get("spectrum")
         if isinstance(name, str):
             params += _SPECTRUM_PARAMS.get(name.lower(), [])
-        params += _PROFILE_PARAMS.get(self.meta.get("profile"), [])
+        params += _PROFILE_PARAMS.get(profile_model(self.meta.get("profile")), [])
         return params
 
     @property
@@ -908,21 +1060,54 @@ class SceneElement(_MetaHolder_):
     def profile(self):
         """
         Spatial profile parameters (defaults filled), or None for a point /
-        uniform-surface-brightness element. Only ``"sersic"`` is supported;
-        ``r_eff`` (arcsec) is required, see :mod:`wcc_etc.extended`.
+        uniform-surface-brightness element. ``profile`` is ``"sersic"``
+        (``r_eff`` in arcsec, or ``r_kpc`` sized at ``redshift``; see
+        :mod:`wcc_etc.extended`) or an NGC galaxy name such as ``"ngc0628"``
+        (its image at ``redshift``, offset ``dx``/``dy`` in arcsec and
+        rotated by ``pa`` degrees; see :mod:`wcc_etc.galaxy`). The returned
+        dict carries ``model`` for :func:`wcc_etc.extended.render_profile`.
         """
         name = self.meta.get("profile")
         if name is None:
             return None
-        if name not in _PROFILE_PARAMS:
+        model = profile_model(name)
+        if model not in _PROFILE_PARAMS:
             raise ValueError(
                 f"unknown profile {name!r}; supported: {list(_PROFILE_PARAMS)}"
             )
-        if self.meta.get("r_eff") is None:
-            raise ValueError("a 'sersic' profile requires r_eff (arcsec)")
-        p = SERSIC_DEFAULTS | {
-            k: self.meta[k] for k in _PROFILE_PARAMS[name] if k in self.meta
-        }
+        given = {k: self.meta[k] for k in _PROFILE_PARAMS[model] if k in self.meta}
+        redshift = self.meta.get("redshift")
+
+        if model == "ngc":
+            if not redshift or redshift <= 0:
+                raise ValueError("an NGC galaxy image needs redshift > 0")
+            if self.mag_is_surface_brightness:
+                raise ValueError(
+                    "an NGC galaxy image is total-flux normalised; "
+                    "surface_brightness is not supported"
+                )
+            return {
+                "model": "ngc",
+                "name": name.lower(),
+                "redshift": float(redshift),
+                "dx": 0.0,
+                "dy": 0.0,
+                "pa": 0.0,
+            } | given
+
+        p = SERSIC_DEFAULTS | given
+        r_eff, r_kpc = p.pop("r_eff", None), p.pop("r_kpc", None)
+        if r_eff is not None and r_kpc is not None:
+            raise ValueError("give a sersic r_eff (arcsec) or r_kpc, not both")
+        if r_eff is None and r_kpc is not None:
+            if not redshift or redshift <= 0:
+                raise ValueError("a sersic r_kpc needs redshift > 0")
+            r_eff = r_kpc * COSMOLOGY.arcsec_per_kpc_proper(float(redshift)).value
+        if r_eff is None:
+            raise ValueError(
+                "a 'sersic' profile requires r_eff (arcsec) or r_kpc with redshift"
+            )
+        p = {"r_eff": r_eff} | p
         if not (
             all(np.isfinite(v) for v in p.values())
             and p["r_eff"] > 0
@@ -933,7 +1118,7 @@ class SceneElement(_MetaHolder_):
                 "invalid sersic profile: need finite values, r_eff > 0, n > 0, "
                 f"0 <= ellip < 1; got {p}"
             )
-        return p
+        return {"model": "sersic"} | p
 
 
 class Scene(_MetaHolder_):

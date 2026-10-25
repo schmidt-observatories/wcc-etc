@@ -1,8 +1,10 @@
-"""Extended (spatially resolved) scene elements: Sersic-profile hosts.
+"""Extended (spatially resolved) scene elements: Sersic-profile and NGC hosts.
 
-Angular parameterization only — ``r_eff``, ``dx``, ``dy`` in arcsec, ``pa`` in
+Angular parameterization — ``r_eff``, ``dx``, ``dy`` in arcsec, ``pa`` in
 degrees CCW from +x — the convention shared with wcc-sim's SersicComponent,
-Pandeia and the HST ETC. Distance / redshift are deliberately not modelled.
+Pandeia and the HST ETC. A Sersic ``r_kpc`` and an NGC image are turned into
+angular sizes at the element's ``redshift`` upstream (``SceneElement.profile``,
+:mod:`wcc_etc.galaxy`); :func:`render_profile` dispatches on ``profile["model"]``.
 """
 
 import numpy as np
@@ -10,7 +12,12 @@ from astropy.modeling.models import Sersic2D
 from scipy.integrate import dblquad
 from scipy.special import gamma, gammaincinv
 
-__all__ = ["SERSIC_DEFAULTS", "sersic_total_over_amplitude", "render_sersic"]
+__all__ = [
+    "SERSIC_DEFAULTS",
+    "sersic_total_over_amplitude",
+    "render_sersic",
+    "render_profile",
+]
 
 SERSIC_DEFAULTS = {"n": 1.0, "ellip": 0.0, "pa": 0.0, "dx": 0.0, "dy": 0.0}
 
@@ -121,3 +128,36 @@ def render_sersic(
         for ix in range(max(x0 - 2, 0), min(x0 + 3, npix)):
             img[iy, ix] = pixel_integral(ix, iy)
     return img
+
+
+def render_profile(
+    profile, plate_scale_arcsec, npix, oversample=11, center=None, total=True
+):
+    """Render any spatial profile dict (``SceneElement.profile``) on the grid.
+
+    ``profile["model"]`` selects the renderer: ``"sersic"`` goes to
+    :func:`render_sersic` (``total`` picks unit total flux or I/I_e);
+    ``"ngc"`` goes to :func:`wcc_etc.galaxy.render_galaxy` with the dict's
+    ``name``, ``redshift``, ``dx``, ``dy``, ``pa`` (always a flux fraction, so
+    ``total`` and ``oversample`` are ignored). Same ``center`` convention as
+    :func:`render_sersic`.
+    """
+    model = profile.get("model", "sersic")
+    if model == "sersic":
+        return render_sersic(
+            profile, plate_scale_arcsec, npix, oversample, center=center, total=total
+        )
+    if model == "ngc":
+        from .galaxy import render_galaxy
+
+        return render_galaxy(
+            profile["name"],
+            profile["redshift"],
+            plate_scale_arcsec,
+            npix,
+            dx=profile.get("dx", 0.0),
+            dy=profile.get("dy", 0.0),
+            pa=profile.get("pa", 0.0),
+            center=center,
+        )
+    raise ValueError(f"unknown spatial model {model!r}; supported: 'sersic', 'ngc'")

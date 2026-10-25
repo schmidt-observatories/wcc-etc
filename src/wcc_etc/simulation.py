@@ -910,7 +910,8 @@ class Simulation(_MetaHolder_):
     def extended_rate_image(self, psf_norm, ctx, comps=None):
         """PSF-convolved e-/s/pix image of the profiled (extended) elements.
 
-        Each profile is rendered at the integer centre of a grid padded by
+        Each profile (a Sersic or an NGC galaxy image, see
+        ``extended.render_profile``) is rendered at the integer centre of a grid padded by
         ``npix`` (rounded to even) and convolved with ``psf_norm`` in
         ``mode="same"``, whose kernel origin is that same integer centre
         (``psfsim.grid_center``). The host therefore lands wherever the PSF put
@@ -919,7 +920,7 @@ class Simulation(_MetaHolder_):
         lets light from just outside the detector grid convolve inward -- no
         edge loss. Zeros when the scene has no extended element.
         """
-        from .extended import render_sersic
+        from .extended import render_profile
         from .psfsim import center_crop_or_pad
 
         if comps is None:
@@ -930,7 +931,7 @@ class Simulation(_MetaHolder_):
             return image
         big = npix + 2 * (npix // 2)
         for rate, profile, is_sb in comps["extended"]:
-            image_big = rate * render_sersic(
+            image_big = rate * render_profile(
                 profile,
                 ctx.plate_scale_mas / 1000.0,
                 big,
@@ -1373,6 +1374,12 @@ class Simulation(_MetaHolder_):
         from . import plotting
 
         return plotting.plot_exptime_for_snr(self, snr, **kwargs)
+
+    def plot_host(self, time, **kwargs):
+        """The simulated frame next to the host alone; see plotting.plot_host."""
+        from . import plotting
+
+        return plotting.plot_host(self, time, **kwargs)
 
     def plot_snr_vs_aperture(self, radii, **kwargs):
         """SNR vs aperture radius; see plotting.plot_snr_vs_aperture."""

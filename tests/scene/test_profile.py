@@ -20,6 +20,7 @@ class TestProfileProperty:
     def test_defaults_filled(self):
         """Only r_eff was given: n, ellip, pa, dx, dy come from SERSIC_DEFAULTS."""
         assert sersic_scene().host.profile == {
+            "model": "sersic",
             "r_eff": 1.0,
             "n": 1.0,
             "ellip": 0.0,

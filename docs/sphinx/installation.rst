@@ -7,8 +7,9 @@ Requirements
 - Python 3.11 or newer.
 - The scientific stack, pulled in automatically as dependencies: ``numpy``,
   ``scipy``, ``astropy``, ``synphot``, ``matplotlib``, ``pandas``,
-  ``photutils``, ``bokeh``, ``tifffile``, and ``lazuli-exo`` (the transit
-  models).
+  ``photutils``, ``bokeh``, ``tifffile``, ``lazuli-exo`` (the transit
+  models) and ``lazuli-astrosim-data`` (NGC galaxy images and spectra for
+  real hosts, about 47 MB).
 
 Install from source (recommended)
 ---------------------------------

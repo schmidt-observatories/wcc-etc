@@ -25,6 +25,23 @@ def make_scene(
     )
 
 
+def make_host_scene(redshift=0.9, host="ngc0628", **extra):
+    """A SN Ia (hsiao07, M_r = -19.3 AB) at ``redshift`` in an NGC host.
+
+    Extra keyword arguments go straight to get_scene (host_prop, background...).
+    """
+    return wcc_etc.get_scene(
+        name="hsiao07",
+        mag=None,
+        magabs=-19.3,
+        redshift=redshift,
+        bandpass="sdss_r",
+        magsys="abmag",
+        host=host,
+        **extra,
+    )
+
+
 def make_simulation(mag=15, sensor="sony:r", name="G5V", bandpass="johnson_r"):
     """Build a Simulation from a standard zodi-background scene."""
     scene = make_scene(name=name, mag=mag, bandpass=bandpass)
