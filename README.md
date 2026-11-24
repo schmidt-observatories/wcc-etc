@@ -91,6 +91,23 @@ sim.plot_host(300)                 # the simulated frame next to the host alone
 scene.host.show_image(0.0169)      # the galaxy image on the WCC plate scale
 ```
 
+## A slitless grating in a filter slot
+
+`GratingSimulation` models the R ~ 20 two-zone grating of the WCC grating trade
+study on the IMX455 (`"zwo"`) or the HWK4123 (`"qcmos"`). The blue half
+(350-700 nm) gives u, g, r in one exposure and the red half (600-1100 nm) gives
+i, z.
+
+```python
+from wcc_etc import GratingSimulation, get_scene
+
+scene = get_scene("G2V", mag=15, bandpass="johnson_v")
+grating = GratingSimulation.from_sensor_and_scene("zwo", scene, half="blue")
+grating.get_band_snr(60)                  # SNR per band: u, g, r
+grating.simulate(60, seed=1).plot_image() # zeroth order plus spectrum
+```
+
+
 A Sersic host can be sized in kpc the same way (`"r_kpc": 5` with a `redshift`).
 
 # Tutorial

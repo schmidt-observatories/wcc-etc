@@ -23,6 +23,7 @@ Top-level public API
    Telescope
    ImageSimulator
    SimulatedImage
+   GratingSimulation
    AiryPSF
    PolychromaticPSF
    DefocusPSF
@@ -57,6 +58,7 @@ Modules
    psfsim
    extended
    galaxy
+   grating
    airy
    radial_data
    spectral

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Slitless grating ETC (`wcc_etc.grating`, `GratingSimulation`): the two-zone R ~ 20
+  blazed transmission grating of the WCC grating trade study, on the IMX455 or the
+  HWK4123. One half per simulation (`half="blue"`: 350-700 nm, u g r; `half="red"`:
+  600-1100 nm, i z). Renders the dispersed image (orders -1 to +2), the peak pixel and
+  saturation, and the SNR and exposure time per band in a box along the first order.
+- New sensor bands `zwo:nofilter` and `qcmos:nofilter`: end-of-life telescope times WCC
+  contamination and reserve times detector QE, from the Lazuli throughput budget v0.4.
+
 ## v0.1.1 (2026-10-25)
 
 - Real galaxies as hosts, ported from slicersim: `host="ngc0628"` uses the r-band

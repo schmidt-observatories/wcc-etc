@@ -23,6 +23,8 @@ __all__ = [
     "DEFOCUS_2WAVE_PATH",
     "effective_wavelength",
     "photon_weighted_subbands",
+    # slitless grating
+    "GratingSimulation",
     # config / astro helpers
     "get_moon_magnitude",
     "get_pickles_spectrum_filename",
@@ -56,7 +58,7 @@ from lazuli_exo.transit import download_exoplanet_archive, load_exoplanet_archiv
 # Bind the `airy`, `psfsim` and `spectral` submodules as package attributes,
 # so `wcc_etc.airy` / `wcc_etc.psfsim` / `wcc_etc.spectral` work after a bare
 # `import wcc_etc`.
-from . import airy, extended, psfsim, spectral  # noqa: F401  (re-export as package attributes)
+from . import airy, extended, grating, psfsim, spectral  # noqa: F401  (re-export as package attributes)
 from .astro import get_moon_magnitude
 from .io import get_pickles_spectrum_filename, get_sensor_config, read_config
 from .lightcurve import FluxModel, LightCurve, LightCurveSimulator, TransitModel
@@ -89,4 +91,5 @@ from .scene import Scene, get_scene, get_scene_element, get_scene_from_file
 from .sensor import Sensor
 from .telescope import Telescope
 from .simulation import Simulation
+from .grating import GratingSimulation
 from .spectral import effective_wavelength, photon_weighted_subbands

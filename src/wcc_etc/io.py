@@ -110,6 +110,8 @@ SENSORS = {
         "halpha2": "wcc_imx_Ha_2nm_EOL.csv",
         "halpha6": "wcc_imx_Ha_6nm_EOL.csv",
         "halpha20": "wcc_imx_Ha_20nm_EOL.csv",
+        # telescope x WCC contamination/reserve x QE with no filter (grating.py)
+        "nofilter": "wcc_imx_nofilter_throughput.csv",
         "heii": None,
         "hbeta": None,
     },
@@ -120,6 +122,7 @@ SENSORS = {
         "r": "wcc_hwk_r_throughput.csv",  # "Lazuli_WCC_r_20251008_EOL_qCMOS",
         "i": "wcc_hwk_i_throughput.csv",
         "z": "wcc_hwk_z_throughput.csv",  # None,
+        "nofilter": "wcc_hwk_nofilter_throughput.csv",
     },
 }
 
