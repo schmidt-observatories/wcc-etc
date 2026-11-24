@@ -123,6 +123,7 @@ See the `notebooks/` directory for example tutorials:
 | `06_source_spectra.ipynb` | Parametric source spectra in `get_scene` (blackbody/flat/powerlaw/emission) and rebuilding via `update`. |
 | `07_sersic_host.ipynb` | A transient on a galaxy: Sersic-profile hosts (`profile="sersic"`), total-mag vs μ_e normalization, nuclear vs offset SNR and saturation. |
 | `08_galaxy_host.ipynb` | A supernova in a real galaxy: NGC hosts moved to the SN redshift (`host="ngc0628"`, `redshift`, `magabs`), the host under the transient, SNR against offset. |
+| `09_slitless_grating.ipynb` | A slitless grating in a filter slot: `GratingSimulation` on the IMX455 and the HWK4123, the dispersed image, SNR per band against magnitude, comparison with the grating trade memo. |
 
 
 # Known limitations (0.1.1)

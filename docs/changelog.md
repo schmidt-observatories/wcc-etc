@@ -7,6 +7,7 @@
   HWK4123. One half per simulation (`half="blue"`: 350-700 nm, u g r; `half="red"`:
   600-1100 nm, i z). Renders the dispersed image (orders -1 to +2), the peak pixel and
   saturation, and the SNR and exposure time per band in a box along the first order.
+  Tutorial `09_slitless_grating.ipynb`.
 - New sensor bands `zwo:nofilter` and `qcmos:nofilter`: end-of-life telescope times WCC
   contamination and reserve times detector QE, from the Lazuli throughput budget v0.4.
 

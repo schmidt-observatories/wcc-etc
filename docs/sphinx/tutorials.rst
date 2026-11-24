@@ -37,6 +37,10 @@ download it and change the numbers to see what happens.
      - A supernova in a real galaxy: NGC hosts moved to the SN redshift
        (``host="ngc0628"``, ``redshift``, ``magabs``), the host under the
        transient, and SNR against offset.
+   * - :doc:`notebooks/09_slitless_grating`
+     - A slitless grating in a filter slot: ``GratingSimulation`` on the
+       IMX455 and the HWK4123, the dispersed image, SNR per band against
+       magnitude, and a comparison with the grating trade memo.
 
 .. toctree::
    :maxdepth: 1
@@ -50,3 +54,4 @@ download it and change the numbers to see what happens.
    notebooks/06_source_spectra
    notebooks/07_sersic_host
    notebooks/08_galaxy_host
+   notebooks/09_slitless_grating
