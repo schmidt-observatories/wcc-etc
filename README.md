@@ -91,6 +91,23 @@ sim.plot_host(300)                 # the simulated frame next to the host alone
 scene.host.show_image(0.0169)      # the galaxy image on the WCC plate scale
 ```
 
+## A slitless grating in a filter slot
+
+`GratingSimulation` models the R ~ 20 two-zone grating of the WCC grating trade
+study on the IMX455 (`"zwo"`) or the HWK4123 (`"qcmos"`). The blue half
+(350-700 nm) gives u, g, r in one exposure and the red half (600-1100 nm) gives
+i, z.
+
+```python
+from wcc_etc import GratingSimulation, get_scene
+
+scene = get_scene("G2V", mag=15, bandpass="johnson_v")
+grating = GratingSimulation.from_sensor_and_scene("zwo", scene, half="blue")
+grating.get_band_snr(60)                  # SNR per band: u, g, r
+grating.simulate(60, seed=1).plot_image() # zeroth order plus spectrum
+```
+
+
 A Sersic host can be sized in kpc the same way (`"r_kpc": 5` with a `redshift`).
 
 # Tutorial
@@ -106,6 +123,7 @@ See the `notebooks/` directory for example tutorials:
 | `06_source_spectra.ipynb` | Parametric source spectra in `get_scene` (blackbody/flat/powerlaw/emission) and rebuilding via `update`. |
 | `07_sersic_host.ipynb` | A transient on a galaxy: Sersic-profile hosts (`profile="sersic"`), total-mag vs μ_e normalization, nuclear vs offset SNR and saturation. |
 | `08_galaxy_host.ipynb` | A supernova in a real galaxy: NGC hosts moved to the SN redshift (`host="ngc0628"`, `redshift`, `magabs`), the host under the transient, SNR against offset. |
+| `09_slitless_grating.ipynb` | A slitless grating in a filter slot: `GratingSimulation` on the IMX455 and the HWK4123, the dispersed image, SNR per band against magnitude, comparison with the grating trade memo. |
 
 
 # Known limitations (0.1.1)

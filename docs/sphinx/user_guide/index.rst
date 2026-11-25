@@ -12,6 +12,7 @@ together. The :doc:`../api/index` has the exact signatures and docstrings.
    snr
    psf
    saturation
+   grating
    plotting
 
 If you would rather learn from a worked example, the :doc:`../tutorials` cover
