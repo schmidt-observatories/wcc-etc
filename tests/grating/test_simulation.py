@@ -92,13 +92,16 @@ class TestBandSNR:
             GratingSimulation.from_sensor_and_scene("zwo", make_host_scene())
 
 
-def line_rate(wave_aa):
+def line_grating(wave_aa, fwhm=2.0):
+    """Blue-half grating looking at one emission line at ``wave_aa``."""
+    line = {"wave": wave_aa, "flux": 1e-15, "fwhm": fwhm}
+    scene = wcc_etc.get_scene("emission", mag=None, lines=[line], background=None)
+    return GratingSimulation.from_sensor_and_scene("zwo", scene)
+
+
+def line_rate(wave_aa, fwhm=2.0):
     """Pre-grating e-/s of a single emission line at ``wave_aa``."""
-    scene = wcc_etc.get_scene(
-        "emission", mag=None, lines=[{"wave": wave_aa, "flux": 1e-15}]
-    )
-    g = GratingSimulation.from_sensor_and_scene("zwo", scene)
-    return g.spectral_rates()[0].sum()
+    return line_grating(wave_aa, fwhm).spectral_rates()[0].sum()
 
 
 class HorizontalPSF(PSFSource):
@@ -172,3 +175,59 @@ class TestReviewRegressions:
         g = GratingSimulation.from_sensor_and_scene("zwo", make_scene())
         with pytest.raises(ValueError, match="n_reads"):
             g.get_band_snr(1, n_reads=0)
+
+
+class TestAdversarialReviewRegressions:
+    @pytest.mark.parametrize("wave_aa", [5000.0, 5000.25])
+    def test_very_narrow_line_matches_synphot(self, wave_aa):
+        """A 0.2 A line gives the synphot-integrated rate wherever it falls."""
+        g = line_grating(wave_aa, fwhm=0.2)
+        expected = g.sim._count_rate_components()["source_rate_total"]
+        assert g.spectral_rates()[0].sum() == pytest.approx(expected, rel=0.02)
+
+    @pytest.mark.parametrize(
+        "method, kwargs",
+        [
+            ("update_scene", {"source__mag": 26}),
+            ("update_sensor", {"read_noise": 5.0}),
+            ("update_telescope", {"jitter": 30.0}),
+        ],
+    )
+    def test_component_update_invalidates_cache(self, method, kwargs):
+        """Updating a component through the simulation drops the cached rates."""
+        g = GratingSimulation.from_sensor_and_scene("zwo", make_scene(mag=22))
+        g.get_band_snr(1)
+        getattr(g.sim, method)(**kwargs)
+        assert "rates" not in g.cache
+
+    def test_update_scene_matches_fresh_simulation(self):
+        """A warm grating follows update_scene to the new magnitude."""
+        g = GratingSimulation.from_sensor_and_scene("zwo", make_scene(mag=22))
+        g.get_band_snr(1)
+        g.sim.update_scene(source__mag=26)
+        fresh = GratingSimulation.from_sensor_and_scene("zwo", make_scene(mag=26))
+        assert g.get_band_snr(1)["g"] == pytest.approx(fresh.get_band_snr(1)["g"])
+
+    def test_gratings_on_one_simulation_do_not_share_images(self, blue):
+        """A second grating on the same simulation renders its own canvas."""
+        GratingSimulation(blue.sim, half="red").rate_image()
+        other = GratingSimulation(blue.sim, half="blue")
+        assert other.rate_image().shape == other.canvas()[:2]
+
+    def test_single_saturated_frame_is_masked(self):
+        """A pixel that saturates in one frame is masked in the stack."""
+        g = GratingSimulation.from_sensor_and_scene("zwo", make_scene(mag=10))
+        sat = g.sim.sensor.saturation_e.value
+        n = 10
+        t = n * (sat - np.sqrt(sat)) / g.get_peak_pixel(1.0).value
+        image = g.simulate(t, n_reads=n, seed=0)
+        assert image.saturation_mask.any() and image.image_e.max() / n < sat
+
+    def test_set_scene_with_profiled_host_raises(self):
+        """An extended host installed after construction is still refused."""
+        from tests.helpers import make_host_scene
+
+        g = GratingSimulation.from_sensor_and_scene("zwo", make_scene())
+        g.sim.set_scene(make_host_scene())
+        with pytest.raises(NotImplementedError):
+            g.get_band_snr(1)

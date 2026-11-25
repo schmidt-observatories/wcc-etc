@@ -495,6 +495,12 @@ class Simulation(_MetaHolder_):
         self._image_render_bundle_cache = {}
         self._effective_wavelength = None
 
+    def drop_derived_caches(self):
+        """Forget PSF profile, render bundles and effective wavelength."""
+        self._psf_profile = {}
+        self._image_render_bundle_cache = {}
+        self._effective_wavelength = None
+
     def update_telescope(self, **kwargs):
         """
         Update telescope parameters.
@@ -507,6 +513,7 @@ class Simulation(_MetaHolder_):
         shortcuts = {"jitter": "jitter_sigma", "diameter": "diameter_primary"}
         to_update = {shortcuts.get(key, key): value for key, value in kwargs.items()}
         self.telescope.update(**to_update)
+        self.drop_derived_caches()
 
     def update_scene(self, **kwargs):
         """
@@ -518,6 +525,7 @@ class Simulation(_MetaHolder_):
             Scene parameters.
         """
         self.scene.update(**kwargs)
+        self.drop_derived_caches()
 
     def update_sensor(self, **kwargs):
         """
@@ -529,6 +537,7 @@ class Simulation(_MetaHolder_):
             Sensor parameters.
         """
         self.sensor.update(**kwargs)
+        self.drop_derived_caches()
 
     def get_parameter(self, name, as_dict=False):
         """

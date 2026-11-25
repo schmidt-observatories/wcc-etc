@@ -25,7 +25,7 @@ import warnings
 
 import numpy as np
 from astropy import units as u
-from scipy.integrate import trapezoid
+from scipy.integrate import cumulative_trapezoid, trapezoid
 from scipy.signal import fftconvolve
 from synphot import units as su
 
@@ -164,11 +164,8 @@ class GratingSimulation:
             raise ValueError(
                 f"half must be one of {sorted(GRATING_HALVES)}, got {half!r}"
             )
-        if any(p is not None for p in simulation.scene.call_down("profile")):
-            raise NotImplementedError(
-                "extended (profiled) scene elements are not supported by the grating"
-            )
         self.sim = simulation
+        self.check_scene()
         self.half = half
         self.design = GRATING_HALVES[half]
         self.orders = tuple(int(m) for m in orders)
@@ -190,14 +187,24 @@ class GratingSimulation:
         )
         return cls(sim, half=half, **kwargs)
 
+    def check_scene(self):
+        """Refuse scenes the grating cannot render (extended elements)."""
+        if any(p is not None for p in self.sim.scene.call_down("profile")):
+            raise NotImplementedError(
+                "extended (profiled) scene elements are not supported by the grating"
+            )
+
     @property
     def cache(self):
         """Derived rates and images, dropped when the simulation changes.
 
-        Kept inside the simulation's render cache, which the simulation
-        replaces whenever its scene, sensor or telescope are set or updated.
+        The simulation replaces its render-cache dict whenever its scene,
+        sensor or telescope are set or updated; a new dict means a new state.
         """
-        return self.sim._image_render_bundle_cache.setdefault(("grating", id(self)), {})
+        token = self.sim._image_render_bundle_cache
+        if getattr(self, "cache_token", None) is not token:
+            self.cache_token, self.cache_store = token, {}
+        return self.cache_store
 
     # ---------------------------------------------------------------- geometry
     @property
@@ -235,8 +242,9 @@ class GratingSimulation:
 
         Returns ``(point, sky)``: e-/s/nm of the source plus unresolved
         contaminants, and e-/s/nm/pixel of the surface-brightness elements.
-        Each value is the mean over its 1 nm bin, so narrow emission lines
-        keep their integrated flux wherever they fall.
+        Each value is the mean over its 1 nm bin, integrated over the native
+        wavelength samples of the spectrum, so narrow emission lines keep
+        their integrated flux wherever they fall.
         """
         return self.element_rates()[1:]
 
@@ -244,13 +252,12 @@ class GratingSimulation:
         """``(source, point, sky)`` rates; ``point`` includes the source."""
         if "rates" in self.cache:
             return self.cache["rates"]
+        self.check_scene()
         sim = self.sim
         pixel_area = (self.plate_scale_mas / 1000.0) ** 2
         area_cm2 = sim.telescope.surface.to_value(u.cm**2)
-        # ponytail: 0.05 nm sub-sampling resolves lines of FWHM >~ 1 A;
-        # sample finer if narrower lines are ever needed
-        sub = (np.arange(20) + 0.5) / 20 - 0.5
-        wave = (self.wave_nm[:, None] + sub).ravel() * u.nm
+        edges = np.append(self.wave_nm - 0.5, self.wave_nm[-1] + 0.5)
+        grid = np.arange(edges[0], edges[-1] + 0.05, 0.1)
         source = np.zeros_like(self.wave_nm)
         point = np.zeros_like(self.wave_nm)
         sky = np.zeros_like(self.wave_nm)
@@ -262,8 +269,14 @@ class GratingSimulation:
             if o is None:
                 continue
             # PHOTLAM = photon / s / cm^2 / Angstrom, after the no-filter bandpass
-            rate = o(wave, flux_unit=su.PHOTLAM).value * area_cm2 * 10.0
-            rate = rate.reshape(-1, sub.size).mean(axis=1)
+            # the spectrum's own samples (which resolve its lines) plus a
+            # 0.1 nm grid, integrated between the bin edges
+            native = [] if o.waveset is None else o.waveset.to_value(u.nm)
+            wave = np.unique(np.round(np.concatenate([grid, native]), 6))
+            wave = wave[(wave >= edges[0]) & (wave <= edges[-1])]
+            flux = o(wave * u.nm, flux_unit=su.PHOTLAM).value * area_cm2 * 10.0
+            cumulative = cumulative_trapezoid(flux, wave, initial=0.0)
+            rate = np.diff(np.interp(edges, wave, cumulative)) / np.diff(edges)
             if sb.get(name, False):
                 sky += rate
             else:
@@ -353,8 +366,8 @@ class GratingSimulation:
         """Detector image of one frame stack of total exposure ``time`` (s).
 
         Returns a :class:`~wcc_etc.SimulatedImage` (rectangular; ``npix`` is the
-        long side). The saturation mask is evaluated per frame (``time /
-        n_reads``); read noise is added ``n_reads`` times.
+        long side). With noise, each of the ``n_reads`` frames is drawn on its
+        own and a pixel is masked if it saturates in any of them.
         """
         t = u.Quantity(time, u.s).value
         n_reads = self.sim._resolve_n_reads(n_reads)
@@ -365,15 +378,21 @@ class GratingSimulation:
         if add_noise:
             rng = np.random.default_rng(seed)
             read_noise = sensor.read_noise.to(u.electron / u.pix).value
-            image = rng.poisson(clean).astype(float) + rng.normal(
-                0.0, read_noise * np.sqrt(n_reads), size=clean.shape
-            )
+            image = np.zeros_like(clean)
+            mask = np.zeros(clean.shape, dtype=bool)
+            for _ in range(n_reads):
+                frame = rng.poisson(clean / n_reads) + rng.normal(
+                    0.0, read_noise, size=clean.shape
+                )
+                mask |= saturation_mask_from_image_e(sensor, frame)
+                image += frame
         else:
             image = clean.copy()
+            mask = saturation_mask_from_image_e(sensor, image / n_reads)
         return SimulatedImage(
             image_e=image,
             image_clean=clean,
-            saturation_mask=saturation_mask_from_image_e(sensor, image / n_reads),
+            saturation_mask=mask,
             gain=sensor.gain.to(u.electron / u.ct).value,
             bias_level=sensor.bias_level.to(u.ct).value,
             npix=max(image.shape),
