@@ -4,8 +4,10 @@ import numpy as np
 import pytest
 from scipy.integrate import trapezoid
 
+import wcc_etc
 from tests.helpers import make_scene
 from wcc_etc.grating import GratingSimulation
+from wcc_etc.psfsim import PSFSource
 
 
 class TestRateImage:
@@ -88,3 +90,85 @@ class TestBandSNR:
 
         with pytest.raises(NotImplementedError):
             GratingSimulation.from_sensor_and_scene("zwo", make_host_scene())
+
+
+def line_rate(wave_aa):
+    """Pre-grating e-/s of a single emission line at ``wave_aa``."""
+    scene = wcc_etc.get_scene(
+        "emission", mag=None, lines=[{"wave": wave_aa, "flux": 1e-15}]
+    )
+    g = GratingSimulation.from_sensor_and_scene("zwo", scene)
+    return g.spectral_rates()[0].sum()
+
+
+class HorizontalPSF(PSFSource):
+    """An 11 x 1 pixel bar along detector x."""
+
+    def render(self, ctx):
+        psf = np.zeros((ctx.npix, ctx.npix))
+        c = ctx.npix // 2
+        psf[c, c - 5 : c + 6] = 1 / 11
+        return psf
+
+
+class TestReviewRegressions:
+    def test_narrow_line_flux_independent_of_position(self):
+        """A 2 A line keeps its flux on and between the 1 nm bin centres."""
+        assert line_rate(5005.0) == pytest.approx(line_rate(5000.0), rel=0.02)
+
+    def test_unresolved_host_does_not_add_signal(self):
+        """A bright point-like host lowers, not raises, the target SNR."""
+        host = {"mag": 16, "bandpass": "johnson_r"}
+        with_host = GratingSimulation.from_sensor_and_scene(
+            "zwo", make_scene(mag=22, host="G5V", host_prop=host)
+        )
+        alone = GratingSimulation.from_sensor_and_scene("zwo", make_scene(mag=22))
+        assert with_host.get_band_snr(1)["g"] < alone.get_band_snr(1)["g"]
+
+    def test_set_scene_invalidates_cache(self):
+        """Replacing the scene changes the SNR to that of a fresh simulation."""
+        g = GratingSimulation.from_sensor_and_scene("zwo", make_scene(mag=22))
+        g.get_band_snr(1)
+        g.sim.set_scene(make_scene(mag=26))
+        fresh = GratingSimulation.from_sensor_and_scene("zwo", make_scene(mag=26))
+        assert g.get_band_snr(1)["g"] == pytest.approx(fresh.get_band_snr(1)["g"])
+
+    def test_band_snr_needs_first_order(self):
+        """Band extraction without order +1 in the image is refused."""
+        g = GratingSimulation.from_sensor_and_scene("zwo", make_scene(), orders=(0, 2))
+        with pytest.raises(ValueError, match="order \\+1"):
+            g.get_band_snr(1)
+
+    def test_solver_flags_saturated_bands(self):
+        """A solved exposure that saturates the peak pixel warns."""
+        g = GratingSimulation.from_sensor_and_scene("zwo", make_scene(mag=16))
+        with pytest.warns(UserWarning, match="saturates at the solved time"):
+            g.get_band_exptime_for_snr(1000)
+
+    def test_red_half_keeps_psf_orientation(self):
+        """A bar PSF along detector x stays along x on the red half."""
+        g = GratingSimulation.from_sensor_and_scene(
+            "zwo", make_scene(), half="red", orders=(0,), psf=HorizontalPSF()
+        )
+        image = g.oriented(g.rate_image())
+        lit = image > 0.01 * image.max()
+        assert lit.any(axis=0).sum() > lit.any(axis=1).sum()
+
+    def test_boundary_pixels_weigh_variance_squared(self):
+        """Half-covered pixels carry a quarter of the read-noise variance."""
+        scale = GratingSimulation.from_sensor_and_scene(
+            "zwo", make_scene()
+        ).plate_scale_mas
+        half, full = (
+            GratingSimulation.from_sensor_and_scene(
+                "zwo", make_scene(), aperture_mas=k * scale
+            ).band_coefficients()["g"][2]
+            for k in (0.25, 0.5)
+        )
+        assert half / full == pytest.approx(0.25)
+
+    def test_zero_reads_rejected(self):
+        """n_reads = 0 raises instead of returning a finite SNR."""
+        g = GratingSimulation.from_sensor_and_scene("zwo", make_scene())
+        with pytest.raises(ValueError, match="n_reads"):
+            g.get_band_snr(1, n_reads=0)

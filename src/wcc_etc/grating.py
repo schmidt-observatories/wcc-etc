@@ -180,8 +180,7 @@ class GratingSimulation:
         self.psf = AiryPSF() if psf is None else psf
         self.psf_npix = int(psf_npix) | 1
         self.aperture_mas = float(aperture_mas)
-        self.wave_nm = np.arange(300.0, 1100.5, 1.0)
-        self.cache = {}
+        self.wave_nm = np.arange(300.0, 1100.5, 1.0)  # centres of 1 nm bins
 
     @classmethod
     def from_sensor_and_scene(cls, kind, scene, half="blue", gain_mode=None, **kwargs):
@@ -190,6 +189,15 @@ class GratingSimulation:
             f"{kind.split(':')[0]}:nofilter", scene, gain_mode=gain_mode
         )
         return cls(sim, half=half, **kwargs)
+
+    @property
+    def cache(self):
+        """Derived rates and images, dropped when the simulation changes.
+
+        Kept inside the simulation's render cache, which the simulation
+        replaces whenever its scene, sensor or telescope are set or updated.
+        """
+        return self.sim._image_render_bundle_cache.setdefault(("grating", id(self)), {})
 
     # ---------------------------------------------------------------- geometry
     @property
@@ -227,13 +235,23 @@ class GratingSimulation:
 
         Returns ``(point, sky)``: e-/s/nm of the source plus unresolved
         contaminants, and e-/s/nm/pixel of the surface-brightness elements.
+        Each value is the mean over its 1 nm bin, so narrow emission lines
+        keep their integrated flux wherever they fall.
         """
+        return self.element_rates()[1:]
+
+    def element_rates(self):
+        """``(source, point, sky)`` rates; ``point`` includes the source."""
         if "rates" in self.cache:
             return self.cache["rates"]
         sim = self.sim
         pixel_area = (self.plate_scale_mas / 1000.0) ** 2
         area_cm2 = sim.telescope.surface.to_value(u.cm**2)
-        wave = self.wave_nm * u.nm
+        # ponytail: 0.05 nm sub-sampling resolves lines of FWHM >~ 1 A;
+        # sample finer if narrower lines are ever needed
+        sub = (np.arange(20) + 0.5) / 20 - 0.5
+        wave = (self.wave_nm[:, None] + sub).ravel() * u.nm
+        source = np.zeros_like(self.wave_nm)
         point = np.zeros_like(self.wave_nm)
         sky = np.zeros_like(self.wave_nm)
         sb = sim.scene.call_down("mag_is_surface_brightness", as_dict=True)
@@ -245,12 +263,15 @@ class GratingSimulation:
                 continue
             # PHOTLAM = photon / s / cm^2 / Angstrom, after the no-filter bandpass
             rate = o(wave, flux_unit=su.PHOTLAM).value * area_cm2 * 10.0
+            rate = rate.reshape(-1, sub.size).mean(axis=1)
             if sb.get(name, False):
                 sky += rate
             else:
                 point += rate
-        self.cache["rates"] = (point, sky)
-        return point, sky
+                if name == "source":
+                    source += rate
+        self.cache["rates"] = (source, point, sky)
+        return self.cache["rates"]
 
     def background_rate_per_pix(self):
         """Sky e-/s/pixel: slitless, so every pixel sees the whole passband.
@@ -278,19 +299,22 @@ class GratingSimulation:
         nx = x0 + int(np.ceil(max(ends + [0.0]))) + pad + 1
         return self.psf_npix, nx, x0, pad
 
-    def rate_image(self, orders=None, psf_step_nm=25.0):
+    def rate_image(self, orders=None, psf_step_nm=25.0, source_only=False):
         """Noiseless e-/s image of the point sources, dispersion along x.
 
         The trace of each ``psf_step_nm`` wavelength bin is laid down at its
         sub-pixel offsets for every order and convolved with the PSF rendered
-        at the bin centre (with the telescope jitter).
+        at the bin centre (with the telescope jitter). ``source_only`` leaves
+        out unresolved contaminants (e.g. a point-like host). For the red half
+        the PSF is transposed here, so that :meth:`oriented` returns it in its
+        detector orientation.
         """
         orders = self.orders if orders is None else tuple(orders)
-        key = ("image", orders, float(psf_step_nm))
+        key = ("image", orders, float(psf_step_nm), bool(source_only))
         if key in self.cache:
             return self.cache[key]
         ny, nx, x0, y0 = self.canvas()
-        point, _ = self.spectral_rates()
+        point = self.element_rates()[0 if source_only else 1]
         ctx = ImageSimulator(self.sim, npix=self.psf_npix)._context()
         image = np.zeros((ny, nx))
         bins = np.floor((self.wave_nm - self.wave_nm[0]) / psf_step_nm).astype(int)
@@ -314,6 +338,8 @@ class GratingSimulation:
             psf = self.psf.render(
                 dataclasses.replace(ctx, wavelength_m=float(wave.mean()) * 1e-9)
             )
+            if self.half == "red":
+                psf = psf.T
             image += fftconvolve(trace, psf, mode="same")
         image = np.clip(image, 0.0, None)
         self.cache[key] = image
@@ -331,6 +357,7 @@ class GratingSimulation:
         n_reads``); read noise is added ``n_reads`` times.
         """
         t = u.Quantity(time, u.s).value
+        n_reads = self.sim._resolve_n_reads(n_reads)
         sensor = self.sim.sensor
         dark = sensor.dark_current.to(u.electron / (u.s * u.pix)).value
         clean = self.oriented(self.rate_image()) + self.background_rate_per_pix() + dark
@@ -357,7 +384,7 @@ class GratingSimulation:
     # -------------------------------------------------------------- saturation
     def get_peak_pixel(self, time, n_reads=1):
         """Brightest-pixel charge per frame (electrons), all orders included."""
-        tf = u.Quantity(time, u.s).value / n_reads
+        tf = u.Quantity(time, u.s).value / self.sim._resolve_n_reads(n_reads)
         dark = self.sim.sensor.dark_current.to(u.electron / (u.s * u.pix)).value
         rate = self.rate_image().max() + self.background_rate_per_pix() + dark
         return rate * tf * u.electron
@@ -371,12 +398,17 @@ class GratingSimulation:
         """Per band ``(A, B, C)`` with ``SNR = A t / sqrt(B t + C)``.
 
         The box is ``+-aperture_mas`` across the dispersion by the band length
-        along the first order. A is the first-order signal rate in the box; B
-        adds the light of the other orders, sky and dark in the box; C is the
-        read-noise variance of the box pixels times ``n_reads``.
+        along the first order. A is the first-order rate of the source in the
+        box; B adds the light of the other orders, unresolved contaminants,
+        sky and dark in the box; C is the read-noise variance of the box pixels
+        times ``n_reads``. Boundary pixels enter with their fractional coverage
+        ``w`` in A and ``w**2`` in the variances B and C.
         """
+        if 1 not in self.orders:
+            raise ValueError("band extraction needs order +1 in `orders`")
+        n_reads = self.sim._resolve_n_reads(n_reads)
         ny, nx, x0, y0 = self.canvas()
-        first = self.rate_image(orders=(1,))
+        first = self.rate_image(orders=(1,), source_only=True)
         total = self.rate_image()
         sensor = self.sim.sensor
         dark = sensor.dark_current.to(u.electron / (u.s * u.pix)).value
@@ -387,10 +419,10 @@ class GratingSimulation:
         for band, (lo, hi) in self.design["bands"].items():
             a, b = x0 + self.offset_px(lo), x0 + self.offset_px(hi)
             w = np.outer(wy, box_weights(nx, (a + b) / 2, (b - a) / 2))
-            n_pix = w.sum()
+            n_pix = (w**2).sum()
             out[band] = (
                 float((first * w).sum()),
-                float((total * w).sum() + n_pix * per_pix),
+                float((total * w**2).sum() + n_pix * per_pix),
                 float(n_pix * read_noise**2 * n_reads),
             )
         return out
@@ -409,8 +441,24 @@ class GratingSimulation:
         }
 
     def get_band_exptime_for_snr(self, snr, n_reads=1):
-        """Total exposure time (s) per band (dict) to reach ``snr``."""
-        return {
+        """Total exposure time (s) per band (dict) to reach ``snr``.
+
+        Warns, naming the bands, when the brightest pixel saturates at the
+        solved time.
+        """
+        times = {
             band: solve_time_for_snr(snr, A, B, C)
             for band, (A, B, C) in self.band_coefficients(n_reads).items()
         }
+        saturated = [
+            band
+            for band, t in times.items()
+            if np.isfinite(t) and self.is_saturated(t, n_reads)
+        ]
+        if saturated:
+            warnings.warn(
+                f"the brightest pixel saturates at the solved time for "
+                f"{', '.join(saturated)}; use more reads",
+                stacklevel=2,
+            )
+        return times

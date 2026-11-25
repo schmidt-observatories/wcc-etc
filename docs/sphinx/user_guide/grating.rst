@@ -59,8 +59,11 @@ Per-band SNR
 
 Each band is summed in a box of ``aperture_mas`` (70 mas) either side of the
 trace by the length of the band along the first order. The signal is the
-first-order light in the box; the noise adds the other orders, the sky, the
-dark current and the read noise of the box pixels, once per read.
+first-order light of the source in the box; the noise adds the other orders,
+any unresolved host, the sky, the dark current and the read noise of the box
+pixels, once per read. Partially covered boundary pixels enter with their
+fractional weight. ``get_band_exptime_for_snr`` warns when a solved exposure
+saturates the brightest pixel.
 
 Limits
 ------
